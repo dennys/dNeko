@@ -1,0 +1,7 @@
+{
+    "appTitle": "dNeko",
+    "callNativeMethod": "Call Native Method",
+    "callNativePlatformCode": "Call Native Platform Code:",
+    "nativeSays": "Native says: {value}",
+    "failedToGetNativeMessage": "Failed to get native message: '{value}'."
+}

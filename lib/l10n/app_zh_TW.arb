@@ -1,0 +1,7 @@
+{
+    "appTitle": "dNeko",
+    "callNativeMethod": "呼叫原生方法",
+    "callNativePlatformCode": "呼叫原生平台代碼：",
+    "nativeSays": "原生說：{value}",
+    "failedToGetNativeMessage": "無法獲取原生消息：'{value}'。"
+}
