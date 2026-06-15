@@ -1,15 +1,14 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import '../models/animation_definition.dart';
 import '../models/animal_resource.dart';
 
 class AnimationLoader {
   /// 載入動畫定義（自動判斷內建 or 已下載）
   Future<AnimalAnimationDefinition> load(AnimalResource resource) async {
-    return resource.isBuiltIn
-        ? _loadFromAssets(resource.animalId)
-        : _loadFromFile(resource.localFolderPath);
+    return resource.isBuiltIn ? _loadFromAssets(resource.animalId) : _loadFromFile(resource.localFolderPath);
   }
 
   Future<AnimalAnimationDefinition> _loadFromAssets(String animalId) async {

@@ -19,4 +19,13 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get storeRemove => '削除';
+
+  @override
+  String get menuFeed => 'ごはん';
+
+  @override
+  String get menuPet => 'なでる';
+
+  @override
+  String get menuClose => '閉じる';
 }

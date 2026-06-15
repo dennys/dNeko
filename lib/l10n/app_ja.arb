@@ -2,5 +2,8 @@
   "storeTitle": "どうぶつストア",
   "storeEmpty": "現在ダウンロードできるどうぶつはいません。",
   "storeDownload": "ダウンロード",
-  "storeRemove": "削除"
+  "storeRemove": "削除",
+  "menuFeed": "ごはん",
+  "menuPet": "なでる",
+  "menuClose": "閉じる"
 }

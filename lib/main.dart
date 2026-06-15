@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
 import 'l10n/app_localizations.dart';
+import 'overlay_main.dart' as overlay_entry;
 import 'data/repositories/animal_repository.dart';
 import 'data/services/animal_download_service.dart';
 import 'data/services/overlay_service.dart';
@@ -9,9 +9,10 @@ import 'domain/screen_metrics.dart';
 import 'presentation/controllers/store_controller.dart';
 import 'presentation/pages/store_page.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final repository = AnimalRepository();
+  await repository.seedBuiltIns();
   final downloadService = AnimalDownloadService(repository);
   final storeController = StoreController(
     catalog: StaticStoreCatalog(),
@@ -19,6 +20,11 @@ void main() {
     repository: repository,
   );
   runApp(MyApp(storeController: storeController));
+}
+
+@pragma('vm:entry-point')
+void overlayMain() {
+  overlay_entry.runOverlayApp();
 }
 
 class MyApp extends StatelessWidget {
@@ -97,8 +103,8 @@ class _OverlayControlState extends State<_OverlayControl> {
     } else {
       final hasPermission = await _overlayService.hasPermission();
       if (!hasPermission) {
-        await _overlayService.requestPermission();
-        return;
+        final granted = await _overlayService.requestPermission();
+        if (!granted || !context.mounted) return;
       }
       if (!context.mounted) return;
       final mq = MediaQuery.of(context);

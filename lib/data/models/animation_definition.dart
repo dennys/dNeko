@@ -1,3 +1,5 @@
+import 'animation_action.dart';
+
 class FrameAnimation {
   final List<String> frames;
   final int frameDurationMs;

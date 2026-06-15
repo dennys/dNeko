@@ -124,6 +124,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Remove'**
   String get storeRemove;
+
+  /// No description provided for @menuFeed.
+  ///
+  /// In en, this message translates to:
+  /// **'Feed'**
+  String get menuFeed;
+
+  /// No description provided for @menuPet.
+  ///
+  /// In en, this message translates to:
+  /// **'Pet'**
+  String get menuPet;
+
+  /// No description provided for @menuClose.
+  ///
+  /// In en, this message translates to:
+  /// **'Close'**
+  String get menuClose;
 }
 
 class _AppLocalizationsDelegate

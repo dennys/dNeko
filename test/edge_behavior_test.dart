@@ -1,7 +1,7 @@
 import 'dart:math';
 import 'dart:ui';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:desktop_pet/domain/edge_behavior.dart';
+import 'package:dneko/domain/edge_behavior.dart';
 
 void main() {
   const bounds = Rect.fromLTWH(0, 0, 200, 200);
@@ -24,8 +24,7 @@ void main() {
   group('EdgeTurnBackBehavior', () {
     test('碰邊後目標為螢幕中央', () {
       final edge = EdgeTurnBackBehavior();
-      expect(edge.nextTargetOnEdge(const Offset(0, 0), bounds),
-          bounds.center);
+      expect(edge.nextTargetOnEdge(const Offset(0, 0), bounds), bounds.center);
     });
   });
 }

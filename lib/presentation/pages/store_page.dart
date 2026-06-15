@@ -16,6 +16,23 @@ class _StorePageState extends State<StorePage> {
   void initState() {
     super.initState();
     widget.controller.load();
+    widget.controller.addListener(_onControllerChange);
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_onControllerChange);
+    super.dispose();
+  }
+
+  void _onControllerChange() {
+    final err = widget.controller.downloadError;
+    if (err != null) {
+      widget.controller.clearDownloadError();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(err)),
+      );
+    }
   }
 
   @override
@@ -41,8 +58,7 @@ class _StorePageState extends State<StorePage> {
             itemBuilder: (context, index) => _StoreTile(
               state: items[index],
               l10n: l10n,
-              onDownload: () =>
-                  widget.controller.download(items[index].item),
+              onDownload: () => widget.controller.download(items[index].item),
               onRemove: () => widget.controller.remove(items[index].item),
             ),
           );

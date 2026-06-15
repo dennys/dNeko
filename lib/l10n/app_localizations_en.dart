@@ -19,4 +19,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get storeRemove => 'Remove';
+
+  @override
+  String get menuFeed => 'Feed';
+
+  @override
+  String get menuPet => 'Pet';
+
+  @override
+  String get menuClose => 'Close';
 }

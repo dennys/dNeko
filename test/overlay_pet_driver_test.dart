@@ -1,8 +1,8 @@
 import 'dart:ui';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:desktop_pet/domain/i_overlay_window.dart';
-import 'package:desktop_pet/presentation/controllers/pet_controller.dart';
-import 'package:desktop_pet/presentation/controllers/overlay_pet_driver.dart';
+import 'package:dneko/domain/i_overlay_window.dart';
+import 'package:dneko/presentation/controllers/pet_controller.dart';
+import 'package:dneko/presentation/controllers/overlay_pet_driver.dart';
 
 /// 測試替身：記錄被移動到哪裡
 class _FakeWindow implements IOverlayWindow {
@@ -24,6 +24,7 @@ void main() {
       final window = _FakeWindow();
       OverlayPetDriver(controller, window);
 
+      controller.beginDrag();
       controller.dragTo(const Offset(50, 60)); // 觸發 notifyListeners
 
       expect(window.moves, isNotEmpty);
