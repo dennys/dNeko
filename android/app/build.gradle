@@ -1,6 +1,6 @@
 plugins {
     id "com.android.application"
-    id "kotlin-android"
+    // id "org.jetbrains.kotlin.android"
     id "dev.flutter.flutter-gradle-plugin"
 }
 
@@ -36,9 +36,9 @@ android {
         jvmTarget = '21'
     }
 
-    sourceSets {
-        main.java.srcDirs += 'src/main/kotlin'
-    }
+    // sourceSets {
+    //     main.java.srcDirs += 'src/main/kotlin'
+    // }
 
     defaultConfig {
         applicationId "com.dneko.app"
