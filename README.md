@@ -1,90 +1,88 @@
-# dNeko
+# dNeko 🐾
 
-A Flutter application with platform channels for native Android (Kotlin) and iOS (Swift) integration.
+一個 ANeko 風格的桌面寵物 App（Flutter / Android）。動物可以在 app 畫面內漫遊互動，也能以系統懸浮視窗（overlay）跑遍整個桌面。
 
-## Features
+## ✨ 功能
 
-- Flutter 3.38+ support
-- Platform channels for native communication
-- Kotlin 2.3 for Android
-- targetSdkVersion 33
+- **自主漫遊**：動物在限定範圍內隨機走動，支援 8 方向動畫。
+- **互動**：點擊撫摸、放食物餵食，並有飢餓值系統影響行為。
+- **兩種顯示模式**
+  - App 內模式：在應用畫面中遊玩。
+  - Overlay 模式：懸浮在其他 app 之上，跑遍整個螢幕，仍可點擊互動。
+- **邊緣行為**：碰到螢幕邊緣可「沿邊走」或「回頭」，由 `animation.json` 設定，資料驅動。
+- **預設 + 下載**：內建貓／狗，可另外下載動物素材包。
+- **多國語言**：內建英文、繁體中文、日文。
 
-## Getting Started
+## 🏗️ 架構
 
-### Prerequisites
+採分層架構，遵循 SOLID 原則：
 
-- Flutter SDK 3.38 or higher
-- Android Studio with Kotlin support
-- Xcode (for iOS development)
-
-### Setup
-
-1. Install Flutter dependencies:
-```bash
-flutter pub get
+```text
+lib/
+├── data/          # 資料層：models / repositories / services
+├── domain/        # 領域層：純邏輯（移動、決策、邊緣行為、飢餓值）
+├── presentation/  # 表現層：controllers / pages / widgets
+├── l10n/          # 多國語言 ARB
+├── main.dart      # App 進入點；也保留 overlayMain native entrypoint
+└── overlay_main.dart  # Overlay isolate UI 實作
 ```
 
-2. Run on Android:
+核心邏輯（`PetController`、`MovementEngine`、`PetBrain`、`PetStats`、`EdgeBehavior`）
+與 UI 完全解耦，app 內模式與 overlay 模式**共用同一套**。
+
+## 🚀 開始使用
+
+### 環境需求
+
+- Flutter SDK `>=3.0.0 <4.0.0`
+- Android（overlay 模式需 `SYSTEM_ALERT_WINDOW` 權限）
+
+### 安裝與執行
+
 ```bash
+flutter pub get
+flutter gen-l10n      # 產生多國語言程式
 flutter run
 ```
 
-3. Run on iOS:
+### 執行測試
+
 ```bash
-flutter run -d ios
+flutter test
 ```
 
-## Platform Channel Usage
+## 🐱 新增／下載動物
 
-The app demonstrates a basic platform channel setup:
+每隻動物是一個資料夾，包含 `animation.json` 與各動作的 PNG 幀圖。
 
-**Channel Name:** `com.dneko/native`
-
-**Available Methods:**
-- `getNativeMessage`: Returns a greeting message from the native platform
-
-### Adding New Platform Methods
-
-1. In [lib/main.dart](lib/main.dart), add your method call
-2. In [android/app/src/main/kotlin/com/dneko/app/MainActivity.kt](android/app/src/main/kotlin/com/dneko/app/MainActivity.kt), implement the Kotlin handler
-3. In [ios/Runner/AppDelegate.swift](ios/Runner/AppDelegate.swift), implement the Swift handler
-
-## Project Structure
-
-```
-dneko/
-├── lib/
-│   └── main.dart                 # Flutter app entry point
-├── android/
-│   └── app/
-│       ├── build.gradle          # Android build configuration
-│       └── src/main/kotlin/      # Kotlin source files
-└── ios/
-    └── Runner/
-        └── AppDelegate.swift     # iOS app delegate
-```
-
-## Permissions
-
-### Android
-
-This app requires the following permission:
-
-- **SYSTEM_ALERT_WINDOW**: This permission allows the app to display overlays on top of other apps. It's required for features like floating windows, chat heads, or screen overlays.
-
-**Note:** On Android 6.0 (API level 23) and above, this is a special permission that requires the user to manually grant it through Settings. The app should request this permission at runtime and guide users to the system settings if needed.
-
-To check and request this permission programmatically:
-```kotlin
-if (!Settings.canDrawOverlays(this)) {
-    val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-        Uri.parse("package:$packageName"))
-    startActivityForResult(intent, OVERLAY_PERMISSION_REQUEST_CODE)
+```json
+{
+  "animalId": "cat",
+  "displayName": "小花貓",
+  "frameWidth": 32,
+  "frameHeight": 32,
+  "edgeBehavior": "walk",        // walk = 沿邊走, turnBack = 回頭
+  "actions": {
+    "WalkUp": { "frames": ["walk_u1","walk_u2"], "frameDurationMs": 250, "loop": true }
+    // ... 其他動作
+  }
 }
 ```
 
-## Configuration
+- **內建動物**：放在 `assets/animals/<id>/`，並在 `pubspec.yaml` 註冊。`animation.json` 的 frame 名稱需對應同資料夾 PNG 檔名，例如 `walk_u1` 對應 `walk_u1.png`。建議使用透明背景 PNG，尺寸以 `frameWidth` / `frameHeight` 為準。
+- **下載動物**：透過 `AnimalDownloadService` 下載到本機，寫入 SQLite。
 
-- **Android targetSdkVersion:** 33
-- **Kotlin version:** 2.3.0
-- **Minimum SDK:** 21
+## Overlay 注意事項
+
+- `flutter_overlay_window` 會以字串尋找 `main.dart` 內的 `overlayMain()`；請保留該 entrypoint，再委派到 `overlay_main.dart`。
+- Overlay 內建動物直接從 assets 載入，避免 overlay isolate 啟動時依賴 SQLite plugin。
+- 快速切換 start/stop 時，UI 會鎖住按鈕等待外掛狀態同步，避免重複 show/close 造成狀態卡住。
+
+## 🌍 多國語言
+
+語系檔位於 `lib/l10n/`（`app_en.arb` / `app_zh.arb` / `app_ja.arb`）。
+新增語言：複製一份 ARB 改 `@@locale`，再執行 `flutter gen-l10n`。
+
+## 📄 授權
+
+MIT
