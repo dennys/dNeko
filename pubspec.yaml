@@ -10,11 +10,11 @@ dependencies:
   flutter_localizations:
     sdk: flutter
   intl: any
-  sqflite: ^2.3.0
-  path_provider: ^2.1.2
-  path: ^1.9.0
-  dio: ^5.4.0
-  flutter_overlay_window: ^0.4.5
+  sqflite: ^2.4.3 
+  path_provider: ^2.1.6
+  path: ^1.9.1
+  dio: ^5.9.2
+  flutter_overlay_window: ^0.5.0
 
 dev_dependencies:
   flutter_test:
