@@ -2,5 +2,8 @@
   "storeTitle": "Animal Store",
   "storeEmpty": "No animals available right now.",
   "storeDownload": "Download",
-  "storeRemove": "Remove"
+  "storeRemove": "Remove",
+  "menuFeed": "Feed",
+  "menuPet": "Pet",
+  "menuClose": "Close"
 }

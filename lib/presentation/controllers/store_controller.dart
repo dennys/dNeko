@@ -17,8 +17,7 @@ class StoreItemState {
     this.progress = 0,
   });
 
-  StoreItemState copyWith({DownloadStatus? status, double? progress}) =>
-      StoreItemState(
+  StoreItemState copyWith({DownloadStatus? status, double? progress}) => StoreItemState(
         item: item,
         status: status ?? this.status,
         progress: progress ?? this.progress,
@@ -36,6 +35,12 @@ class StoreController extends ChangeNotifier {
 
   bool _isLoading = false;
   bool get isLoading => _isLoading;
+
+  String? _downloadError;
+  String? get downloadError => _downloadError;
+  void clearDownloadError() {
+    _downloadError = null;
+  }
 
   StoreController({
     required IStoreCatalog catalog,
@@ -56,9 +61,7 @@ class StoreController extends ChangeNotifier {
     _items = items
         .map((item) => StoreItemState(
               item: item,
-              status: downloadedIds.contains(item.animalId)
-                  ? DownloadStatus.downloaded
-                  : DownloadStatus.available,
+              status: downloadedIds.contains(item.animalId) ? DownloadStatus.downloaded : DownloadStatus.available,
             ))
         .toList();
 
@@ -67,38 +70,38 @@ class StoreController extends ChangeNotifier {
   }
 
   Future<void> download(StoreItem item) async {
-    _updateState(item.animalId,
-        (s) => s.copyWith(status: DownloadStatus.downloading, progress: 0));
+    _updateState(item.animalId, (s) => s.copyWith(status: DownloadStatus.downloading, progress: 0));
 
-    await _downloadService.download(
-      animalId: item.animalId,
-      displayName: item.displayName,
-      remoteBaseUrl: item.remoteBaseUrl,
-      version: item.version,
-      fileNames: item.fileNames,
-      onProgress: (p) => _updateState(
-        item.animalId,
-        (s) => s.copyWith(progress: p),
-      ),
-    );
-
-    _updateState(item.animalId,
-        (s) => s.copyWith(status: DownloadStatus.downloaded, progress: 1));
+    try {
+      await _downloadService.download(
+        animalId: item.animalId,
+        displayName: item.displayName,
+        remoteBaseUrl: item.remoteBaseUrl,
+        version: item.version,
+        fileNames: item.fileNames,
+        onProgress: (p) => _updateState(
+          item.animalId,
+          (s) => s.copyWith(progress: p),
+        ),
+      );
+      _updateState(item.animalId, (s) => s.copyWith(status: DownloadStatus.downloaded, progress: 1));
+    } catch (e) {
+      _updateState(item.animalId, (s) => s.copyWith(status: DownloadStatus.available, progress: 0));
+      _downloadError = e.toString();
+      notifyListeners();
+    }
   }
 
   Future<void> remove(StoreItem item) async {
     await _downloadService.remove(item.animalId);
-    _updateState(item.animalId,
-        (s) => s.copyWith(status: DownloadStatus.available, progress: 0));
+    _updateState(item.animalId, (s) => s.copyWith(status: DownloadStatus.available, progress: 0));
   }
 
   void _updateState(
     String animalId,
     StoreItemState Function(StoreItemState) update,
   ) {
-    _items = _items
-        .map((s) => s.item.animalId == animalId ? update(s) : s)
-        .toList();
+    _items = _items.map((s) => s.item.animalId == animalId ? update(s) : s).toList();
     notifyListeners();
   }
 }

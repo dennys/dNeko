@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:desktop_pet/domain/pet_stats.dart';
+import 'package:dneko/domain/pet_stats.dart';
 
 void main() {
   group('PetStats', () {

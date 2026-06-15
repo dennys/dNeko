@@ -80,4 +80,27 @@ class AnimalRepository implements IAnimalRepository {
     final db = await _database;
     await db.delete(_tableName, where: 'animal_id = ?', whereArgs: [animalId]);
   }
+
+  /// Insert built-in animals so the overlay can load them from assets.
+  /// Uses ConflictAlgorithm.ignore so repeated calls are safe.
+  Future<void> seedBuiltIns() async {
+    final db = await _database;
+    const builtIns = [
+      {
+        'animal_id': 'cat',
+        'display_name': 'ねこ',
+        'local_folder_path': '',
+        'version': '1.0.0',
+        'is_downloaded': 0,
+        'is_built_in': 1,
+      },
+    ];
+    for (final row in builtIns) {
+      await db.insert(
+        _tableName,
+        {...row, 'updated_at': DateTime.now().toIso8601String()},
+        conflictAlgorithm: ConflictAlgorithm.ignore,
+      );
+    }
+  }
 }

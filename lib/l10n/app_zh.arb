@@ -2,5 +2,8 @@
   "storeTitle": "動物商店",
   "storeEmpty": "目前沒有可下載的動物。",
   "storeDownload": "下載",
-  "storeRemove": "移除"
+  "storeRemove": "移除",
+  "menuFeed": "餵食",
+  "menuPet": "撫摸",
+  "menuClose": "關閉"
 }

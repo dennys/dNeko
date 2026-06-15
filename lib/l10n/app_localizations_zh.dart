@@ -19,6 +19,15 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get storeRemove => '移除';
+
+  @override
+  String get menuFeed => '餵食';
+
+  @override
+  String get menuPet => '撫摸';
+
+  @override
+  String get menuClose => '關閉';
 }
 
 /// The translations for Chinese, as used in Taiwan (`zh_TW`).

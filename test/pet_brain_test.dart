@@ -1,8 +1,8 @@
 import 'dart:math';
 import 'dart:ui';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:desktop_pet/domain/pet_behavior.dart';
-import 'package:desktop_pet/domain/pet_brain.dart';
+import 'package:dneko/domain/pet_behavior.dart';
+import 'package:dneko/domain/pet_brain.dart';
 
 void main() {
   const bounds = Rect.fromLTWH(0, 0, 100, 100);

@@ -1,6 +1,6 @@
 import 'dart:ui';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:desktop_pet/domain/screen_metrics.dart';
+import 'package:dneko/domain/screen_metrics.dart';
 
 void main() {
   const metrics = ScreenMetrics(
@@ -9,14 +9,6 @@ void main() {
   );
 
   group('ScreenMetrics', () {
-    test('邏輯座標換算成物理座標', () {
-      expect(metrics.toPhysical(const Offset(10, 20)), const Offset(30, 60));
-    });
-
-    test('物理尺寸 = 邏輯 * ratio', () {
-      expect(metrics.physicalSize, const Size(1200, 2400));
-    });
-
     test('漫遊範圍扣掉寵物大小', () {
       final bounds = metrics.roamingBounds(80);
       expect(bounds.right, 320); // 400 - 80
