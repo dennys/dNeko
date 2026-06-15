@@ -1,13 +1,30 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:dneko/generated/l10n/app_localizations.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'l10n/app_localizations.dart';
+import 'data/repositories/animal_repository.dart';
+import 'data/services/animal_download_service.dart';
+import 'data/services/overlay_service.dart';
+import 'data/services/static_store_catalog.dart';
+import 'domain/screen_metrics.dart';
+import 'presentation/controllers/store_controller.dart';
+import 'presentation/pages/store_page.dart';
 
 void main() {
-  runApp(const MyApp());
+  WidgetsFlutterBinding.ensureInitialized();
+  final repository = AnimalRepository();
+  final downloadService = AnimalDownloadService(repository);
+  final storeController = StoreController(
+    catalog: StaticStoreCatalog(),
+    downloadService: downloadService,
+    repository: repository,
+  );
+  runApp(MyApp(storeController: storeController));
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final StoreController storeController;
+
+  const MyApp({super.key, required this.storeController});
 
   @override
   Widget build(BuildContext context) {
@@ -19,90 +36,93 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
       ),
-      home: const MyHomePage(title: 'dNeko'),
+      home: HomePage(storeController: storeController),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
+class HomePage extends StatelessWidget {
+  final StoreController storeController;
 
-  final String title;
-
-  @override
-  State<MyHomePage> createState() => _MyHomePageState();
-}
-
-class _MyHomePageState extends State<MyHomePage> {
-  static const platform = MethodChannel('com.dneko/native');
-
-  String _result = 'No result yet';
-
-  Future<void> _callNativeMethod() async {
-    String result;
-    try {
-      final String response = await platform.invokeMethod('getNativeMessage');
-      result = AppLocalizations.of(context)!.nativeSays(response);
-    } on PlatformException catch (e) {
-      result = AppLocalizations.of(context)!.failedToGetNativeMessage(e.message ?? '');
-    }
-
-    setState(() {
-      _result = result;
-    });
-  }
-
-  Future<void> _showOverlay() async {
-    try {
-      await platform.invokeMethod('showOverlay');
-      setState(() {
-        _result = 'Overlay displayed!';
-      });
-    } on PlatformException catch (e) {
-      setState(() {
-        _result = 'Failed to show overlay: ${e.message}';
-      });
-    }
-  }
+  const HomePage({super.key, required this.storeController});
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        title: Center(child: Text(AppLocalizations.of(context)!.appTitle)),
-      ),
-      body: Column(
-        children: <Widget>[
-          const SizedBox(height: 20),
-          ElevatedButton(
-            onPressed: _callNativeMethod,
-            child: Text(AppLocalizations.of(context)!.callNativeMethod),
-          ),
-          const SizedBox(height: 20),
-          ElevatedButton(
-            onPressed: _showOverlay,
-            child: const Text('Show Dneko Overlay'),
-          ),
-          Expanded(
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: <Widget>[
-                  Text(
-                    AppLocalizations.of(context)!.callNativePlatformCode,
-                  ),
-                  const SizedBox(height: 20),
-                  Text(
-                    _result,
-                    style: Theme.of(context).textTheme.headlineSmall,
-                    textAlign: TextAlign.center,
-                  ),
-                ],
+        title: const Text('dNeko'),
+        actions: [
+          IconButton(
+            tooltip: l10n.storeTitle,
+            icon: const Icon(Icons.store),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => StorePage(controller: storeController),
               ),
             ),
           ),
         ],
+      ),
+      body: const _OverlayControl(),
+    );
+  }
+}
+
+class _OverlayControl extends StatefulWidget {
+  const _OverlayControl();
+
+  @override
+  State<_OverlayControl> createState() => _OverlayControlState();
+}
+
+class _OverlayControlState extends State<_OverlayControl> {
+  final _overlayService = OverlayService();
+  bool _isActive = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkStatus();
+  }
+
+  Future<void> _checkStatus() async {
+    final active = await _overlayService.isActive();
+    if (mounted) setState(() => _isActive = active);
+  }
+
+  Future<void> _toggle(BuildContext context) async {
+    if (_isActive) {
+      await _overlayService.close();
+    } else {
+      final hasPermission = await _overlayService.hasPermission();
+      if (!hasPermission) {
+        await _overlayService.requestPermission();
+        return;
+      }
+      if (!context.mounted) return;
+      final mq = MediaQuery.of(context);
+      final metrics = ScreenMetrics(
+        logicalSize: mq.size,
+        devicePixelRatio: mq.devicePixelRatio,
+      );
+      final locale = Localizations.localeOf(context);
+      await _overlayService.show(
+        animalId: 'cat',
+        metrics: metrics,
+        languageCode: locale.languageCode,
+      );
+    }
+    await _checkStatus();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: ElevatedButton.icon(
+        icon: Icon(_isActive ? Icons.stop : Icons.play_arrow),
+        label: Text(_isActive ? 'Stop Overlay' : 'Start Overlay'),
+        onPressed: () => _toggle(context),
       ),
     );
   }
