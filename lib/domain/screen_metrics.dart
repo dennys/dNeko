@@ -5,7 +5,7 @@ class ScreenMetrics {
   /// 邏輯像素的螢幕尺寸
   final Size logicalSize;
 
-  /// 裝置像素密度（physical = logical * ratio）
+  /// 裝置像素密度；目前保留給 overlay isolate 了解來源螢幕資訊
   final double devicePixelRatio;
 
   const ScreenMetrics({

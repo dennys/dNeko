@@ -14,7 +14,7 @@ dNeko 是 ANeko 風格的桌面寵物 App（Flutter / Android）。動物可在 
 ## 架構分層
 
 | 層 | 路徑 | 職責 | 可依賴 |
-|----|------|------|--------|
+| ---- | ---- | ---- | ---- |
 | Data | `lib/data` | models / repositories / services（DB、檔案、下載、overlay） | domain |
 | Domain | `lib/domain` | 純邏輯：移動、決策、邊緣行為、飢餓、螢幕換算 | 無（不依賴 Flutter UI） |
 | Presentation | `lib/presentation` | controllers / pages / widgets | data, domain |
@@ -35,7 +35,7 @@ dNeko 是 ANeko 風格的桌面寵物 App（Flutter / Android）。動物可在 
 ## 命名規範（Sonar 相容）
 
 | 對象 | 規則 | 範例 |
-|------|------|------|
+| ---- | ---- | ---- |
 | 私有欄位 | `_camelCase` | `_controller` |
 | 公開／保護成員、類別、列舉、介面 | `PascalCase` | `PetController` |
 | 區域變數、參數 | `camelCase` | `localFolder` |
@@ -51,14 +51,15 @@ dNeko 是 ANeko 風格的桌面寵物 App（Flutter / Android）。動物可在 
 - `PetBrain` (`IPetBrain`)：決定下一個自主行為，參考飢餓值。
 - `MovementEngine` (`IMovementEngine`)：朝目標移動並 clamp 範圍。
 - `EdgeBehavior` (`IEdgeBehavior`)：碰邊策略，由 `EdgeBehaviorFactory` 依 `animation.json` 建立。
-- `ScreenMetrics`：邏輯↔物理像素換算的唯一來源（overlay 座標校準）。
+- `ScreenMetrics`：保存主 app 的邏輯螢幕資訊，供 overlay isolate 計算漫遊範圍。
 - `OverlayService` / `OverlayWindow`：overlay 生命週期與視窗操作。
 
 ## Overlay 注意事項
 
-- overlay 跑在獨立 isolate（`overlayMain()`），需自行初始化 repository/loader。
+- overlay 跑在獨立 isolate；`main.dart` 必須保留 `@pragma('vm:entry-point') overlayMain()`，再委派到 `overlay_main.dart` 的實作。
+- overlay 內建動物應直接從 assets 載入，避免啟動時依賴 SQLite plugin；下載動物才查 repository。
 - 全螢幕漫遊用「移動小視窗」技巧：視窗只有寵物大小，靠 `moveOverlay` 移動。
-- 座標單位用 `ScreenMetrics` 換算，勿在他處散落 `* devicePixelRatio`。
+- `flutter_overlay_window` API 參數以 Android dp 為主；不要在呼叫 `moveOverlay` / `resizeOverlay` 前自行乘上 `devicePixelRatio`。
 
 ## 多國語言
 

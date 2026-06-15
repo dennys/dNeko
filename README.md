@@ -10,21 +10,21 @@
   - App 內模式：在應用畫面中遊玩。
   - Overlay 模式：懸浮在其他 app 之上，跑遍整個螢幕，仍可點擊互動。
 - **邊緣行為**：碰到螢幕邊緣可「沿邊走」或「回頭」，由 `animation.json` 設定，資料驅動。
-- **預設 + 下載**：內建貓／狗／兔，可另外下載動物素材包。
+- **預設 + 下載**：內建貓／狗，可另外下載動物素材包。
 - **多國語言**：內建英文、繁體中文、日文。
 
 ## 🏗️ 架構
 
 採分層架構，遵循 SOLID 原則：
 
-```
+```text
 lib/
 ├── data/          # 資料層：models / repositories / services
 ├── domain/        # 領域層：純邏輯（移動、決策、邊緣行為、飢餓值）
 ├── presentation/  # 表現層：controllers / pages / widgets
 ├── l10n/          # 多國語言 ARB
-├── main.dart      # App 進入點
-└── overlay_main.dart  # Overlay isolate 進入點
+├── main.dart      # App 進入點；也保留 overlayMain native entrypoint
+└── overlay_main.dart  # Overlay isolate UI 實作
 ```
 
 核心邏輯（`PetController`、`MovementEngine`、`PetBrain`、`PetStats`、`EdgeBehavior`）
@@ -69,8 +69,14 @@ flutter test
 }
 ```
 
-- **內建動物**：放在 `assets/animals/<id>/`，並在 `pubspec.yaml` 註冊。
+- **內建動物**：放在 `assets/animals/<id>/`，並在 `pubspec.yaml` 註冊。`animation.json` 的 frame 名稱需對應同資料夾 PNG 檔名，例如 `walk_u1` 對應 `walk_u1.png`。建議使用透明背景 PNG，尺寸以 `frameWidth` / `frameHeight` 為準。
 - **下載動物**：透過 `AnimalDownloadService` 下載到本機，寫入 SQLite。
+
+## Overlay 注意事項
+
+- `flutter_overlay_window` 會以字串尋找 `main.dart` 內的 `overlayMain()`；請保留該 entrypoint，再委派到 `overlay_main.dart`。
+- Overlay 內建動物直接從 assets 載入，避免 overlay isolate 啟動時依賴 SQLite plugin。
+- 快速切換 start/stop 時，UI 會鎖住按鈕等待外掛狀態同步，避免重複 show/close 造成狀態卡住。
 
 ## 🌍 多國語言
 
