@@ -1,40 +1,27 @@
 name: dneko
-description: A Flutter application with platform channels.
-publish_to: 'none'
-version: 1.0.0+1
+description: ANeko-like desktop pet app
 
 environment:
-  sdk: '>=3.0.0 <4.0.0'
+  sdk: ">=3.0.0 <4.0.0"
 
 dependencies:
   flutter:
     sdk: flutter
-  cupertino_icons: ^1.0.8
   flutter_localizations:
     sdk: flutter
+  intl: any
+  sqflite: ^2.3.0
+  path_provider: ^2.1.2
+  path: ^1.9.0
+  dio: ^5.4.0
+  flutter_overlay_window: ^0.4.5
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^6.0.0
-  build_runner: ^2.10.5
-  flutter_gen_runner: ^5.12.0
-  flutter_launcher_icons: ^0.14.4
 
 flutter:
-  uses-material-design: true
-  generate: true
+  generate: true # 啟用 ARB → AppLocalizations 產生
   assets:
-    - assets/
-
-l10n:
-  arb-dir: lib/l10n
-  template-arb-file: app_en.arb
-  output-localization-file: app_localizations.dart
-
-flutter_launcher_icons:
-  android: true
-  ios: false
-  image_path: "assets/dneko.png"
-
-# dart run flutter_launcher_icons
+    - assets/animals/cat/
+    - assets/animals/dog/

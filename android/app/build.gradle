@@ -24,7 +24,8 @@ if (flutterVersionName == null) {
 
 android {
     namespace "com.dneko.app"
-    compileSdk 34
+    compileSdk 36
+    ndkVersion "28.2.13676358"
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_21
@@ -42,7 +43,7 @@ android {
     defaultConfig {
         applicationId "com.dneko.app"
         minSdkVersion flutter.minSdkVersion
-        targetSdk 33
+        targetSdk 35
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
     }
