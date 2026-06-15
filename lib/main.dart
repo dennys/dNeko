@@ -85,6 +85,7 @@ class _OverlayControl extends StatefulWidget {
 class _OverlayControlState extends State<_OverlayControl> {
   final _overlayService = OverlayService();
   bool _isActive = false;
+  bool _isToggling = false;
 
   @override
   void initState() {
@@ -98,28 +99,39 @@ class _OverlayControlState extends State<_OverlayControl> {
   }
 
   Future<void> _toggle(BuildContext context) async {
-    if (_isActive) {
-      await _overlayService.close();
-    } else {
-      final hasPermission = await _overlayService.hasPermission();
-      if (!hasPermission) {
-        final granted = await _overlayService.requestPermission();
-        if (!granted || !context.mounted) return;
+    if (_isToggling) return;
+
+    setState(() => _isToggling = true);
+    try {
+      final active = await _overlayService.isActive();
+      if (active) {
+        await _overlayService.close();
+        if (mounted) setState(() => _isActive = false);
+      } else {
+        final hasPermission = await _overlayService.hasPermission();
+        if (!hasPermission) {
+          final granted = await _overlayService.requestPermission();
+          if (!granted || !context.mounted) return;
+        }
+        if (!context.mounted) return;
+        final mq = MediaQuery.of(context);
+        final metrics = ScreenMetrics(
+          logicalSize: mq.size,
+          devicePixelRatio: mq.devicePixelRatio,
+        );
+        final locale = Localizations.localeOf(context);
+        await _overlayService.show(
+          animalId: 'cat',
+          metrics: metrics,
+          languageCode: locale.languageCode,
+        );
+        if (mounted) setState(() => _isActive = true);
       }
-      if (!context.mounted) return;
-      final mq = MediaQuery.of(context);
-      final metrics = ScreenMetrics(
-        logicalSize: mq.size,
-        devicePixelRatio: mq.devicePixelRatio,
-      );
-      final locale = Localizations.localeOf(context);
-      await _overlayService.show(
-        animalId: 'cat',
-        metrics: metrics,
-        languageCode: locale.languageCode,
-      );
+      await Future.delayed(const Duration(milliseconds: 200));
+      await _checkStatus();
+    } finally {
+      if (mounted) setState(() => _isToggling = false);
     }
-    await _checkStatus();
   }
 
   @override
@@ -127,9 +139,14 @@ class _OverlayControlState extends State<_OverlayControl> {
     return Center(
       child: ElevatedButton.icon(
         icon: Icon(_isActive ? Icons.stop : Icons.play_arrow),
-        label: Text(_isActive ? 'Stop Overlay' : 'Start Overlay'),
-        onPressed: () => _toggle(context),
+        label: Text(_buttonLabel),
+        onPressed: _isToggling ? null : () => _toggle(context),
       ),
     );
+  }
+
+  String get _buttonLabel {
+    if (_isToggling) return _isActive ? 'Stopping...' : 'Starting...';
+    return _isActive ? 'Stop Overlay' : 'Start Overlay';
   }
 }
