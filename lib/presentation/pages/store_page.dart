@@ -106,7 +106,7 @@ class _StoreTile extends StatelessWidget {
         return Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.check_circle, color: Colors.green),
+            const Icon(Icons.check_circle, color: Colors.green),
             IconButton(
               icon: const Icon(Icons.delete_outline),
               tooltip: l10n.storeRemove,
