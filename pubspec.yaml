@@ -17,6 +17,7 @@ dependencies:
   flutter_overlay_window: ^0.5.0
 
 dev_dependencies:
+  flutter_launcher_icons: ^0.14.4 # 請至 pub.dev 確認最新版本
   flutter_test:
     sdk: flutter
 
@@ -25,3 +26,8 @@ flutter:
   assets:
     - assets/animals/cat/
     - assets/animals/dog/
+
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: false
+  image_path: "assets/images/icon.png"
