@@ -54,7 +54,7 @@ class _StorePageState extends State<StorePage> {
           return ListView.separated(
             padding: const EdgeInsets.all(12),
             itemCount: items.length,
-            separatorBuilder: (_, __) => const Divider(height: 1),
+            separatorBuilder: (_, _) => const Divider(height: 1),
             itemBuilder: (context, index) => _StoreTile(
               state: items[index],
               l10n: l10n,
@@ -106,7 +106,7 @@ class _StoreTile extends StatelessWidget {
         return Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.check_circle, color: Colors.green),
+            const Icon(Icons.check_circle, color: Colors.green),
             IconButton(
               icon: const Icon(Icons.delete_outline),
               tooltip: l10n.storeRemove,

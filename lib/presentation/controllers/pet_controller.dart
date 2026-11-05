@@ -28,13 +28,12 @@ class PetController extends ChangeNotifier {
     IPetBrain? brain,
     IMovementEngine? movement,
     IEdgeBehavior? edge, // 新增（預設沿邊走）
-    DirectionResolver direction = const DirectionResolver(),
+    this._direction = const DirectionResolver(),
   })  : _bounds = bounds,
         _stats = stats ?? PetStats(),
         _brain = brain ?? PetBrain(),
         _movement = movement ?? const MovementEngine(),
         _edge = edge ?? EdgeWalkBehavior(),
-        _direction = direction,
         _position = bounds.center;
 
   Offset _position;

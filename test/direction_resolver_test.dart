@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:dneko/data/models/animation_action.dart';
 import 'package:dneko/domain/direction_resolver.dart';
