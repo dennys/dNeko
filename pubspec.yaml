@@ -2,21 +2,33 @@ name: dneko
 description: ANeko-like desktop pet app
 
 environment:
-  sdk: ">=3.0.0 <4.0.0"
+  sdk: ^3.13.0
+  flutter: ">=3.47.0"
 
 dependencies:
   flutter:
     sdk: flutter
   flutter_localizations:
     sdk: flutter
-  intl: any
+  # flutter_localizations 鎖 intl ^0.20.3；pin 到可解的最高版，避免 any 造成不可重現解析
+  intl: ^0.20.3
   sqflite: ^2.4.3 
   path_provider: ^2.1.6
   path: ^1.9.1
   dio: ^5.9.2
-  flutter_overlay_window: ^0.5.0
+  # 1.0.x 需要 Gradle 9 / AGP 9 / Java 17（本專案已於階段 40 升級）
+  flutter_overlay_window: ^1.0.2
+
+dependency_overrides:
+  # dgx1 = aarch64：Google 不發 linux-arm64 主機的 cmake/NDK（x86-64 版執行會報
+  # `Syntax error: ")" unexpected`）。path_provider_android 2.3.x 改走 jni/jni_flutter，
+  # 會觸發 CMake 原生編譯 → 必敗。釘在最後一個不需要 externalNativeBuild 的版本。
+  path_provider_android: 2.2.23
 
 dev_dependencies:
+  # analysis_options.yaml 有 include package:flutter_lints/flutter.yaml，
+  # 沒列這個依賴時 analyze 會報 include_file_not_found（連自訂 lint 規則都不生效）
+  flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.14.4 # 請至 pub.dev 確認最新版本
   flutter_test:
     sdk: flutter

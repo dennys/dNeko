@@ -8,8 +8,8 @@ class PetControllerFactory {
   final EdgeBehaviorFactory _edgeFactory;
 
   const PetControllerFactory({
-    EdgeBehaviorFactory edgeFactory = const EdgeBehaviorFactory(),
-  }) : _edgeFactory = edgeFactory;
+    this._edgeFactory = const EdgeBehaviorFactory(),
+  });
 
   PetController create({
     required Rect bounds,

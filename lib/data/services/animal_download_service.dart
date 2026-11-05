@@ -9,7 +9,12 @@ class AnimalDownloadService {
   final IAnimalRepository _repository;
   final Dio _dio;
 
-  AnimalDownloadService(this._repository) : _dio = Dio();
+  // 沒設 timeout 的話，對端吊住就會讓下載永遠卡著（UI 的進度條也不會動）
+  AnimalDownloadService(this._repository)
+      : _dio = Dio(BaseOptions(
+          connectTimeout: const Duration(seconds: 15),
+          receiveTimeout: const Duration(seconds: 60),
+        ));
 
   /// 下載動物素材包
   /// [remoteBaseUrl] 例如: https://example.com/animals/dog
@@ -25,7 +30,7 @@ class AnimalDownloadService {
     await localFolder.create(recursive: true);
 
     for (var i = 0; i < fileNames.length; i++) {
-      final fileName = fileNames[i];
+      final fileName = _safeName(fileNames[i], 'fileNames[$i]');
       await _dio.download(
         '$remoteBaseUrl/$fileName',
         p.join(localFolder.path, fileName),
@@ -50,6 +55,7 @@ class AnimalDownloadService {
   }
 
   /// 刪除已下載的動物
+  /// animalId 會進檔案路徑，與 download() 用同一套白名單檢查
   Future<void> remove(String animalId) async {
     final folder = await _resolveLocalFolder(animalId);
     if (await folder.exists()) {
@@ -70,6 +76,20 @@ class AnimalDownloadService {
 
   Future<Directory> _resolveLocalFolder(String animalId) async {
     final base = await getApplicationDocumentsDirectory();
-    return Directory(p.join(base.path, 'animals', animalId));
+    return Directory(p.join(base.path, 'animals', _safeName(animalId, 'animalId')));
   }
+}
+
+/// animalId 與檔名未來會來自遠端 catalogue，先擋掉 `..`、絕對路徑與路徑分隔字元，
+/// 免得 p.join 把檔案寫到 animals/ 以外（目前 catalog 寫死在靜態檔，這是預防措施）。
+String _safeName(String value, String field) {
+  if (value.isEmpty ||
+      value == '.' ||
+      value == '..' ||
+      value.contains('/') ||
+      value.contains('\\') ||
+      p.isAbsolute(value)) {
+    throw ArgumentError.value(value, field, '不合法的識別碼或檔名');
+  }
+  return value;
 }

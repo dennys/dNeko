@@ -43,12 +43,10 @@ class StoreController extends ChangeNotifier {
   }
 
   StoreController({
-    required IStoreCatalog catalog,
-    required AnimalDownloadService downloadService,
-    required IAnimalRepository repository,
-  })  : _catalog = catalog,
-        _downloadService = downloadService,
-        _repository = repository;
+    required this._catalog,
+    required this._downloadService,
+    required this._repository,
+  });
 
   Future<void> load() async {
     _isLoading = true;

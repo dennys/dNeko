@@ -1,6 +1,8 @@
 # Miscellaneous
 *.class
 *.lock
+!pubspec.lock
+# 上面這條：pubspec.lock 必須進版控，否則兩案不可重現（會被 *.lock 擋掉）
 *.log
 *.pyc
 *.swp

@@ -1,0 +1,84 @@
+name: dNeko
+
+on:
+  push:
+    branches: ["*"]
+  pull_request:
+    branches:
+      - "*"
+  workflow_dispatch:
+
+# 同一個分支只留最新一次跑；PR 再推就掐掉還在跑的舊的
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # 與 dHealth / 開發機一致（Flutter 3.47.9 / JDK 21）；升版只改這兩行
+  FLUTTER_VERSION: "3.47.9"
+  JAVA_VERSION: "21"
+
+jobs:
+  # 以前是「Setup Environment」+「Run Tests」兩個 job：第一個只做 pub get 並吐一個寫死的
+  # 版本字串，第二個又重 checkout + 重 pub get。收進同一個 job，並補上以前完全沒有的
+  # Android build —— 本地踩過的 aapt2 / AOT / strip 這類問題，只有真的 build 才抓得到。
+  ci:
+    name: analyze / test / build APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: "temurin"
+          cache: "gradle"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+          cache-key: flutter-${{ runner.os }}-pub-${{ hashFiles('**/pubspec.lock') }}
+
+      - name: Cache pub and gradle dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+            ~/.gradle/caches
+          key: ${{ runner.os }}-deps-${{ hashFiles('**/pubspec.lock', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-deps-
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze code
+        run: flutter analyze
+
+      # 目前 9 個測試檔都沒載入 sqflite；這步是預防性保留（體積小），
+      # 避免日後 host 端測試用到 sqlite3 FFI 時才來修 CI。
+      - name: Install system packages
+        run: |
+          sudo apt-get update -q -y
+          sudo apt-get install -q -y --no-install-recommends libsqlite3-dev
+
+      - name: Run tests
+        run: flutter test
+
+      - name: Build debug APK
+        run: flutter build apk --debug --target-platform android-arm64
+
+      - name: Build release APK
+        run: flutter build apk --release --target-platform android-arm64 --no-tree-shake-icons
+
+      - name: Upload APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: apks
+          path: build/app/outputs/flutter-apk/*.apk
+          retention-days: 14
