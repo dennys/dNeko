@@ -59,4 +59,24 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get zoneBottomRight => 'Bottom right';
+
+  @override
+  String get overlayStart => 'Start Overlay';
+
+  @override
+  String get overlayStop => 'Stop Overlay';
+
+  @override
+  String get overlayStarting => 'Starting...';
+
+  @override
+  String get overlayStopping => 'Stopping...';
+
+  @override
+  String overlayFailed(Object message) {
+    return 'Failed to change overlay: $message';
+  }
+
+  @override
+  String get overlayPermissionDenied => 'Overlay permission was not granted';
 }

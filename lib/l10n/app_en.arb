@@ -15,5 +15,11 @@
   "zoneTopLeft": "Top left",
   "zoneTopRight": "Top right",
   "zoneBottomLeft": "Bottom left",
-  "zoneBottomRight": "Bottom right"
+  "zoneBottomRight": "Bottom right",
+  "overlayStart": "Start Overlay",
+  "overlayStop": "Stop Overlay",
+  "overlayStarting": "Starting...",
+  "overlayStopping": "Stopping...",
+  "overlayFailed": "Failed to change overlay: {message}",
+  "overlayPermissionDenied": "Overlay permission was not granted"
 }

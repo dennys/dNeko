@@ -5,6 +5,9 @@ import 'package:sqflite/sqflite.dart';
 import '../../domain/pet_settings.dart';
 import 'pet_database.dart';
 
+/// 存盤的餓度與它的時間點（缺席補算要用時間點）。
+typedef HungerRecord = ({double hunger, DateTime savedAt});
+
 /// 只負責：PetSettings 與寵物飢餓值在 settings(KV) 表的讀寫
 class SettingsRepository {
   static const _settingsKey = 'pet_settings';
@@ -31,13 +34,41 @@ class SettingsRepository {
       _put(_settingsKey, jsonEncode(settings.toJson()));
 
   /// 沒存過回 null（讓呼叫端決定預設，而不是在這裡猜）
-  Future<double?> loadHunger() async {
-    final row = await _row(_hungerKey);
-    return row == null ? null : double.tryParse(row);
+  Future<HungerRecord?> loadHunger() async => decodeHunger(await _row(_hungerKey));
+
+  Future<void> saveHunger(double hunger, {DateTime? at}) =>
+      _put(_hungerKey, encodeHunger(hunger, at ?? DateTime.now()));
+
+  /// 餓度要連「什麼時候存的」一起存：懸浮沒開時沒有 tick，重開時得依缺席時間補算餓度。
+  ///
+  /// 舊版只存一個裸小數（`'42.00'`），那種資料無從得知是何時寫的 —— 就當作剛剛寫的、
+  /// 不追溯補算（否則升級當下會被一次補到餓透，像被懲罰）。餵一次就回到正常軌道。
+  static HungerRecord? decodeHunger(String? raw) {
+    if (raw == null) return null;
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is Map) {
+        final hunger = (decoded['hunger'] as num?)?.toDouble();
+        if (hunger == null) return null;
+        final at = (decoded['at'] as num?)?.toInt();
+        return (
+          hunger: hunger,
+          savedAt: DateTime.fromMillisecondsSinceEpoch(
+            at ?? DateTime.now().millisecondsSinceEpoch,
+          ),
+        );
+      }
+    } catch (_) {
+      // 不是 JSON → 當成舊格式再試一次
+    }
+    final legacy = double.tryParse(raw);
+    return legacy == null ? null : (hunger: legacy, savedAt: DateTime.now());
   }
 
-  Future<void> saveHunger(double hunger) =>
-      _put(_hungerKey, hunger.toStringAsFixed(2));
+  static String encodeHunger(double hunger, DateTime at) => jsonEncode({
+        'hunger': double.parse(hunger.toStringAsFixed(2)),
+        'at': at.millisecondsSinceEpoch,
+      });
 
   Future<String?> _row(String key) async {
     final db = await _database;

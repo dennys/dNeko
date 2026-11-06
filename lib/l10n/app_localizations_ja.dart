@@ -59,4 +59,24 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get zoneBottomRight => '右下';
+
+  @override
+  String get overlayStart => 'デスクトップペットを開始';
+
+  @override
+  String get overlayStop => 'デスクトップペットを停止';
+
+  @override
+  String get overlayStarting => '開始中…';
+
+  @override
+  String get overlayStopping => '停止中…';
+
+  @override
+  String overlayFailed(Object message) {
+    return 'オーバーレイの変更に失敗：$message';
+  }
+
+  @override
+  String get overlayPermissionDenied => 'オーバーレイ権限が許可されませんでした';
 }

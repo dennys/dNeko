@@ -15,5 +15,11 @@
   "zoneTopLeft": "左上",
   "zoneTopRight": "右上",
   "zoneBottomLeft": "左下",
-  "zoneBottomRight": "右下"
+  "zoneBottomRight": "右下",
+  "overlayStart": "デスクトップペットを開始",
+  "overlayStop": "デスクトップペットを停止",
+  "overlayStarting": "開始中…",
+  "overlayStopping": "停止中…",
+  "overlayFailed": "オーバーレイの変更に失敗：{message}",
+  "overlayPermissionDenied": "オーバーレイ権限が許可されませんでした"
 }

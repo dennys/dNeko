@@ -15,5 +15,11 @@
   "zoneTopLeft": "左上角",
   "zoneTopRight": "右上角",
   "zoneBottomLeft": "左下角",
-  "zoneBottomRight": "右下角"
+  "zoneBottomRight": "右下角",
+  "overlayStart": "啟動桌寵",
+  "overlayStop": "關閉桌寵",
+  "overlayStarting": "啟動中…",
+  "overlayStopping": "關閉中…",
+  "overlayFailed": "改變懸浮視窗失敗：{message}",
+  "overlayPermissionDenied": "沒有取得懸浮視窗權限"
 }

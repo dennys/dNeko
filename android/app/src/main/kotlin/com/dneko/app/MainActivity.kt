@@ -1,74 +1,10 @@
 package com.dneko.app
 
-import android.content.Intent
-import android.net.Uri
-import android.os.Build
-import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
-import io.flutter.embedding.engine.FlutterEngine
-import io.flutter.plugin.common.MethodChannel
 
-class MainActivity: FlutterActivity() {
-    private val CHANNEL = "com.dneko/native"
-    private val OVERLAY_PERMISSION_REQUEST_CODE = 1234
-    private var pendingResult: MethodChannel.Result? = null
-
-    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
-        super.configureFlutterEngine(flutterEngine)
-        
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
-            when (call.method) {
-                "getNativeMessage" -> {
-                    val message = getNativeMessage()
-                    result.success(message)
-                }
-                "showOverlay" -> {
-                    showOverlay(result)
-                }
-                else -> {
-                    result.notImplemented()
-                }
-            }
-        }
-    }
-
-    private fun getNativeMessage(): String {
-        return "Hello from Kotlin ${KotlinVersion.CURRENT}!"
-    }
-
-    private fun showOverlay(result: MethodChannel.Result) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (!Settings.canDrawOverlays(this)) {
-                pendingResult = result
-                val intent = Intent(
-                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                    Uri.parse("package:$packageName")
-                )
-                startActivityForResult(intent, OVERLAY_PERMISSION_REQUEST_CODE)
-                return
-            }
-        }
-        
-        // Permission granted, show overlay
-        val overlayService = OverlayService(this)
-        overlayService.showOverlay()
-        result.success("Overlay shown")
-    }
-
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        
-        if (requestCode == OVERLAY_PERMISSION_REQUEST_CODE) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                if (Settings.canDrawOverlays(this)) {
-                    val overlayService = OverlayService(this)
-                    overlayService.showOverlay()
-                    pendingResult?.success("Overlay shown")
-                } else {
-                    pendingResult?.error("PERMISSION_DENIED", "Overlay permission denied", null)
-                }
-            }
-            pendingResult = null
-        }
-    }
-}
+// 懸浮視窗全部走 flutter_overlay_window（見 lib/data/services/overlay_window.dart），
+// 權限則由 permission_handler 處理（lib/main.dart 的 _toggle）。
+// 這裡原本還有一個 "com.dneko/native" 的 MethodChannel + OverlayService/NekoView（約 250 行）：
+// 它沒在 AndroidManifest 註冊、Dart 端沒有任何呼叫、讀的 assets/dneko.png 也沒進 asset bundle，
+// 所以是永遠不會被執行到的範例殘留，已刪除。
+class MainActivity : FlutterActivity()

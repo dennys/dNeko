@@ -122,3 +122,5 @@ app.*.symbols
 
 # Exclude generated localization files
 lib/generated/l10n/
+# 本機专用的依賴覆蓋（見檔內說明）
+pubspec_overrides.yaml
