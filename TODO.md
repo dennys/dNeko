@@ -101,3 +101,47 @@ eat1.png    eat2.png      afct1.png   afct2.png   afct3.png
 補進圖檔就能直接跑，不用改任何程式碼。
 目前選到狗時不會崩：`animal_animator.dart` 的 `errorBuilder` 會改用 `_FallbackPetPainter`
 畫一個佔位小精靈，所以現在是「看得到但是一隻抽象狗」。
+
+---
+
+## 2026-11-06：懸浮寵物功能（速度／大小／活動範圍／互動）落地後的待辦
+
+已完成（本輪，未 push，commit 見 `git log`）：設定頁（速度 / 大小 / 活動範圍）、
+拖曳改自己實作、餵食真的走過去吃、餓度持久化、選單尺寸跟 petSize 連動、
+水平走借幀（見下）。`flutter analyze` 0 issue、`flutter test` 44 全過。
+
+### A. 真機要驗的 6 項（本輪改動的驗收單，尚未有一項在真機跑過）
+1. 懸浮開著 → 開設定改速度／大小／範圍 → 應**立即**生效（走 `pushSettings`，不重開視窗）
+2. **拖曳**：現在應該拖得動（`enableDrag` 已關，改由 overlay 內 pan 手勢處理），
+   而且拖不出所選區域
+3. 餵食：按了會**走過去**再播吃東西動畫（`PetController.feedAt` → `goToFood` → `eat`）
+4. 「僅下方」有沒有被 navigation bar 壓到（`ScreenMetrics.bottomInset` 已傳入，實測校正值）
+5. 殺 app 重開 → 餓度還在（節流 60 秒，餵食瞬間的變化最多延後 1 分鐘落盤）
+6. 六種活動範圍（全螢幕／僅下方／四角）是否都真的把牠關住
+
+### B. 已知缺口（按優先序）
+1. **水平走的正式解法**：現在 `AnimalAnimationDefinition._missingFrameAlias` 借用 `walkDown`
+   幀（貓的 `animation.json` 只有 `WalkUp`/`WalkDown`），所以左右走看起來像在往下走。
+   補 `walk_l1/l2、walk_r1/r2` 四張圖後**把這張 alias 表整張刪掉**即可
+   （`actions` 有直接命中就不會走 alias）。進階選項：用 `Transform.scale(scaleX: -1)`
+   把 `walkRight` 鏡射成 `walkLeft`，就只需要 2 張圖。
+2. **垂直基準未驗**：overlay 視窗 y=0 是物理螢幕頂（含 status bar）還是 FlutterView 頂，
+   只能真機看。若整體偏移一個 status bar 高度，就比照 `bottomInset` 加一個 `topInset`
+   （`ScreenMetrics` + payload 各加一個欄位，`zoneBounds` 的上邊界用它）。
+3. **overlay isolate 能不能用 sqflite 未驗**：貓是內建素材、走不到 DB，所以沒有證據。
+   已做 fail-safe（讀不到用預設、寫入失敗不影響執行期），代價是 overlay 啟動瞬間的
+   餓度可能歸零。真機跑一次：餵飽 → 殺 app → 重開，看餓度是否還在。
+4. **選狗仍然做不到**（三層都缺，任一層補都沒用，要一起）：
+   - UI 沒有「使用這隻」：`store_page.dart` 的 tile 只有下載／刪除
+   - 上層寫死：`main.dart` 的 `show(animalId: defaultAnimalId)` 與 `overlay_main.dart`
+     的 `_loadDefaultAnimal()`
+   - `assets/animals/dog/` 缺 13 張圖（見上一節）
+5. **商店下載是空殼**（見上一節「擱置中的兩件事」）。
+6. 小：`PetController.dispose()` 沒有 dispose `PetStats`（現在兩者同生同死所以不洩漏，
+   日後若共用 stats 就會殘留 listener）；`_buildFallbackPet()` 沒掛 pan 手勢
+   （載入失敗的佔位貓拖不動）。
+
+### C. 與其他案的一致性
+- 主題已與 dHealth 對齊：兩案都用 `ColorScheme.fromSeed(seedColor: Colors.green)`。
+- 若要版式也對齊 dHealth 的 `SetupScreen`（`ListTile` + `DropdownButton` + `SwitchListTile`
+  + 分節標題），是 1–2 小時的工；目前 dNeko 用原生 M3 的 `Slider` + `ChoiceChip`。
