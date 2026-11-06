@@ -53,6 +53,15 @@ class _OverlayAppState extends State<_OverlayApp> {
 
   PetController? _controller;
   OverlayPetDriver? _driver;
+  PetStats? _stats;
+  StreamSubscription<dynamic>? _eventSub;
+
+  /// 載入請求的顺序號。主 isolate 送 payload 過來時是 fire-and-forget，而這裡的
+  /// handler 中間有好幾個 await；連續「啟動→停止→啟動」或兩份 payload 擠在一起時，
+  /// 先到的那份會在後到的之後才醒過來，把舊動物蓋回去、還留下一個 timer 一直在跑的
+  /// PetController（`if (!mounted) return` 拦不住兩個都還活著的情況）。
+  /// 只有最後進入的那次載入可以寫入狀態。
+  int _loadSeq = 0;
   AnimalResource? _resource;
   AnimalAnimationDefinition? _definition;
   PetSettings _settings = const PetSettings();
@@ -69,7 +78,9 @@ class _OverlayAppState extends State<_OverlayApp> {
   @override
   void initState() {
     super.initState();
-    FlutterOverlayWindow.overlayListener.listen(_onData);
+    // 這條訂閱之前沒有人 cancel（也不存成欄位），overlay isolate 结束前就一直吊著
+    // state 與整條控制器鏈。
+    _eventSub = FlutterOverlayWindow.overlayListener.listen(_onData);
     unawaited(_loadDefaultAnimal());
   }
 
@@ -106,9 +117,12 @@ class _OverlayAppState extends State<_OverlayApp> {
       _settings = PetSettings.fromJson(Map<String, dynamic>.from(rawSettings));
     }
     final languageCode = map['languageCode'] as String? ?? 'en';
-    _metrics = ScreenMetrics.fromJson(
-      map['metrics'] as Map<String, dynamic>,
-    );
+    // payload 少了 metrics 時不能把整個 handler 炸掉（這是 stream callback，例外會變成
+    // unhandled error，寵物就卡在原來的位置）；沿用舊的範圍就好。
+    final rawMetrics = map['metrics'];
+    if (rawMetrics is Map) {
+      _metrics = ScreenMetrics.fromJson(Map<String, dynamic>.from(rawMetrics));
+    }
     setState(() => _locale = Locale(languageCode));
 
     // 同一隻寵物 → 只把新設定套上去，不重載（重載會把位置與行為清零，很突兀）
@@ -130,41 +144,64 @@ class _OverlayAppState extends State<_OverlayApp> {
   }
 
   Future<void> _loadAnimal(String animalId, ScreenMetrics metrics) async {
+    final seq = ++_loadSeq;
+    // 中途被更新的載入請求超過：這裡已經 await 過好几次，絕對不能再寫狀態；
+    // 之前 dispose 舊控制器是在 await 之前做的，兩重載疊在一起時會留下一個
+    // 沒人接手、但 timer 仍在跑的 PetController。
+    bool stale() => seq != _loadSeq;
+
     try {
       final resource = await _resolveResource(animalId);
+      if (stale()) return;
       if (resource == null) {
         if (mounted) setState(() => _loadFailed = true);
         return;
       }
       final definition = await _loader.load(resource);
+      if (stale()) return;
       if (!mounted) return;
 
       final bounds = metrics.zoneBounds(_settings.petSize, _settings.zone);
       const window = OverlayWindow();
 
+      await _resizePetWindow();
+      if (stale()) return;
+
+      final saved = await _readOr(() => _settingsRepository.loadHunger(), null);
+      // 懸浮沒開的時候沒有 tick，但時間還在走：依「距上次存盤多久」補算餓度，
+      // 否則關掉 app 三天再打開，寵物還是三天前那個飽飽的樣子。
+      final hunger = saved == null
+          ? 0.0
+          : PetStats.hungerAfterAbsence(saved.hunger, DateTime.now().difference(saved.savedAt));
+      // 最後一道閘：過了這行就一定會把新控制器掛上去，不能再被舊請求搶先。
+      if (stale() || !mounted) return;
+
+      // 舊的這一套要等新的一整套備妥了才關：先關再 await 的話，一旦這次載入失敗
+      // 或被作廢，畫面就卡在那個已經 dispose 的舊 controller 上（拖不動也不會動）。
       _driver?.dispose();
       _controller?.dispose();
+      _stats?.dispose(); // 上層自己 new 的 stats，注入給 controller 所以它不會替我們關
 
-      await _resizePetWindow();
-
-      final hunger = await _readOr(() => _settingsRepository.loadHunger(), null);
+      final stats = PetStats(initialHunger: hunger);
       final controller = _controllerFactory.create(
         bounds: bounds,
         definition: definition,
         speedPerTick: _settings.speedPerTick,
-        stats: PetStats(initialHunger: hunger ?? 0),
+        stats: stats,
       )..start();
       final driver = OverlayPetDriver(controller, window);
       _watchHunger(controller);
 
       setState(() {
         _loadFailed = false;
+        _stats = stats;
         _resource = resource;
         _definition = definition;
         _controller = controller;
         _driver = driver;
       });
     } catch (_) {
+      if (stale()) return;
       if (mounted) setState(() => _loadFailed = true);
     }
   }
@@ -201,29 +238,11 @@ class _OverlayAppState extends State<_OverlayApp> {
   }
 
   Future<AnimalResource?> _resolveResource(String animalId) async {
-    final builtInResource = _builtInResource(animalId);
-    if (builtInResource != null) return builtInResource;
-
-    return _repository.getById(animalId);
-  }
-
-  AnimalResource? _builtInResource(String animalId) {
-    final displayName = switch (animalId) {
-      'cat' => '小花貓',
-      'dog' => '小柴犬',
-      _ => null,
-    };
-    if (displayName == null) return null;
-
-    return AnimalResource(
-      animalId: animalId,
-      displayName: displayName,
-      localFolderPath: '',
-      version: '1.0.0',
-      isDownloaded: false,
-      isBuiltIn: true,
-      updatedAt: DateTime.fromMillisecondsSinceEpoch(0),
-    );
+    // 順序很重要：先問 DB，讓「下載過/改過」的那份資料贏過過時的內建定義
+    // （之前是內建優先，等於 cat/dog 永遠無視 DB 裡的記錄）。DB 沒有這一列（使用者刪掉了）
+    // 才退回內建 —— 素材是隨 app 打包的，不該因為一列被刪就整個變成佔位圓。
+    final stored = await _repository.getById(animalId);
+    return stored ?? AnimalRepository.builtIn(animalId);
   }
 
   Future<void> _openMenu() async {
@@ -287,9 +306,15 @@ class _OverlayAppState extends State<_OverlayApp> {
     return _buildPet(resource, definition, controller);
   }
 
+  /// 載入失敗（或還載入中）時的佔位畫面。
+  ///
+  /// 這裡不能走 `_openMenu`：`_buildContent` 在 resource/definition/controller 任一為 null 時
+  /// 一律回傳這個佔位畫面，所以「開選單」只會把視窗放大到選單尺寸、內容卻還是那顆圓，
+  /// 而 `_closeMenu` 再也叫不回來 —— 使用者卡在那個大視窗上，而且（沒有控制器）也拖不動。
+  /// 佔位狀態唯一有意義的動作是重試；真的要收掉寵物，是在主頁把懸浮關掉。
   Widget _buildFallbackPet() {
     return GestureDetector(
-      onTap: _openMenu,
+      onTap: () => unawaited(_loadAnimal(_resource?.animalId ?? defaultAnimalId, _metrics)),
       child: Center(
         child: SizedBox(
           width: _petSize,
@@ -367,8 +392,13 @@ class _OverlayAppState extends State<_OverlayApp> {
 
   @override
   void dispose() {
+    unawaited(_eventSub?.cancel());
+    _eventSub = null;
+    _loadSeq++; // 讓還在飛的載入流程全部作廢（它們回來時只會看到過期的顺序號）
     _driver?.dispose();
     _controller?.dispose();
+    _stats?.dispose();
+    _stats = null;
     super.dispose();
   }
 }

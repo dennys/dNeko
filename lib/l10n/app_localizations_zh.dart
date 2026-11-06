@@ -59,6 +59,26 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get zoneBottomRight => '右下角';
+
+  @override
+  String get overlayStart => '啟動桌寵';
+
+  @override
+  String get overlayStop => '關閉桌寵';
+
+  @override
+  String get overlayStarting => '啟動中…';
+
+  @override
+  String get overlayStopping => '關閉中…';
+
+  @override
+  String overlayFailed(Object message) {
+    return '改變懸浮視窗失敗：$message';
+  }
+
+  @override
+  String get overlayPermissionDenied => '沒有取得懸浮視窗權限';
 }
 
 /// The translations for Chinese, as used in Taiwan (`zh_TW`).
@@ -115,4 +135,24 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get zoneBottomRight => '右下角';
+
+  @override
+  String get overlayStart => '啟動桌寵';
+
+  @override
+  String get overlayStop => '關閉桌寵';
+
+  @override
+  String get overlayStarting => '啟動中…';
+
+  @override
+  String get overlayStopping => '關閉中…';
+
+  @override
+  String overlayFailed(Object message) {
+    return '改變懸浮視窗失敗：$message';
+  }
+
+  @override
+  String get overlayPermissionDenied => '沒有取得懸浮視窗權限';
 }

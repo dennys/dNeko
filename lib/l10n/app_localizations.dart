@@ -202,6 +202,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Bottom right'**
   String get zoneBottomRight;
+
+  /// No description provided for @overlayStart.
+  ///
+  /// In en, this message translates to:
+  /// **'Start Overlay'**
+  String get overlayStart;
+
+  /// No description provided for @overlayStop.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop Overlay'**
+  String get overlayStop;
+
+  /// No description provided for @overlayStarting.
+  ///
+  /// In en, this message translates to:
+  /// **'Starting...'**
+  String get overlayStarting;
+
+  /// No description provided for @overlayStopping.
+  ///
+  /// In en, this message translates to:
+  /// **'Stopping...'**
+  String get overlayStopping;
+
+  /// No description provided for @overlayFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to change overlay: {message}'**
+  String overlayFailed(Object message);
+
+  /// No description provided for @overlayPermissionDenied.
+  ///
+  /// In en, this message translates to:
+  /// **'Overlay permission was not granted'**
+  String get overlayPermissionDenied;
 }
 
 class _AppLocalizationsDelegate

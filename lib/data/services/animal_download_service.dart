@@ -56,6 +56,8 @@ class AnimalDownloadService {
 
   /// 刪除已下載的動物
   /// animalId 會進檔案路徑，與 download() 用同一套白名單檢查
+  /// fileNames 給空清單時會驗證出「全部檔案都存在」（= 什麼都沒下載也算成功），
+  /// 商店那側至少要知道這件事；目前清單寫死在 StaticStoreCatalog，不會發生。
   Future<void> remove(String animalId) async {
     final folder = await _resolveLocalFolder(animalId);
     if (await folder.exists()) {

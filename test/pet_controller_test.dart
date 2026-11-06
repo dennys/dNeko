@@ -1,6 +1,9 @@
 import 'dart:ui';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:dneko/data/models/animation_action.dart';
+import 'package:dneko/domain/i_pet_brain.dart';
+import 'package:dneko/domain/pet_behavior.dart';
+import 'package:dneko/domain/pet_decision.dart';
 import 'package:dneko/domain/pet_stats.dart';
 import 'package:dneko/presentation/controllers/pet_controller.dart';
 
@@ -77,4 +80,66 @@ void main() {
       c.dispose();
     });
   });
+
+  // 之前每 16ms 一定 notifyListeners()，overlay 那側就是固定 60 次/秒重建 widget；
+  // 但桌寵大部分時間只是坐在那裡。通知要收在「看得見的變化」。
+  group('通知節流', () {
+    testWidgets('原地發呆不會每幀都通知', (tester) async {
+      var notifications = 0;
+      final c = PetController(
+        bounds: const Rect.fromLTWH(0, 0, 1000, 1000),
+        brain: _AlwaysIdleBrain(),
+        stats: PetStats(initialHunger: 50),
+      )..start();
+      c.addListener(() => notifications++);
+
+      await pumpTicks(tester, 1); // 第一幀把基準位置/動作記下來（這一次通知是必要的）
+      final established = notifications;
+      expect(established, 1);
+
+      await pumpTicks(tester, 300); // 約 5 秒，都還在 idle 的 hold 裡
+      expect(c.position, const Offset(500, 500));
+      expect(notifications, established, reason: '位置與動作都沒變，不該再通知');
+      c.dispose();
+    });
+
+    testWidgets('按撫摸會立刻通知（否則撒嬌動畫根本播不出來）', (tester) async {
+      // pet() 只換動作、不動位置，而 hold=2s 讓接下來的 125 幀都提前 return；
+      // 少了 _enter 的通知，按下去之後兩秒內畫面完全不會重繪。
+      final c = PetController(
+        bounds: const Rect.fromLTWH(0, 0, 1000, 1000),
+        brain: _AlwaysIdleBrain(),
+        stats: PetStats(initialHunger: 50),
+      )..start();
+      var notifications = 0;
+      c.addListener(() => notifications++);
+
+      c.pet();
+      expect(c.action, AnimationAction.affectionate);
+      expect(notifications, 1);
+      c.dispose();
+    });
+
+    testWidgets('真的走動了就會通知', (tester) async {
+      var notifications = 0;
+      final c = PetController(
+        bounds: const Rect.fromLTWH(0, 0, 1000, 1000),
+        brain: _AlwaysIdleBrain(),
+        speedPerTick: 10,
+        stats: PetStats(initialHunger: 50),
+      )..start();
+      c.addListener(() => notifications++);
+
+      c.feedAt(const Offset(500, 900));
+      await pumpTicks(tester, 5);
+      expect(notifications, greaterThanOrEqualTo(5), reason: '每幀都真的移動了一整像素');
+      c.dispose();
+    });
+  });
+}
+
+class _AlwaysIdleBrain implements IPetBrain {
+  @override
+  PetDecision decideNext(Rect bounds, {bool isHungry = false}) =>
+      const PetDecision(PetBehavior.idle, holdTime: Duration(seconds: 30));
 }
