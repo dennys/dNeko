@@ -11,33 +11,41 @@ import '../../domain/pet_brain.dart';
 import '../../domain/i_movement_engine.dart';
 import '../../domain/movement_engine.dart';
 import '../../domain/direction_resolver.dart';
+import '../../domain/pet_settings.dart';
 
 class PetController extends ChangeNotifier {
-  static const _tick = Duration(milliseconds: 16);
+  static const _tick = petTick; // 與 PetSettings.speedPerTick 的換算共用同一個來源
 
   final IPetBrain _brain;
-  final IMovementEngine _movement;
+  IMovementEngine _movement;
   final DirectionResolver _direction;
   final PetStats _stats;
   final IEdgeBehavior _edge; // 新增
   Rect _bounds;
+
+  /// 未指定速度時的預設值（px/tick）
+  static const double _defaultSpeedPerTick = 1.5;
 
   PetController({
     required Rect bounds,
     PetStats? stats,
     IPetBrain? brain,
     IMovementEngine? movement,
+    double? speedPerTick,
     IEdgeBehavior? edge, // 新增（預設沿邊走）
     this._direction = const DirectionResolver(),
   })  : _bounds = bounds,
         _stats = stats ?? PetStats(),
         _brain = brain ?? PetBrain(),
-        _movement = movement ?? const MovementEngine(),
+        _movement = movement ??
+            MovementEngine(speedPerTick: speedPerTick ?? _defaultSpeedPerTick),
         _edge = edge ?? EdgeWalkBehavior(),
         _position = bounds.center;
 
   Offset _position;
   Offset get position => _position;
+
+  Rect get bounds => _bounds;
 
   PetStats get stats => _stats;
 
@@ -54,14 +62,19 @@ class PetController extends ChangeNotifier {
 
   void updateBounds(Rect bounds) => _bounds = bounds;
 
+  /// 設定頁改速度時即時生效（不必重開 overlay）
+  void setSpeedPerTick(double speedPerTick) =>
+      _movement = MovementEngine(speedPerTick: speedPerTick);
+
   void pet() => _enter(
         PetBehavior.affectionate,
         action: AnimationAction.affectionate,
         hold: const Duration(seconds: 2),
       );
 
+  /// 食物落點一律夾進可漫遊範圍，否則牠會永遠抵著邊走不到。
   void feedAt(Offset foodPosition) =>
-      _enter(PetBehavior.goToFood, target: foodPosition);
+      _enter(PetBehavior.goToFood, target: _clampToBounds(foodPosition));
 
   void beginDrag() {
     _isDragging = true;

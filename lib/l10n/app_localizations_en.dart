@@ -29,4 +29,34 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get menuClose => 'Close';
+
+  @override
+  String get settingsTitle => 'Pet Settings';
+
+  @override
+  String get settingsSpeed => 'Speed';
+
+  @override
+  String get settingsSize => 'Size';
+
+  @override
+  String get settingsZone => 'Roaming area';
+
+  @override
+  String get zoneFullScreen => 'Full screen';
+
+  @override
+  String get zoneBottomBand => 'Bottom strip';
+
+  @override
+  String get zoneTopLeft => 'Top left';
+
+  @override
+  String get zoneTopRight => 'Top right';
+
+  @override
+  String get zoneBottomLeft => 'Bottom left';
+
+  @override
+  String get zoneBottomRight => 'Bottom right';
 }

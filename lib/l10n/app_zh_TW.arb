@@ -5,5 +5,15 @@
   "storeRemove": "移除",
   "menuFeed": "餵食",
   "menuPet": "撫摸",
-  "menuClose": "關閉"
+  "menuClose": "關閉",
+  "settingsTitle": "寵物設定",
+  "settingsSpeed": "移動速度",
+  "settingsSize": "大小",
+  "settingsZone": "活動範圍",
+  "zoneFullScreen": "全螢幕",
+  "zoneBottomBand": "僅下方",
+  "zoneTopLeft": "左上角",
+  "zoneTopRight": "右上角",
+  "zoneBottomLeft": "左下角",
+  "zoneBottomRight": "右下角"
 }
