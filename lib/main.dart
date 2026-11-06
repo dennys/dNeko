@@ -2,24 +2,36 @@ import 'package:flutter/material.dart';
 import 'l10n/app_localizations.dart';
 import 'overlay_main.dart' as overlay_entry;
 import 'data/repositories/animal_repository.dart';
+import 'data/repositories/settings_repository.dart';
 import 'data/services/animal_download_service.dart';
 import 'data/services/overlay_service.dart';
 import 'data/services/static_store_catalog.dart';
+import 'domain/pet_settings.dart';
 import 'domain/screen_metrics.dart';
+import 'presentation/controllers/settings_controller.dart';
 import 'presentation/controllers/store_controller.dart';
+import 'presentation/pages/settings_page.dart';
 import 'presentation/pages/store_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final repository = AnimalRepository();
   await repository.seedBuiltIns();
+  final settingsRepository = SettingsRepository();
   final downloadService = AnimalDownloadService(repository);
   final storeController = StoreController(
     catalog: StaticStoreCatalog(),
     downloadService: downloadService,
     repository: repository,
   );
-  runApp(MyApp(storeController: storeController));
+  final settingsController = SettingsController(
+    repository: settingsRepository,
+    initial: await settingsRepository.load(),
+  );
+  runApp(MyApp(
+    storeController: storeController,
+    settingsController: settingsController,
+  ));
 }
 
 @pragma('vm:entry-point')
@@ -29,8 +41,13 @@ void overlayMain() {
 
 class MyApp extends StatelessWidget {
   final StoreController storeController;
+  final SettingsController settingsController;
 
-  const MyApp({super.key, required this.storeController});
+  const MyApp({
+    super.key,
+    required this.storeController,
+    required this.settingsController,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -42,15 +59,23 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
       ),
-      home: HomePage(storeController: storeController),
+      home: HomePage(
+        storeController: storeController,
+        settingsController: settingsController,
+      ),
     );
   }
 }
 
 class HomePage extends StatelessWidget {
   final StoreController storeController;
+  final SettingsController settingsController;
 
-  const HomePage({super.key, required this.storeController});
+  const HomePage({
+    super.key,
+    required this.storeController,
+    required this.settingsController,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -59,6 +84,18 @@ class HomePage extends StatelessWidget {
       appBar: AppBar(
         title: const Text('dNeko'),
         actions: [
+          IconButton(
+            tooltip: l10n.settingsTitle,
+            icon: const Icon(Icons.settings),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => SettingsPage(
+                  controller: settingsController,
+                  overlayService: OverlayService(),
+                ),
+              ),
+            ),
+          ),
           IconButton(
             tooltip: l10n.storeTitle,
             icon: const Icon(Icons.store),
@@ -70,13 +107,15 @@ class HomePage extends StatelessWidget {
           ),
         ],
       ),
-      body: const _OverlayControl(),
+      body: _OverlayControl(settingsController: settingsController),
     );
   }
 }
 
 class _OverlayControl extends StatefulWidget {
-  const _OverlayControl();
+  final SettingsController settingsController;
+
+  const _OverlayControl({required this.settingsController});
 
   @override
   State<_OverlayControl> createState() => _OverlayControlState();
@@ -118,10 +157,12 @@ class _OverlayControlState extends State<_OverlayControl> {
         final metrics = ScreenMetrics(
           logicalSize: mq.size,
           devicePixelRatio: mq.devicePixelRatio,
+          bottomInset: mq.padding.bottom,
         );
         final locale = Localizations.localeOf(context);
         await _overlayService.show(
-          animalId: 'cat',
+          animalId: defaultAnimalId,
+          settings: widget.settingsController.settings,
           metrics: metrics,
           languageCode: locale.languageCode,
         );

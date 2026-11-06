@@ -142,6 +142,66 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Close'**
   String get menuClose;
+
+  /// No description provided for @settingsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Pet Settings'**
+  String get settingsTitle;
+
+  /// No description provided for @settingsSpeed.
+  ///
+  /// In en, this message translates to:
+  /// **'Speed'**
+  String get settingsSpeed;
+
+  /// No description provided for @settingsSize.
+  ///
+  /// In en, this message translates to:
+  /// **'Size'**
+  String get settingsSize;
+
+  /// No description provided for @settingsZone.
+  ///
+  /// In en, this message translates to:
+  /// **'Roaming area'**
+  String get settingsZone;
+
+  /// No description provided for @zoneFullScreen.
+  ///
+  /// In en, this message translates to:
+  /// **'Full screen'**
+  String get zoneFullScreen;
+
+  /// No description provided for @zoneBottomBand.
+  ///
+  /// In en, this message translates to:
+  /// **'Bottom strip'**
+  String get zoneBottomBand;
+
+  /// No description provided for @zoneTopLeft.
+  ///
+  /// In en, this message translates to:
+  /// **'Top left'**
+  String get zoneTopLeft;
+
+  /// No description provided for @zoneTopRight.
+  ///
+  /// In en, this message translates to:
+  /// **'Top right'**
+  String get zoneTopRight;
+
+  /// No description provided for @zoneBottomLeft.
+  ///
+  /// In en, this message translates to:
+  /// **'Bottom left'**
+  String get zoneBottomLeft;
+
+  /// No description provided for @zoneBottomRight.
+  ///
+  /// In en, this message translates to:
+  /// **'Bottom right'**
+  String get zoneBottomRight;
 }
 
 class _AppLocalizationsDelegate

@@ -5,5 +5,15 @@
   "storeRemove": "削除",
   "menuFeed": "ごはん",
   "menuPet": "なでる",
-  "menuClose": "閉じる"
+  "menuClose": "閉じる",
+  "settingsTitle": "ペット設定",
+  "settingsSpeed": "移動スピード",
+  "settingsSize": "サイズ",
+  "settingsZone": "移動エリア",
+  "zoneFullScreen": "全画面",
+  "zoneBottomBand": "下部のみ",
+  "zoneTopLeft": "左上",
+  "zoneTopRight": "右上",
+  "zoneBottomLeft": "左下",
+  "zoneBottomRight": "右下"
 }

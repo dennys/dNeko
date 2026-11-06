@@ -29,6 +29,36 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get menuClose => '關閉';
+
+  @override
+  String get settingsTitle => '寵物設定';
+
+  @override
+  String get settingsSpeed => '移動速度';
+
+  @override
+  String get settingsSize => '大小';
+
+  @override
+  String get settingsZone => '活動範圍';
+
+  @override
+  String get zoneFullScreen => '全螢幕';
+
+  @override
+  String get zoneBottomBand => '僅下方';
+
+  @override
+  String get zoneTopLeft => '左上角';
+
+  @override
+  String get zoneTopRight => '右上角';
+
+  @override
+  String get zoneBottomLeft => '左下角';
+
+  @override
+  String get zoneBottomRight => '右下角';
 }
 
 /// The translations for Chinese, as used in Taiwan (`zh_TW`).
@@ -55,4 +85,34 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get menuClose => '關閉';
+
+  @override
+  String get settingsTitle => '寵物設定';
+
+  @override
+  String get settingsSpeed => '移動速度';
+
+  @override
+  String get settingsSize => '大小';
+
+  @override
+  String get settingsZone => '活動範圍';
+
+  @override
+  String get zoneFullScreen => '全螢幕';
+
+  @override
+  String get zoneBottomBand => '僅下方';
+
+  @override
+  String get zoneTopLeft => '左上角';
+
+  @override
+  String get zoneTopRight => '右上角';
+
+  @override
+  String get zoneBottomLeft => '左下角';
+
+  @override
+  String get zoneBottomRight => '右下角';
 }

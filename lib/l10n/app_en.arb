@@ -5,5 +5,15 @@
   "storeRemove": "Remove",
   "menuFeed": "Feed",
   "menuPet": "Pet",
-  "menuClose": "Close"
+  "menuClose": "Close",
+  "settingsTitle": "Pet Settings",
+  "settingsSpeed": "Speed",
+  "settingsSize": "Size",
+  "settingsZone": "Roaming area",
+  "zoneFullScreen": "Full screen",
+  "zoneBottomBand": "Bottom strip",
+  "zoneTopLeft": "Top left",
+  "zoneTopRight": "Top right",
+  "zoneBottomLeft": "Bottom left",
+  "zoneBottomRight": "Bottom right"
 }

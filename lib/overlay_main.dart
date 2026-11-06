@@ -1,15 +1,18 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 import 'l10n/app_localizations.dart';
 import 'data/repositories/animal_repository.dart';
+import 'data/repositories/settings_repository.dart';
 import 'data/services/animation_loader.dart';
-import 'data/services/overlay_service.dart';
 import 'data/services/overlay_window.dart';
 import 'data/models/animal_resource.dart';
 import 'data/models/animation_definition.dart';
 import 'data/models/animation_action.dart';
+import 'domain/pet_settings.dart';
+import 'domain/pet_stats.dart';
 import 'domain/screen_metrics.dart';
 import 'presentation/controllers/pet_controller.dart';
 import 'presentation/controllers/pet_controller_factory.dart';
@@ -32,21 +35,36 @@ class _OverlayApp extends StatefulWidget {
 }
 
 class _OverlayAppState extends State<_OverlayApp> {
-  static const double _menuWidth = 180;
-  static const double _menuHeight = 240;
   static const _controllerFactory = PetControllerFactory();
 
+  /// 選單寬度至少要裝得下按鈕（140）＋ Card padding（24）
+  double get _menuWidth => math.max(_settings.petSize, 164.0);
+  double get _menuHeight => _settings.petSize + 176;
+
+  /// 餵食時食物擲在牠旁邊多遠
+  static const double _feedDropDistance = 120;
+
+  /// 飢餓值落盤的節流間隔
+  static const Duration _hungerSaveInterval = Duration(seconds: 60);
+
   final _repository = AnimalRepository();
+  final _settingsRepository = SettingsRepository();
   final _loader = AnimationLoader();
 
   PetController? _controller;
   OverlayPetDriver? _driver;
   AnimalResource? _resource;
   AnimalAnimationDefinition? _definition;
-  double _petSize = OverlayService.collapsedSize;
+  PetSettings _settings = const PetSettings();
+  ScreenMetrics _metrics = const ScreenMetrics(
+    logicalSize: Size(360, 720),
+    devicePixelRatio: 1,
+  );
+  double _petSize = PetSettings.defaultPetSize;
   _WindowState _state = _WindowState.collapsed;
   Locale _locale = const Locale('en'); // overlay 自己的語系
   bool _loadFailed = false;
+  DateTime _lastHungerSave = DateTime.fromMillisecondsSinceEpoch(0);
 
   @override
   void initState() {
@@ -56,11 +74,19 @@ class _OverlayAppState extends State<_OverlayApp> {
   }
 
   Future<void> _loadDefaultAnimal() async {
-    const fallbackMetrics = ScreenMetrics(
-      logicalSize: Size(360, 720),
-      devicePixelRatio: 1,
-    );
-    await _loadAnimal('cat', fallbackMetrics);
+    _settings = await _readOr(() => _settingsRepository.load(), const PetSettings());
+    if (!mounted || _resource != null) return; // 主 app 的 payload 先到就別再用預設值重載
+    await _loadAnimal(defaultAnimalId, _metrics);
+  }
+
+  /// overlay 是獨立 isolate，sqflite 在裡頭不一定可用：讀不到就用預設，
+  /// 绝不能因為設定/餓度拉不到就让寵物消失。
+  Future<T> _readOr<T>(Future<T> Function() read, T fallback) async {
+    try {
+      return await read();
+    } catch (_) {
+      return fallback;
+    }
   }
 
   Future<void> _onData(dynamic data) async {
@@ -75,13 +101,32 @@ class _OverlayAppState extends State<_OverlayApp> {
     final animalId = map['animalId'] as String?;
     if (animalId == null) return;
 
-    _petSize = (map['petSize'] as num?)?.toDouble() ?? _petSize;
+    final rawSettings = map['settings'];
+    if (rawSettings is Map) {
+      _settings = PetSettings.fromJson(Map<String, dynamic>.from(rawSettings));
+    }
     final languageCode = map['languageCode'] as String? ?? 'en';
-    final metrics = ScreenMetrics.fromJson(
+    _metrics = ScreenMetrics.fromJson(
       map['metrics'] as Map<String, dynamic>,
     );
     setState(() => _locale = Locale(languageCode));
-    await _loadAnimal(animalId, metrics);
+
+    // 同一隻寵物 → 只把新設定套上去，不重載（重載會把位置與行為清零，很突兀）
+    final controller = _controller;
+    if (controller != null && animalId == _resource?.animalId) {
+      await _applySettings();
+      return;
+    }
+    await _loadAnimal(animalId, _metrics);
+  }
+
+  /// 設定頁改動後即時生效：速度、可漫遊範圍、視窗尺寸
+  Future<void> _applySettings() async {
+    setState(() => _petSize = _settings.petSize);
+    _controller
+      ?..setSpeedPerTick(_settings.speedPerTick)
+      ..updateBounds(_metrics.zoneBounds(_settings.petSize, _settings.zone));
+    if (_state == _WindowState.collapsed) await _resizePetWindow();
   }
 
   Future<void> _loadAnimal(String animalId, ScreenMetrics metrics) async {
@@ -94,7 +139,7 @@ class _OverlayAppState extends State<_OverlayApp> {
       final definition = await _loader.load(resource);
       if (!mounted) return;
 
-      final bounds = metrics.roamingBounds(_petSize);
+      final bounds = metrics.zoneBounds(_settings.petSize, _settings.zone);
       const window = OverlayWindow();
 
       _driver?.dispose();
@@ -102,11 +147,15 @@ class _OverlayAppState extends State<_OverlayApp> {
 
       await _resizePetWindow();
 
+      final hunger = await _readOr(() => _settingsRepository.loadHunger(), null);
       final controller = _controllerFactory.create(
         bounds: bounds,
         definition: definition,
+        speedPerTick: _settings.speedPerTick,
+        stats: PetStats(initialHunger: hunger ?? 0),
       )..start();
       final driver = OverlayPetDriver(controller, window);
+      _watchHunger(controller);
 
       setState(() {
         _loadFailed = false;
@@ -125,6 +174,29 @@ class _OverlayAppState extends State<_OverlayApp> {
       await const OverlayWindow().resize(width: _petSize, height: _petSize);
     } catch (_) {
       // resize 失敗時仍保留初始視窗，避免畫面完全消失。
+    }
+  }
+
+  /// 餓度要能跨重開：變動時節流落盤（最多延後 _hungerSaveInterval）
+  void _watchHunger(PetController controller) {
+    controller.stats.addListener(() {
+      final now = DateTime.now();
+      if (now.difference(_lastHungerSave) < _hungerSaveInterval) return;
+      _flushHunger(controller);
+    });
+  }
+
+  void _flushHunger(PetController controller) {
+    _lastHungerSave = DateTime.now();
+    final hunger = controller.stats.hunger;
+    unawaited(_writeHungerQuietly(hunger));
+  }
+
+  Future<void> _writeHungerQuietly(double hunger) async {
+    try {
+      await _settingsRepository.saveHunger(hunger);
+    } catch (_) {
+      // 同上：存不進去只是下次重開餓度回到舊值，不能影響執行期。
     }
   }
 
@@ -167,13 +239,21 @@ class _OverlayAppState extends State<_OverlayApp> {
   }
 
   Future<void> _feed() async {
-    _controller?.stats.feed();
-    _controller?.pet();
+    final controller = _controller;
+    if (controller != null) {
+      // 食物擲在牠旁邊 → goToFood → 走過去 → eat 動畫 → 飽食
+      controller.feedAt(
+        Offset(controller.position.dx + _feedDropDistance, controller.position.dy),
+      );
+      _flushHunger(controller);
+    }
     await _closeMenu();
   }
 
   Future<void> _petAction() async {
-    _controller?.pet();
+    final controller = _controller;
+    controller?.pet();
+    if (controller != null) _flushHunger(controller);
     await _closeMenu();
   }
 
@@ -229,6 +309,12 @@ class _OverlayAppState extends State<_OverlayApp> {
   ) {
     return GestureDetector(
       onTap: _openMenu,
+      // 自己處理拖曳（showOverlay 的 enableDrag 已關）：拖完位置還在 PetController 手上，
+      // 而且會被 zone 夾住，拖不進禁区。
+      onPanDown: (_) => controller.beginDrag(),
+      onPanUpdate: (d) => controller.dragTo(controller.position + d.delta),
+      onPanEnd: (_) => controller.endDrag(),
+      onPanCancel: () => controller.endDrag(),
       child: Center(
         child: AnimatedBuilder(
           animation: controller,
