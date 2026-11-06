@@ -35,7 +35,24 @@ class AnimalAnimationDefinition {
     this.edgeBehavior,
   });
 
-  FrameAnimation? getAction(AnimationAction action) => actions[action];
+  FrameAnimation? getAction(AnimationAction action) {
+    final direct = actions[action];
+    if (direct != null) return direct;
+    final alias = _missingFrameAlias[action];
+    return alias == null ? null : actions[alias];
+  }
+
+  /// 素材沒有水平走的幀（貓只有 walk_u / walk_d 兩組），水平移動就借用往下走的幀。
+  /// shortcut: 左右走看起來像在往下走；補到真正的 walk_l/r 素材後整張表可以刪掉
+  /// （actions 有直接命中就不會走到這裡）。
+  static const Map<AnimationAction, AnimationAction> _missingFrameAlias = {
+    AnimationAction.walkLeft: AnimationAction.walkDown,
+    AnimationAction.walkRight: AnimationAction.walkDown,
+    AnimationAction.walkUpLeft: AnimationAction.walkUp,
+    AnimationAction.walkUpRight: AnimationAction.walkUp,
+    AnimationAction.walkDownLeft: AnimationAction.walkDown,
+    AnimationAction.walkDownRight: AnimationAction.walkDown,
+  };
 
   factory AnimalAnimationDefinition.fromJson(Map<String, dynamic> json) {
     final rawActions = json['actions'] as Map<String, dynamic>;
