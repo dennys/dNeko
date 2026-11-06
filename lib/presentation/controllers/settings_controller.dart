@@ -14,9 +14,14 @@ class SettingsController extends ChangeNotifier {
     PetSettings? initial,
   }) : _settings = initial ?? const PetSettings();
 
-  Future<void> update(PetSettings next) async {
+  /// 只改記憶體並通知 UI（slider 拖動過程用這個，不要把 DB 寫入灌進每一個像素）
+  void preview(PetSettings next) {
     _settings = next;
-    notifyListeners(); // 先更新 UI，存檔不卡畫面
+    notifyListeners();
+  }
+
+  Future<void> update(PetSettings next) async {
+    preview(next);
     await _repository.save(next);
   }
 }
