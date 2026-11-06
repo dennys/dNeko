@@ -1,38 +1,14 @@
 import 'package:sqflite/sqflite.dart';
-import 'package:path/path.dart';
 import 'i_animal_repository.dart';
 import '../models/animal_resource.dart';
+import 'pet_database.dart';
 
 class AnimalRepository implements IAnimalRepository {
-  static const _dbName = 'desktop_pet.db';
-  static const _tableName = 'animal_resources';
+  static const _tableName = animalTable;
 
   Database? _db;
 
-  Future<Database> get _database async {
-    _db ??= await _initDb();
-    return _db!;
-  }
-
-  Future<Database> _initDb() async {
-    final dbPath = join(await getDatabasesPath(), _dbName);
-    return openDatabase(
-      dbPath,
-      version: 1,
-      onCreate: (db, version) => db.execute('''
-        CREATE TABLE $_tableName (
-          id               INTEGER PRIMARY KEY AUTOINCREMENT,
-          animal_id        TEXT    NOT NULL UNIQUE,
-          display_name     TEXT    NOT NULL,
-          local_folder_path TEXT   NOT NULL,
-          version          TEXT    NOT NULL,
-          is_downloaded    INTEGER NOT NULL DEFAULT 0,
-          is_built_in      INTEGER NOT NULL DEFAULT 0,
-          updated_at       TEXT    NOT NULL
-        )
-      '''),
-    );
-  }
+  Future<Database> get _database async => _db ??= await openPetDatabase();
 
   @override
   Future<List<AnimalResource>> getAll() async {
