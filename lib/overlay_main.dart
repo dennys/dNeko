@@ -37,9 +37,11 @@ class _OverlayApp extends StatefulWidget {
 class _OverlayAppState extends State<_OverlayApp> {
   static const _controllerFactory = PetControllerFactory();
 
-  /// 選單寬度至少要裝得下按鈕（140）＋ Card padding（24）
-  double get _menuWidth => math.max(_settings.petSize, 164.0);
-  double get _menuHeight => _settings.petSize + 232;
+  /// 選單寬度至少要裝得下選單列，否則跟寵物同寬
+  double get _menuWidth => math.max(_petSize, FeedingMenu.contentWidth);
+
+  /// 寵物 + 間距 + 選單 + 底部留白
+  double get _menuHeight => _petSize + 8 + FeedingMenu.contentHeight + 8;
 
   /// 餵食時食物擲在牠旁邊多遠
   static const double _feedDropDistance = 120;
@@ -184,13 +186,21 @@ class _OverlayAppState extends State<_OverlayApp> {
       _settings = PetSettings.fromJson(Map<String, dynamic>.from(rawSettings));
     }
     final languageCode = map['languageCode'] as String? ?? 'en';
+    // 'zh-TW' 這種帶地区碼的要拆開；Locale('zh_TW') 當成語言碼會比對不到任何 arb
+    final parts = languageCode.split(RegExp('[-_]'));
     // payload 少了 metrics 時不能把整個 handler 炸掉（這是 stream callback，例外會變成
     // unhandled error，寵物就卡在原來的位置）；沿用舊的範圍就好。
     final rawMetrics = map['metrics'];
     if (rawMetrics is Map) {
-      _metrics = ScreenMetrics.fromJson(Map<String, dynamic>.from(rawMetrics));
+      final metrics = ScreenMetrics.fromJson(Map<String, dynamic>.from(rawMetrics));
+      // 轉屏（或切手機/平板）後可用範圍整個翻轉，舊校準值必須作廢重量
+      if (metrics.logicalSize != _metrics.logicalSize ||
+          metrics.devicePixelRatio != _metrics.devicePixelRatio) {
+        _roam = null;
+      }
+      _metrics = metrics;
     }
-    setState(() => _locale = Locale(languageCode));
+    setState(() => _locale = parts.length > 1 ? Locale(parts[0], parts[1]) : Locale(parts[0]));
 
     // 同一隻寵物 → 只把新設定套上去，不重載（重載會把位置與行為清零，很突兀）
     final controller = _controller;
@@ -309,6 +319,9 @@ class _OverlayAppState extends State<_OverlayApp> {
 
       setState(() {
         _loadFailed = false;
+        // 載入把視窗縮回寵物尺寸了，選單開著也會被壓扁 —— 狀態要跟著回collapsed，
+        // 否則之後按誰都叫不回 _closeMenu
+        _state = _WindowState.collapsed;
         _stats = stats;
         _resource = resource;
         _definition = definition;
@@ -434,6 +447,18 @@ class _OverlayAppState extends State<_OverlayApp> {
     _flushHunger(controller);
   }
 
+  /// 結束整個程式：先知會主 app（還活著的話它會連自己一起關掉），再關懸浮服務。
+  /// 主 app 已被使用者划掉時 shareData 沒人收，但 closeOverlay 一樣把服務殺掉。
+  Future<void> _quitApp() async {
+    try {
+      await FlutterOverlayWindow.shareData(jsonEncode({'cmd': 'quit'}));
+    } catch (_) {}
+    await Future.delayed(const Duration(milliseconds: 60));
+    try {
+      await const OverlayWindow().close();
+    } catch (_) {}
+  }
+
   Future<void> _freezeAction() async {
     final controller = _controller;
     controller?.setFrozen(!(controller.frozen));
@@ -448,6 +473,16 @@ class _OverlayAppState extends State<_OverlayApp> {
       locale: _locale, // 套用使用者語系
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
+      // 選單是 Card/InkWell，要跟主 app 一樣支援深色模式
+      theme: ThemeData(colorScheme: ColorScheme.fromSeed(seedColor: Colors.green)),
+      darkTheme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.green, brightness: Brightness.dark),
+      ),
+      themeMode: switch (_settings.themeMode) {
+        'light' => ThemeMode.light,
+        'dark' => ThemeMode.dark,
+        _ => ThemeMode.system,
+      },
       home: Material(
         color: Colors.transparent,
         child: Builder(builder: _buildContent),
@@ -545,10 +580,12 @@ class _OverlayAppState extends State<_OverlayApp> {
       petLabel: l10n.menuPet,
       closeLabel: l10n.menuClose,
       freezeLabel: controller.frozen ? l10n.menuUnfreeze : l10n.menuFreeze,
+      quitLabel: l10n.menuQuit,
       onFeed: _feed,
       onPet: _petAction,
       onFreeze: _freezeAction,
       onClose: _closeMenu,
+      onQuit: () => unawaited(_quitApp()),
     );
     const gap = SizedBox(height: 8);
     // 錨定而不是置中：選單開在下面→動物貼視窗頂；開在上面→動物貼視窗底。

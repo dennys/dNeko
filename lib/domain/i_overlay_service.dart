@@ -24,4 +24,7 @@ abstract interface class IOverlayService {
 
   Future<void> close();
   Future<bool> isActive();
+
+  /// overlay → 主 app 的事件流（如選單按「結束」送來的 quit 指令）
+  Stream<dynamic> get events;
 }

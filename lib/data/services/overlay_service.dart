@@ -85,5 +85,8 @@ class OverlayService implements IOverlayService {
   Future<void> close() => FlutterOverlayWindow.closeOverlay();
 
   @override
+  Stream<dynamic> get events => FlutterOverlayWindow.overlayListener;
+
+  @override
   Future<bool> isActive() => FlutterOverlayWindow.isActive();
 }
