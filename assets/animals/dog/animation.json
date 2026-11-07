@@ -1,8 +1,8 @@
 {
   "animalId": "dog",
-  "displayName": "小柴犬",
-  "frameWidth": 32,
-  "frameHeight": 32,
+  "displayName": "小狗",
+  "frameWidth": 256,
+  "frameHeight": 256,
   "edgeBehavior": "turnBack",
   "actions": {
     "WalkUp":   { "frames": ["walk_u1","walk_u2"], "frameDurationMs": 250, "loop": true },
