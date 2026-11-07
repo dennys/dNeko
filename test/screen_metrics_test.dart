@@ -10,87 +10,61 @@ void main() {
   );
 
   group('ScreenMetrics', () {
-    test('漫遊範圍扣掉寵物大小', () {
-      final bounds = metrics.roamingBounds(80);
-      expect(bounds.right, 320); // 400 - 80
-      expect(bounds.bottom, 720); // 800 - 80
-    });
-
     test('JSON 往返保持一致', () {
       final restored = ScreenMetrics.fromJson(metrics.toJson());
       expect(restored.logicalSize, metrics.logicalSize);
       expect(restored.devicePixelRatio, metrics.devicePixelRatio);
     });
 
-    test('bottomInset 一起進出 JSON（舊 payload 缺欄位時為 0）', () {
-      const withInset = ScreenMetrics(
-        logicalSize: Size(400, 800),
-        devicePixelRatio: 3,
-        bottomInset: 24,
-      );
-      expect(ScreenMetrics.fromJson(withInset.toJson()).bottomInset, 24);
-
-      final legacy = ScreenMetrics.fromJson({
-        'width': 400.0,
-        'height': 800.0,
-        'devicePixelRatio': 3.0,
-      });
-      expect(legacy.bottomInset, 0);
+    test('fallbackRoam 扣掉寵物大小', () {
+      expect(metrics.fallbackRoam(80), const Rect.fromLTWH(0, 0, 320, 720));
     });
   });
 
-  group('zoneBounds', () {
+  group('zoneBounds（吃實測的 roam 範圍）', () {
     const pet = 80.0;
-    const withInset = ScreenMetrics(
-      logicalSize: Size(400, 800),
-      devicePixelRatio: 3,
-      bottomInset: 24,
-    );
+    // 模擬實測結果：頂端被狀態列壓到 y=24，底部到 y=696（導航列已扣掉）
+    const roam = Rect.fromLTRB(0, 24, 320, 696);
 
-    test('fullScreen 等於原本的 roamingBounds', () {
-      expect(
-        metrics.zoneBounds(pet, PetZone.fullScreen),
-        metrics.roamingBounds(pet),
-      );
+    test('fullScreen 就是實測範圍本身', () {
+      expect(zoneBounds(roam, pet, PetZone.fullScreen), roam);
     });
 
-    test('無系統列時下方帶貼著可用底部', () {
-      final band = metrics.zoneBounds(pet, PetZone.bottomBand);
-      expect(band.bottom, 720); // 800 - 80
-      expect(band.top, 560); // 再往上 2×petSize
+    test('下方帶貼著實測底部，厚度 2×petSize', () {
+      final band = zoneBounds(roam, pet, PetZone.bottomBand);
+      expect(band.bottom, 696);
+      expect(band.top, 536);
       expect(band.left, 0);
       expect(band.right, 320);
     });
 
-    test('有系統列時下方帶要把它留出來', () {
-      final band = withInset.zoneBounds(pet, PetZone.bottomBand);
-      expect(band.bottom, 696); // 800 - 24 - 80
-      expect(band.top, 536);
-    });
-
-    test('角落區以該角為锚，邊長 2×petSize', () {
-      final br = withInset.zoneBounds(pet, PetZone.bottomRight);
+    test('角落區以該角為錨，邊長 2×petSize', () {
+      final br = zoneBounds(roam, pet, PetZone.bottomRight);
       expect(br.right, 320);
       expect(br.bottom, 696);
       expect(br.width, 160);
       expect(br.height, 160);
 
-      final tl = metrics.zoneBounds(pet, PetZone.topLeft);
+      final tl = zoneBounds(roam, pet, PetZone.topLeft);
       expect(tl.left, 0);
-      expect(tl.top, 0);
-      expect(tl.right, 160);
-      expect(tl.bottom, 160);
+      expect(tl.top, 24);
 
-      final tr = metrics.zoneBounds(pet, PetZone.topRight);
+      final tr = zoneBounds(roam, pet, PetZone.topRight);
       expect(tr.right, 320);
-      expect(tr.top, 0);
+      expect(tr.top, 24);
+
+      final bl = zoneBounds(roam, pet, PetZone.bottomLeft);
+      expect(bl.left, 0);
+      expect(bl.bottom, 696);
     });
 
-    test('寵物比區域還大時不會跑出負座標', () {
+    test('寵物比區域還大時不會跑出 roam 之外', () {
       for (final zone in PetZone.values) {
-        final r = metrics.zoneBounds(900, zone);
-        expect(r.left >= 0, isTrue, reason: '$zone left');
-        expect(r.top >= 0, isTrue, reason: '$zone top');
+        final r = zoneBounds(roam, 900, zone);
+        expect(r.left >= roam.left, isTrue, reason: '$zone left');
+        expect(r.top >= roam.top, isTrue, reason: '$zone top');
+        expect(r.right <= roam.right, isTrue, reason: '$zone right');
+        expect(r.bottom <= roam.bottom, isTrue, reason: '$zone bottom');
         expect(r.right >= r.left, isTrue, reason: '$zone right');
         expect(r.bottom >= r.top, isTrue, reason: '$zone bottom');
       }

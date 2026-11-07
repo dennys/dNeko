@@ -71,6 +71,13 @@ class _OverlayAppState extends State<_OverlayApp> {
   );
   double _petSize = PetSettings.defaultPetSize;
   _WindowState _state = _WindowState.collapsed;
+
+  /// 實測出的視窗頂端座標可達範圍（含狀態列/導航列的安全區；見 [_measureRoam]）
+  Rect? _roam;
+  double? _roamPetSize;
+
+  /// 選單開在寵物上方（下方空間不夠時），決定 [_buildMenu] 的擺法
+  bool _menuAbove = false;
   Locale _locale = const Locale('en'); // overlay 自己的語系
   bool _loadFailed = false;
   DateTime _lastHungerSave = DateTime.fromMillisecondsSinceEpoch(0);
@@ -147,7 +154,7 @@ class _OverlayAppState extends State<_OverlayApp> {
   Future<void> _loadDefaultAnimal() async {
     _settings = await _readOr(() => _settingsRepository.load(), const PetSettings());
     if (!mounted || _resource != null) return; // 主 app 的 payload 先到就別再用預設值重載
-    await _loadAnimal(defaultAnimalId, _metrics);
+    await _loadAnimal(_settings.animalId);
   }
 
   /// overlay 是獨立 isolate，sqflite 在裡頭不一定可用：讀不到就用預設，
@@ -191,19 +198,60 @@ class _OverlayAppState extends State<_OverlayApp> {
       await _applySettings();
       return;
     }
-    await _loadAnimal(animalId, _metrics);
+    await _loadAnimal(animalId);
   }
 
   /// 設定頁改動後即時生效：速度、可漫遊範圍、視窗尺寸
   Future<void> _applySettings() async {
+    final sizeChanged = _petSize != _settings.petSize;
     setState(() => _petSize = _settings.petSize);
+    if (_state == _WindowState.collapsed) {
+      await _resizePetWindow();
+      // 校準结果跟視窗邊長綁在一起，尺寸換了要重量
+      if (sizeChanged) _roam = null;
+    } else if (sizeChanged) {
+      // 選單開著，視窗目前是選單尺寸，量了也不是寵物的可用範圍，先用回退值頂著
+      _roam = _metrics.fallbackRoam(_settings.petSize);
+      _roamPetSize = _settings.petSize;
+    }
     _controller
       ?..setSpeedPerTick(_settings.speedPerTick)
-      ..updateBounds(_metrics.zoneBounds(_settings.petSize, _settings.zone));
-    if (_state == _WindowState.collapsed) await _resizePetWindow();
+      ..updateBounds(zoneBounds(await _roamFor(_settings.petSize), _settings.petSize, _settings.zone));
   }
 
-  Future<void> _loadAnimal(String animalId, ScreenMetrics metrics) async {
+  /// 視窗在尺寸 [petSize] 下真正可到達的頂端座標範圍。
+  ///
+  /// 原生 WindowManager 會把視窗夾進它自己的安全區（狀態列以下、導航列以上，
+  /// 換算用真實 px），主 app MediaQuery 算出來的 Rect 跟它常對不上（限定下方時
+  /// 實際底部多一條空、頂部貼不上去就是这个原因）。所以直接搬到極端再讀回來：
+  /// 插件回傳的永远是被 clamp 後的實際位置，量出來的一定是真實可用的範圍。
+  /// 只在尺寸改變後量一次，之後都吃快取。
+  Future<Rect> _roamFor(double petSize) async {
+    final cached = _roam;
+    if (cached != null && _roamPetSize == petSize) return cached;
+    const window = OverlayWindow();
+    try {
+      await window.moveTo(Offset.zero);
+      final min = await window.currentPosition();
+      await window.moveTo(const Offset(100000, 100000));
+      final max = await window.currentPosition();
+      if (max.dx <= min.dx || max.dy <= min.dy) throw Exception('校準失敗: $min ~ $max');
+      final rect = Rect.fromLTRB(min.dx, min.dy, max.dx, max.dy);
+      // 校準期間視窗被搬去角落，量完立刻搬回來，不要讓寵物停在螢幕角上
+      final controller = _controller;
+      if (controller != null) await window.moveTo(controller.position);
+      _roam = rect;
+      _roamPetSize = petSize;
+      return rect;
+    } catch (_) {
+      final fallback = _metrics.fallbackRoam(petSize);
+      _roam = fallback;
+      _roamPetSize = petSize;
+      return fallback;
+    }
+  }
+
+  Future<void> _loadAnimal(String animalId) async {
     final seq = ++_loadSeq;
     // 中途被更新的載入請求超過：這裡已經 await 過好几次，絕對不能再寫狀態；
     // 之前 dispose 舊控制器是在 await 之前做的，兩重載疊在一起時會留下一個
@@ -221,10 +269,17 @@ class _OverlayAppState extends State<_OverlayApp> {
       if (stale()) return;
       if (!mounted) return;
 
-      final bounds = metrics.zoneBounds(_settings.petSize, _settings.zone);
       const window = OverlayWindow();
 
+      // 先對齊尺寸再 resize/校準，否則視窗尺寸跟 PetController 吃的 petSize 會錯開
+      setState(() => _petSize = _settings.petSize);
       await _resizePetWindow();
+      if (stale()) return;
+      final bounds = zoneBounds(
+        await _roamFor(_settings.petSize),
+        _settings.petSize,
+        _settings.zone,
+      );
       if (stale()) return;
 
       final saved = await _readOr(() => _settingsRepository.loadHunger(), null);
@@ -305,14 +360,41 @@ class _OverlayAppState extends State<_OverlayApp> {
     return stored ?? AnimalRepository.builtIn(animalId);
   }
 
+  /// 開選單：動物不動，選單往空間比較多的方向長。
+  ///
+  /// 之前只把視窗放大、位置交給 WindowManager clamp —— 寵物貼著螢幕下方時整個視窗
+  /// 被推上去，動物就「跳上去」讓位。現在自己算視窗左上角：下方夠就朝下長；
+  /// 不夠就往上長（動物固定在視窗底部）；變寬的視窗也置中回動物原本的位置。
   Future<void> _openMenu() async {
     _driver?.setEnabled(false);
-    await const OverlayWindow().resize(width: _menuWidth, height: _menuHeight, enableDrag: false);
+    const window = OverlayWindow();
+    final roam = await _roamFor(_petSize);
+    final pos = await window.currentPosition();
+    final extra = _menuHeight - _petSize;
+    final maxTop = roam.bottom + _petSize - _menuHeight; // 選單不壓到導航列的最大 y
+    final belowFits = pos.dy <= maxTop;
+    final aboveFits = pos.dy - extra >= roam.top;
+    _menuAbove = !belowFits && (aboveFits || pos.dy - roam.top > roam.bottom - pos.dy);
+
+    final maxLeft = roam.right + _petSize - _menuWidth; // 同理，左右不出界
+    var x = pos.dx - (_menuWidth - _petSize) / 2;
+    if (x < roam.left) x = roam.left;
+    if (maxLeft >= roam.left && x > maxLeft) x = maxLeft;
+    var y = _menuAbove ? pos.dy - extra : pos.dy;
+    if (y < roam.top) y = roam.top;
+    if (maxTop >= roam.top && y > maxTop) y = maxTop;
+
+    await window.resize(width: _menuWidth, height: _menuHeight, enableDrag: false);
+    await window.moveTo(Offset(x, y));
     setState(() => _state = _WindowState.menu);
   }
 
   Future<void> _closeMenu() async {
-    await const OverlayWindow().resize(width: _petSize, height: _petSize);
+    const window = OverlayWindow();
+    await window.resize(width: _petSize, height: _petSize);
+    // resize 以視窗左上角為錨點；選單開在上方時錨點不在動物身上，要搬回動物的位置
+    final controller = _controller;
+    if (controller != null) await window.moveTo(controller.position);
     _driver?.setEnabled(true);
     setState(() => _state = _WindowState.collapsed);
   }
@@ -397,7 +479,7 @@ class _OverlayAppState extends State<_OverlayApp> {
   /// 佔位狀態唯一有意義的動作是重試；真的要收掉寵物，是在主頁把懸浮關掉。
   Widget _buildFallbackPet() {
     return GestureDetector(
-      onTap: () => unawaited(_loadAnimal(_resource?.animalId ?? defaultAnimalId, _metrics)),
+      onTap: () => unawaited(_loadAnimal(_resource?.animalId ?? defaultAnimalId)),
       child: Center(
         child: SizedBox(
           width: _petSize,
@@ -446,33 +528,34 @@ class _OverlayAppState extends State<_OverlayApp> {
     AnimalAnimationDefinition definition,
     PetController controller,
   ) {
+    final petView = SizedBox(
+      width: _petSize,
+      height: _petSize,
+      child: AnimalAnimator(
+        resource: resource,
+        definition: definition,
+        action: AnimationAction.affectionate,
+        loader: _loader,
+        displayWidth: _petSize,
+        displayHeight: _petSize,
+      ),
+    );
+    final menu = FeedingMenu(
+      feedLabel: l10n.menuFeed,
+      petLabel: l10n.menuPet,
+      closeLabel: l10n.menuClose,
+      freezeLabel: controller.frozen ? l10n.menuUnfreeze : l10n.menuFreeze,
+      onFeed: _feed,
+      onPet: _petAction,
+      onFreeze: _freezeAction,
+      onClose: _closeMenu,
+    );
+    const gap = SizedBox(height: 8);
+    // 錨定而不是置中：選單開在下面→動物貼視窗頂；開在上面→動物貼視窗底。
+    // 開/關選單時動物都穩穩待在同一个位置。
     return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        SizedBox(
-          width: _petSize,
-          height: _petSize,
-          child: AnimalAnimator(
-            resource: resource,
-            definition: definition,
-            action: AnimationAction.affectionate,
-            loader: _loader,
-            displayWidth: _petSize,
-            displayHeight: _petSize,
-          ),
-        ),
-        const SizedBox(height: 8),
-        FeedingMenu(
-          feedLabel: l10n.menuFeed,
-          petLabel: l10n.menuPet,
-          closeLabel: l10n.menuClose,
-          freezeLabel: controller.frozen ? l10n.menuUnfreeze : l10n.menuFreeze,
-          onFeed: _feed,
-          onPet: _petAction,
-          onFreeze: _freezeAction,
-          onClose: _closeMenu,
-        ),
-      ],
+      mainAxisAlignment: _menuAbove ? MainAxisAlignment.end : MainAxisAlignment.start,
+      children: _menuAbove ? [menu, gap, petView] : [petView, gap, menu],
     );
   }
 
