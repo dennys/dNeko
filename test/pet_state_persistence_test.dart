@@ -7,6 +7,7 @@ import 'package:dneko/data/repositories/settings_repository.dart';
 import 'package:dneko/data/services/animation_loader.dart';
 import 'package:dneko/domain/pet_stats.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:path/path.dart' as p;
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -21,7 +22,7 @@ void main() {
           .whereType<Directory>()
           // 只有 animation.json、圖還沒產的資料夾還不算「一隻可用的動物」
           .where((d) => d.listSync().whereType<File>().any((f) => f.path.endsWith('.png')))
-          .map((e) => e.path.split('/').last)
+          .map((e) => p.basename(e.path))
           .toSet();
       final registered = AnimalRepository.builtIns.map((a) => a.animalId).toSet();
 

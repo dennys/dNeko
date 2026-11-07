@@ -65,10 +65,12 @@ class AnimalRepository implements IAnimalRepository {
   /// 永遠看不到小柴犬 —— 素材有、動畫有、程式也支援，使用者卻永遠選不到牠。
   /// ⚠️ 註冊＝「素材齊了」。只放 animation.json 還沒圖的動物不准進這裡
   /// （`test/asset_frames_test.dart` 會擋），否則主頁選得到、overlay 只能畫佔位圓。
-  /// 待補：`('dog', '小柴犬')` —— 素材目錄 `assets/animals/dog/` 目前只有 animation.json，
-  /// 12 張圖還沒產；產圖流程見 `ASSET_PROMPT.md`，產完把上面那列加回來即可。
   static List<AnimalResource> get builtIns => [
-        for (final (id, name) in const [('cat', '小花貓')])
+        for (final (id, name) in const [
+          ('cat', '小花貓'),
+          ('dog', '小狗'),
+          ('penguin', '小企鵝'),
+        ])
           AnimalResource(
             animalId: id,
             displayName: name,

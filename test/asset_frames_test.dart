@@ -8,6 +8,7 @@ import 'package:dneko/data/models/animation_definition.dart';
 import 'package:dneko/data/repositories/animal_repository.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:path/path.dart' as p;
 
 /// 素材檔的守門員（對應 `ASSET_PROMPT.md` 第 6 節的 self-check 清單）。
 ///
@@ -79,7 +80,7 @@ void main() {
       for (final dir in Directory(animalsDir).listSync().whereType<Directory>()) {
         if (!File('${dir.path}/animation.json').existsSync()) continue;
         if (_pngsIn(dir).isNotEmpty) continue;
-        final id = dir.path.split('/').last;
+        final id = p.basename(dir.path);
         expect(AnimalRepository.builtIn(id), isNull,
             reason: '$id 一張圖都沒有卻註冊進 builtIns → 主頁選得到、overlay 只能畫佔位圓');
         debugPrint('[warn] $id 只有 animation.json（素材待產，產圖流程見 ASSET_PROMPT.md）');
@@ -130,7 +131,7 @@ void main() {
         final onDisk = dir
             .listSync()
             .whereType<File>()
-            .map((f) => f.path.split('/').last)
+             .map((f) => p.basename(f.path))
             .where((n) => n.endsWith('.png'))
             .toSet();
 
@@ -201,7 +202,7 @@ Future<List<String>> _checkFrames(Directory dir) async {
   final byName = <String, Uint8List>{};
 
   for (final file in _pngsIn(dir)) {
-    final name = file.path.split('/').last;
+    final name = p.basename(file.path);
     final bytes = file.readAsBytesSync();
     byName[name] = bytes;
 
@@ -258,6 +259,18 @@ class _PngHeader {
   final int colorType; // 0 灰 / 2 RGB / 3 調色盤 / 4 灰+alpha / 6 RGBA
 
   bool get hasAlpha => bitDepth == 8 && (colorType == 6 || colorType == 4);
+
+  // 沒有覆寫 == 的話 toSet() 比的是物件实例，13 張同尺寸的圖也會被當成「13 種尺寸」
+  @override
+  bool operator ==(Object other) =>
+      other is _PngHeader &&
+      other.width == width &&
+      other.height == height &&
+      other.bitDepth == bitDepth &&
+      other.colorType == colorType;
+
+  @override
+  int get hashCode => Object.hash(width, height, bitDepth, colorType);
 }
 
 _PngHeader _pngHeader(Uint8List b) {
