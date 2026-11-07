@@ -18,6 +18,11 @@ android {
         applicationId = "com.dneko.app"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
+        // 只打 arm64：通用 APK 會多塞 armeabi-v7a 與 x86_64 兩份引擎庫（+30MB）。
+        // 與 CI 的 --target-platform android-arm64 一致；要裝舊 32 位機或 x86 模擬器時再放開。
+        ndk {
+            abiFilters += listOf("arm64-v8a")
+        }
         // Uses the version code from pubspec.yaml. When using split APKs, 1000 * ABI_VERSION
         // is added automatically by Flutter.
         versionCode = flutter.versionCode
