@@ -6,7 +6,6 @@ import 'data/repositories/settings_repository.dart';
 import 'data/services/animal_download_service.dart';
 import 'data/services/overlay_service.dart';
 import 'data/services/static_store_catalog.dart';
-import 'domain/pet_settings.dart';
 import 'domain/screen_metrics.dart';
 import 'presentation/controllers/settings_controller.dart';
 import 'presentation/controllers/store_controller.dart';
@@ -42,6 +41,7 @@ Future<void> main() async {
   runApp(MyApp(
     storeController: storeController,
     settingsController: settingsController,
+    animalRepository: repository,
   ));
 }
 
@@ -53,11 +53,13 @@ void overlayMain() {
 class MyApp extends StatelessWidget {
   final StoreController storeController;
   final SettingsController settingsController;
+  final AnimalRepository animalRepository;
 
   const MyApp({
     super.key,
     required this.storeController,
     required this.settingsController,
+    required this.animalRepository,
   });
 
   @override
@@ -74,6 +76,7 @@ class MyApp extends StatelessWidget {
       home: HomePage(
         storeController: storeController,
         settingsController: settingsController,
+        animalRepository: animalRepository,
       ),
     );
   }
@@ -82,11 +85,13 @@ class MyApp extends StatelessWidget {
 class HomePage extends StatelessWidget {
   final StoreController storeController;
   final SettingsController settingsController;
+  final AnimalRepository animalRepository;
 
   const HomePage({
     super.key,
     required this.storeController,
     required this.settingsController,
+    required this.animalRepository,
   });
 
   @override
@@ -104,6 +109,7 @@ class HomePage extends StatelessWidget {
                 builder: (_) => SettingsPage(
                   controller: settingsController,
                   overlayService: OverlayService(),
+                  animalRepository: animalRepository,
                 ),
               ),
             ),
@@ -179,11 +185,10 @@ class _OverlayControlState extends State<_OverlayControl> {
         final metrics = ScreenMetrics(
           logicalSize: mq.size,
           devicePixelRatio: mq.devicePixelRatio,
-          bottomInset: mq.padding.bottom,
         );
         final locale = Localizations.localeOf(context);
         await _overlayService.show(
-          animalId: defaultAnimalId,
+          animalId: widget.settingsController.settings.animalId,
           settings: widget.settingsController.settings,
           metrics: metrics,
           languageCode: locale.languageCode,

@@ -191,6 +191,12 @@ abstract class AppLocalizations {
   /// **'Roaming area'**
   String get settingsZone;
 
+  /// No description provided for @settingsAnimal.
+  ///
+  /// In en, this message translates to:
+  /// **'Pet'**
+  String get settingsAnimal;
+
   /// No description provided for @zoneFullScreen.
   ///
   /// In en, this message translates to:
