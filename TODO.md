@@ -1,5 +1,25 @@
 # TODO
 
+## 待辦：多寵物（2026-11-07 評估完，人類決定暫緩，只留記錄）
+
+現況 `flutter_overlay_window` 只有**一個** overlay 視窗，所以同時只能有一隻寵物。
+
+### 參考：ANeko Reborn（github.com/pass-with-high-score/ANeko）的實證
+- 每隻寵物 = 一個**原生小視窗**（ImageView 逐幀），不是 Flutter 視窗。
+- 觸控**不是**動態 touch region —— 是整個視窗在「可觸控 / 穿透」兩個 flag 之間切換。
+- 所以「一隻擋滑鼠、一隻可摸」那種需求，原生派也做不到逐像素，只能逐窗。
+
+### 路線 D2（評估結論，實作估 2.5–3 天）
+- 自家 Kotlin Service 開 N 個原生視窗當**純顯示器**（貼圖 + 播動畫素材），MethodChannel 回報
+  觸控/拖曳/座標；`PetController` / `PetBrain` 全部留在 Dart 端不动 —— 行为邏輯只有一份，
+  原生只畫圖。`flutter_overlay_window` 退役。
+- 被否決的替代：每寵一個 Flutter overlay（插件不支持、重量也爆）；原生全權 AI（行為邏輯
+  要 Kotlin 重寫一份，兩邊腐）。
+- **開工前要先拍板**：寵物窗預設「可觸控」還是「穿透」？ANeko 採預設穿透、點到才開觸控；
+  dNeko 的摸/餵互動比較重，傾向預設可觸控、拖出螢幕才穿透。
+
+---
+
 ## 兩段被移除的程式碼片段（commit `85c3e36`）
 
 `lib/presentation/pages/home_page.dart`（20 行）與 `lib/presentation/widgets/pet_stage.dart`（9 行）
@@ -11,15 +31,13 @@
 
 | 筆記裡的idea | 現況 |
 |---|---|
-| AppBar 加一顆商店按鈕 → 開 `StorePage` | ✅ 已實作：`lib/main.dart:61`（`actions:` → `StorePage(controller: storeController)`） |
+| AppBar 加一顆商店按鈕 → 開 `StorePage` | ✅ 已實作：現在在 `lib/presentation/pages/home_page.dart` 的 AppBar（由 `kStoreEnabled=false` 關著） |
 | 用 `PetControllerFactory` 建立 pet controller | ✅ 已實作：`lib/overlay_main.dart:37`（`static const _controllerFactory`）與 `:105`（`_controllerFactory.create(...)`）—— 片段檔放在 `widgets/pet_stage.dart`，位置本身也是錯的 |
-| **從商店返回後重新載入動物清單**（可能有新下載的動物） | ⬜ **仍待做**：`lib/main.dart:64-69` 的 `onPressed` 只有 `push(...)`，沒有 `await` 之後的回載動作 |
+| **從商店返回後重新載入動物清單**（可能有新下載的動物） | ⬜ **仍待做**：`home_page.dart` 的商店 `onPressed` 只有 `push(...)`，沒有 `await` 之後的回載動作 |
 
 ### 待做那條的線索
-`HomePage` 目前是 `StatelessWidget`（`lib/main.dart:50`），而 `_loadAnimals()`／`_buildModeToggle()`
-這兩個被筆記呼叫的方法在現在的程式碼裡**已不存在**。要實作「返回後重新載入」，先決定清單狀態放在哪：
-放在 `StoreController`（則返回後請它重刷即可，`HomePage` 可維持 `StatelessWidget`），
-或把 `HomePage` 改為 `StatefulWidget` 再 `setState`。傾向前者 —— 清單本来就是 store 的狀態。
+`HomePage` 已在 `lib/presentation/pages/home_page.dart`（2026-11-07 與設定頁合併）。要實作
+「返回後重新載入」：`await push(...)` 之後請 `widget.animalRepository` 重刷 + `setState` 即可。
 
 ---
 
@@ -270,7 +288,10 @@ eat1.png    eat2.png      afct1.png   afct2.png   afct3.png
 
 ---
 
-## 待辦：overlay 拖曳抖動（未實作，之後再處理）
+## ~~待辦：overlay 拖曳抖動~~（✅ 2026-11-07 方案 (a) 已實作）
+
+`overlay_main.dart`：`onPanDown` → 50ms 輪詢 `getOverlayPosition()`，位置變 > 2px 才
+`beginDrag()` + 暫停 driver；連續 400ms 不動視為放手。以下原評估記錄留檔。
 
 **現象**：拖曳寵物時會抖動。
 

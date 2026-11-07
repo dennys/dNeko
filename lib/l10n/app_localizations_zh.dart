@@ -34,7 +34,40 @@ class AppLocalizationsZh extends AppLocalizations {
   String get menuUnfreeze => '解除定格';
 
   @override
-  String get menuClose => '關閉';
+  String get menuClose => '关闭';
+
+  @override
+  String get menuQuit => '结束桌宠';
+
+  @override
+  String get overlayRunning => '正在屏幕上运行';
+
+  @override
+  String get overlayIdle => '已关闭';
+
+  @override
+  String get settingsLanguage => '语言';
+
+  @override
+  String get settingsTheme => '外观';
+
+  @override
+  String get languageSystem => '跟随系统';
+
+  @override
+  String get themeSystem => '跟随系统';
+
+  @override
+  String get themeLight => '浅色';
+
+  @override
+  String get themeDark => '深色';
+
+  @override
+  String get shortcutPin => '添加桌面快捷方式';
+
+  @override
+  String get shortcutPinUnsupported => '此设备不支持固定快捷方式';
 
   @override
   String get settingsAbout => '关于';
@@ -126,6 +159,39 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get menuClose => '關閉';
+
+  @override
+  String get menuQuit => '結束桌寵';
+
+  @override
+  String get overlayRunning => '正在畫面上跑';
+
+  @override
+  String get overlayIdle => '目前關閉';
+
+  @override
+  String get settingsLanguage => '語言';
+
+  @override
+  String get settingsTheme => '外觀';
+
+  @override
+  String get languageSystem => '跟隨系統';
+
+  @override
+  String get themeSystem => '跟隨系統';
+
+  @override
+  String get themeLight => '淺色';
+
+  @override
+  String get themeDark => '深色';
+
+  @override
+  String get shortcutPin => '加入桌面捷徑';
+
+  @override
+  String get shortcutPinUnsupported => '此裝置不支援釘選捷徑';
 
   @override
   String get settingsAbout => '關於';

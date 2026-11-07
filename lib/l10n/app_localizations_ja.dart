@@ -37,6 +37,39 @@ class AppLocalizationsJa extends AppLocalizations {
   String get menuClose => '閉じる';
 
   @override
+  String get menuQuit => 'アプリを終了';
+
+  @override
+  String get overlayRunning => '画面で動かしています';
+
+  @override
+  String get overlayIdle => '停止中です';
+
+  @override
+  String get settingsLanguage => '言語';
+
+  @override
+  String get settingsTheme => 'テーマ';
+
+  @override
+  String get languageSystem => 'システムに従う';
+
+  @override
+  String get themeSystem => 'システムに従う';
+
+  @override
+  String get themeLight => 'ライト';
+
+  @override
+  String get themeDark => 'ダーク';
+
+  @override
+  String get shortcutPin => 'ホーム画面にショートカットを追加';
+
+  @override
+  String get shortcutPinUnsupported => 'この端末はショートカットのピン留めに未対応です';
+
+  @override
   String get settingsAbout => 'アプリについて';
 
   @override

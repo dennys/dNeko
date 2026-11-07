@@ -37,6 +37,40 @@ class AppLocalizationsEn extends AppLocalizations {
   String get menuClose => 'Close';
 
   @override
+  String get menuQuit => 'Quit';
+
+  @override
+  String get overlayRunning => 'Running on your screen';
+
+  @override
+  String get overlayIdle => 'Currently off';
+
+  @override
+  String get settingsLanguage => 'Language';
+
+  @override
+  String get settingsTheme => 'Appearance';
+
+  @override
+  String get languageSystem => 'System default';
+
+  @override
+  String get themeSystem => 'System';
+
+  @override
+  String get themeLight => 'Light';
+
+  @override
+  String get themeDark => 'Dark';
+
+  @override
+  String get shortcutPin => 'Add home screen shortcut';
+
+  @override
+  String get shortcutPinUnsupported =>
+      'This device doesn\'t support pinning shortcuts';
+
+  @override
   String get settingsAbout => 'About';
 
   @override

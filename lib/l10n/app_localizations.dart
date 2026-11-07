@@ -155,6 +155,72 @@ abstract class AppLocalizations {
   /// **'Close'**
   String get menuClose;
 
+  /// No description provided for @menuQuit.
+  ///
+  /// In en, this message translates to:
+  /// **'Quit'**
+  String get menuQuit;
+
+  /// No description provided for @overlayRunning.
+  ///
+  /// In en, this message translates to:
+  /// **'Running on your screen'**
+  String get overlayRunning;
+
+  /// No description provided for @overlayIdle.
+  ///
+  /// In en, this message translates to:
+  /// **'Currently off'**
+  String get overlayIdle;
+
+  /// No description provided for @settingsLanguage.
+  ///
+  /// In en, this message translates to:
+  /// **'Language'**
+  String get settingsLanguage;
+
+  /// No description provided for @settingsTheme.
+  ///
+  /// In en, this message translates to:
+  /// **'Appearance'**
+  String get settingsTheme;
+
+  /// No description provided for @languageSystem.
+  ///
+  /// In en, this message translates to:
+  /// **'System default'**
+  String get languageSystem;
+
+  /// No description provided for @themeSystem.
+  ///
+  /// In en, this message translates to:
+  /// **'System'**
+  String get themeSystem;
+
+  /// No description provided for @themeLight.
+  ///
+  /// In en, this message translates to:
+  /// **'Light'**
+  String get themeLight;
+
+  /// No description provided for @themeDark.
+  ///
+  /// In en, this message translates to:
+  /// **'Dark'**
+  String get themeDark;
+
+  /// No description provided for @shortcutPin.
+  ///
+  /// In en, this message translates to:
+  /// **'Add home screen shortcut'**
+  String get shortcutPin;
+
+  /// No description provided for @shortcutPinUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'This device doesn\'t support pinning shortcuts'**
+  String get shortcutPinUnsupported;
+
   /// No description provided for @settingsAbout.
   ///
   /// In en, this message translates to:

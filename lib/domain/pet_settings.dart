@@ -36,12 +36,42 @@ class PetSettings {
   /// 目前選的動物（內建 id 或商店下載的 id）
   final String animalId;
 
+  /// 介面語系；null = 跟隨系統（如 'en'、'zh'、'zh-TW'、'ja'）
+  final String? languageCode;
+
+  /// 外觀模式：'system' / 'light' / 'dark'
+  final String themeMode;
+
   const PetSettings({
     this.speedPxPerSecond = defaultSpeedPerSecond,
     this.petSize = defaultPetSize,
     this.zone = PetZone.fullScreen,
     this.animalId = defaultAnimalId,
+    this.languageCode,
+    this.themeMode = 'system',
   });
+
+  /// languageCode 要能被明確設回 null（跟隨系統），所以用 sentinel 而不是 null 当「不變」
+  static const _unchanged = Object();
+
+  PetSettings copyWith({
+    double? speedPxPerSecond,
+    double? petSize,
+    PetZone? zone,
+    String? animalId,
+    Object? languageCode = _unchanged,
+    String? themeMode,
+  }) =>
+      PetSettings(
+        speedPxPerSecond: speedPxPerSecond ?? this.speedPxPerSecond,
+        petSize: petSize ?? this.petSize,
+        zone: zone ?? this.zone,
+        animalId: animalId ?? this.animalId,
+        languageCode: languageCode == _unchanged
+            ? this.languageCode
+            : languageCode as String?,
+        themeMode: themeMode ?? this.themeMode,
+      );
 
   /// 每幀該走幾像素（速度存 px/s，才不會被 tick 長度綁死）
   double get speedPerTick => speedPxPerSecond * petTick.inMilliseconds / 1000.0;
@@ -51,6 +81,8 @@ class PetSettings {
         'petSize': petSize,
         'zone': zone.name,
         'animalId': animalId,
+        'languageCode': languageCode,
+        'themeMode': themeMode,
       };
 
   /// 容忍髒資料：缺欄位/型別不對/zone 不認識，一律回到預設值而不是丟例外
@@ -68,6 +100,12 @@ class PetSettings {
         animalId: json['animalId'] is String && (json['animalId'] as String).isNotEmpty
             ? json['animalId'] as String
             : defaultAnimalId,
+        languageCode: json['languageCode'] is String && (json['languageCode'] as String).isNotEmpty
+            ? json['languageCode'] as String
+            : null,
+        themeMode: const ['system', 'light', 'dark'].contains(json['themeMode'])
+            ? json['themeMode'] as String
+            : 'system',
       );
 
   static double _number(Object? value, double fallback) =>
