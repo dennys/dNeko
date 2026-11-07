@@ -14,11 +14,18 @@ class OverlayWindow implements IOverlayWindow {
   }
 
   @override
-  Future<void> resize({required double width, required double height}) => FlutterOverlayWindow.resizeOverlay(
+  Future<void> resize({required double width, required double height, bool enableDrag = true}) =>
+      FlutterOverlayWindow.resizeOverlay(
         width.toInt(),
         height.toInt(),
-        false,
+        enableDrag,
       );
+
+  @override
+  Future<Offset> currentPosition() async {
+    final p = await FlutterOverlayWindow.getOverlayPosition();
+    return Offset(p.x, p.y);
+  }
 
   @override
   Future<void> close() => FlutterOverlayWindow.closeOverlay();

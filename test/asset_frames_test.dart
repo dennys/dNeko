@@ -166,6 +166,25 @@ void main() {
         }
       }
     });
+
+    test('�D�ίʵe�V�����@�˴ؤo�A�}�u�u���b�P�@�u�s�]�_�h���ʮɷ|���B�ů��^', () async {
+      for (final dir in animalFolders()) {
+        final frames = _pngsIn(dir).where((f) => !f.path.contains('sleep')).toList();
+        if (frames.isEmpty) continue;
+
+        final sizes = frames.map((f) => _pngHeader(f.readAsBytesSync())).map((h) => '${h.width}x${h.height}').toSet();
+        expect(sizes.length, 1, reason: '${dir.path} �D�ίʵe�ؤo���P�G$sizes');
+
+        final feet = <int>[];
+        for (final f in frames) {
+          final px = await _decode(f.readAsBytesSync());
+          final box = px == null ? null : _alphaBoundingBox(px);
+          if (box != null) feet.add(box.bottom);
+        }
+        final spread = feet.reduce((a, b) => a > b ? a : b) - feet.reduce((a, b) => a < b ? a : b);
+        expect(spread, lessThanOrEqualTo(2), reason: '${dir.path} �}�u�u���P�V��t $spread px�G$feet');
+      }
+    });
   });
 }
 

@@ -28,7 +28,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String get menuPet => 'Pet';
 
   @override
+  String get menuFreeze => 'Freeze';
+
+  @override
+  String get menuUnfreeze => 'Unfreeze';
+
+  @override
   String get menuClose => 'Close';
+
+  @override
+  String get settingsAbout => 'About';
+
+  @override
+  String get settingsVersion => 'Version';
 
   @override
   String get settingsTitle => 'Pet Settings';

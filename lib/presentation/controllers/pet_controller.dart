@@ -82,8 +82,10 @@ class PetController extends ChangeNotifier {
       );
 
   /// 食物落點一律夾進可漫遊範圍，否則牠會永遠抵著邊走不到。
-  void feedAt(Offset foodPosition) =>
-      _enter(PetBehavior.goToFood, target: _clampToBounds(foodPosition));
+  void feedAt(Offset foodPosition) {
+    _frozen = false; // 餵食是明確動作，會解除定格，否則走不過去
+    _enter(PetBehavior.goToFood, target: _clampToBounds(foodPosition));
+  }
 
   void beginDrag() {
     _isDragging = true;
@@ -97,15 +99,34 @@ class PetController extends ChangeNotifier {
     _notifyIfChanged();
   }
 
+  /// 原生拖曳期間由 overlay 輪詢視窗座標後呼叫（不 clamp，不影響 driver）
+  void syncFromWindow(Offset p) {
+    _position = p;
+    _notifyIfChanged();
+  }
+
   void endDrag() {
     _isDragging = false;
     _applyDecision(_brain.decideNext(_bounds, isHungry: _stats.isHungry));
     _notifyIfChanged();
   }
 
+  /// 定格：停止自主移动與行為切換（饑餓仍照常累積）。只能手動解除。
+  bool _frozen = false;
+  bool get frozen => _frozen;
+
+  void setFrozen(bool value) {
+    if (_frozen == value) return;
+    _frozen = value;
+    if (!_frozen) {
+      _applyDecision(_brain.decideNext(_bounds, isHungry: _stats.isHungry));
+      _notifyIfChanged();
+    }
+  }
+
   void _onTick() {
     _stats.tick(_tick);
-    if (_isDragging) return;
+    if (_isDragging || _frozen) return;
 
     if (_behavior == PetBehavior.wander || _behavior == PetBehavior.goToFood) {
       _move();

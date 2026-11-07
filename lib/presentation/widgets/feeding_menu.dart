@@ -4,8 +4,10 @@ class FeedingMenu extends StatelessWidget {
   final String feedLabel;
   final String petLabel;
   final String closeLabel;
+  final String freezeLabel;
   final VoidCallback onFeed;
   final VoidCallback onPet;
+  final VoidCallback onFreeze;
   final VoidCallback onClose;
 
   const FeedingMenu({
@@ -13,8 +15,10 @@ class FeedingMenu extends StatelessWidget {
     required this.feedLabel,
     required this.petLabel,
     required this.closeLabel,
+    required this.freezeLabel,
     required this.onFeed,
     required this.onPet,
+    required this.onFreeze,
     required this.onClose,
   });
 
@@ -30,6 +34,8 @@ class FeedingMenu extends StatelessWidget {
             _MenuButton(icon: Icons.restaurant, label: feedLabel, onTap: onFeed),
             const SizedBox(height: 8),
             _MenuButton(icon: Icons.favorite, label: petLabel, onTap: onPet),
+            const SizedBox(height: 8),
+            _MenuButton(icon: Icons.pause, label: freezeLabel, onTap: onFreeze),
             const SizedBox(height: 8),
             _MenuButton(icon: Icons.close, label: closeLabel, onTap: onClose),
           ],
