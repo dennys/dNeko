@@ -28,7 +28,19 @@ class AppLocalizationsZh extends AppLocalizations {
   String get menuPet => '撫摸';
 
   @override
+  String get menuFreeze => '定格';
+
+  @override
+  String get menuUnfreeze => '解除定格';
+
+  @override
   String get menuClose => '關閉';
+
+  @override
+  String get settingsAbout => '关于';
+
+  @override
+  String get settingsVersion => '版本';
 
   @override
   String get settingsTitle => '寵物設定';
@@ -104,7 +116,19 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String get menuPet => '撫摸';
 
   @override
+  String get menuFreeze => '定格';
+
+  @override
+  String get menuUnfreeze => '解除定格';
+
+  @override
   String get menuClose => '關閉';
+
+  @override
+  String get settingsAbout => '關於';
+
+  @override
+  String get settingsVersion => '版本';
 
   @override
   String get settingsTitle => '寵物設定';

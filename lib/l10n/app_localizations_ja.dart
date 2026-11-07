@@ -28,7 +28,19 @@ class AppLocalizationsJa extends AppLocalizations {
   String get menuPet => 'なでる';
 
   @override
+  String get menuFreeze => '静止';
+
+  @override
+  String get menuUnfreeze => '動き出す';
+
+  @override
   String get menuClose => '閉じる';
+
+  @override
+  String get settingsAbout => 'アプリについて';
+
+  @override
+  String get settingsVersion => 'バージョン';
 
   @override
   String get settingsTitle => 'ペット設定';

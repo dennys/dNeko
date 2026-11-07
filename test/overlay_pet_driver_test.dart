@@ -24,7 +24,9 @@ class _FakeWindow implements IOverlayWindow {
   }
 
   @override
-  Future<void> resize({required double width, required double height}) async {}
+  Future<void> resize({required double width, required double height, bool enableDrag = true}) async {}
+  @override
+  Future<Offset> currentPosition() async => moves.isEmpty ? Offset.zero : moves.last;
   @override
   Future<void> close() async {}
 }
@@ -109,7 +111,9 @@ class _ThrowingWindow implements IOverlayWindow {
   }
 
   @override
-  Future<void> resize({required double width, required double height}) async {}
+  Future<void> resize({required double width, required double height, bool enableDrag = true}) async {}
+  @override
+  Future<Offset> currentPosition() async => Offset.zero;
   @override
   Future<void> close() async {}
 }

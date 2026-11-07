@@ -39,7 +39,7 @@ class _OverlayAppState extends State<_OverlayApp> {
 
   /// 選單寬度至少要裝得下按鈕（140）＋ Card padding（24）
   double get _menuWidth => math.max(_settings.petSize, 164.0);
-  double get _menuHeight => _settings.petSize + 176;
+  double get _menuHeight => _settings.petSize + 232;
 
   /// 餵食時食物擲在牠旁邊多遠
   static const double _feedDropDistance = 120;
@@ -74,6 +74,66 @@ class _OverlayAppState extends State<_OverlayApp> {
   Locale _locale = const Locale('en'); // overlay 自己的語系
   bool _loadFailed = false;
   DateTime _lastHungerSave = DateTime.fromMillisecondsSinceEpoch(0);
+
+  /// 原生拖曳追蹤：onPanDown 後開始輪詢視窗座標，位置有變才視為拖曳
+  Timer? _dragTimer;
+  bool _dragging = false;
+  bool _polling = false;
+  int _polls = 0;
+  int _idlePolls = 0;
+  Offset? _lastWin;
+
+  static const _pollInterval = Duration(milliseconds: 50);
+  static const _maxIdlePolls = 8; // 400 ms 不動 = 放手（或單純點擊）
+  static const _maxPreDragPolls = 8; // 400 ms 內沒開始移動 = 只是點擊，停止追蹤
+
+  void _startDragWatch(PetController controller) {
+    if (_dragTimer != null) return;
+    _dragging = false;
+    _polls = 0;
+    _idlePolls = 0;
+    _lastWin = null;
+    _dragTimer = Timer.periodic(_pollInterval, (_) => unawaited(_pollDrag(controller)));
+  }
+
+  Future<void> _pollDrag(PetController controller) async {
+    if (_polling) return;
+    _polling = true;
+    try {
+      final p = await const OverlayWindow().currentPosition();
+      if (!_dragging) {
+        _polls++;
+        if ((p - controller.position).distance < 2) {
+          if (_polls >= _maxPreDragPolls) _stopDragWatch(controller);
+          return;
+        }
+        _dragging = true;
+        _driver?.setEnabled(false); // 暫停 driver，避免把舊座標推回視窗
+        controller.beginDrag();
+      }
+      if (p == _lastWin) {
+        if (++_idlePolls >= _maxIdlePolls) _stopDragWatch(controller);
+        return;
+      }
+      _idlePolls = 0;
+      _lastWin = p;
+      controller.syncFromWindow(p);
+    } catch (_) {
+      _stopDragWatch(controller);
+    } finally {
+      _polling = false;
+    }
+  }
+
+  void _stopDragWatch(PetController controller) {
+    _dragTimer?.cancel();
+    _dragTimer = null;
+    if (_dragging) {
+      _dragging = false;
+      _driver?.setEnabled(true);
+      controller.endDrag();
+    }
+  }
 
   @override
   void initState() {
@@ -247,7 +307,7 @@ class _OverlayAppState extends State<_OverlayApp> {
 
   Future<void> _openMenu() async {
     _driver?.setEnabled(false);
-    await const OverlayWindow().resize(width: _menuWidth, height: _menuHeight);
+    await const OverlayWindow().resize(width: _menuWidth, height: _menuHeight, enableDrag: false);
     setState(() => _state = _WindowState.menu);
   }
 
@@ -255,6 +315,16 @@ class _OverlayAppState extends State<_OverlayApp> {
     await const OverlayWindow().resize(width: _petSize, height: _petSize);
     _driver?.setEnabled(true);
     setState(() => _state = _WindowState.collapsed);
+  }
+
+  /// 餵食：不开关选单，供双击直接呼叫
+  void _feedNow() {
+    final controller = _controller;
+    if (controller == null) return;
+    controller.feedAt(
+      Offset(controller.position.dx + _feedDropDistance, controller.position.dy),
+    );
+    _flushHunger(controller);
   }
 
   Future<void> _feed() async {
@@ -270,8 +340,21 @@ class _OverlayAppState extends State<_OverlayApp> {
   }
 
   Future<void> _petAction() async {
+    _petNow();
+    await _closeMenu();
+  }
+
+  /// 撫摸：不开关选单，供单击直接呼叫
+  void _petNow() {
     final controller = _controller;
-    controller?.pet();
+    if (controller == null) return;
+    controller.pet();
+    _flushHunger(controller);
+  }
+
+  Future<void> _freezeAction() async {
+    final controller = _controller;
+    controller?.setFrozen(!(controller.frozen));
     if (controller != null) _flushHunger(controller);
     await _closeMenu();
   }
@@ -333,13 +416,14 @@ class _OverlayAppState extends State<_OverlayApp> {
     PetController controller,
   ) {
     return GestureDetector(
-      onTap: _openMenu,
+      onTap: _petNow, // 短按 = 撫摸
+      onDoubleTap: _feedNow, // 雙擊 = 餵食
+      onLongPress: _openMenu, // 長按 = 開選單
       // 自己處理拖曳（showOverlay 的 enableDrag 已關）：拖完位置還在 PetController 手上，
       // 而且會被 zone 夾住，拖不進禁区。
-      onPanDown: (_) => controller.beginDrag(),
-      onPanUpdate: (d) => controller.dragTo(controller.position + d.delta),
-      onPanEnd: (_) => controller.endDrag(),
-      onPanCancel: () => controller.endDrag(),
+      onPanDown: (_) => _startDragWatch(controller),
+      // 原生拖曳開始時插件會取消 Flutter 的手勢，不能在這裡結束拖曳（由輪詢判定）
+      onPanCancel: () {},
       child: Center(
         child: AnimatedBuilder(
           animation: controller,
@@ -382,8 +466,10 @@ class _OverlayAppState extends State<_OverlayApp> {
           feedLabel: l10n.menuFeed,
           petLabel: l10n.menuPet,
           closeLabel: l10n.menuClose,
+          freezeLabel: controller.frozen ? l10n.menuUnfreeze : l10n.menuFreeze,
           onFeed: _feed,
           onPet: _petAction,
+          onFreeze: _freezeAction,
           onClose: _closeMenu,
         ),
       ],
@@ -395,6 +481,7 @@ class _OverlayAppState extends State<_OverlayApp> {
     unawaited(_eventSub?.cancel());
     _eventSub = null;
     _loadSeq++; // 讓還在飛的載入流程全部作廢（它們回來時只會看到過期的顺序號）
+    _dragTimer?.cancel();
     _driver?.dispose();
     _controller?.dispose();
     _stats?.dispose();

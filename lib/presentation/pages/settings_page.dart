@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../../domain/i_overlay_service.dart';
 import '../../domain/pet_settings.dart';
 import '../../domain/screen_metrics.dart';
@@ -7,6 +8,35 @@ import '../controllers/settings_controller.dart';
 
 /// 只負責：速度 / 大小 / 活動範圍三個控制項。
 /// 改動即存檔，並推給已經開著的 overlay（同一條 shareData 通道，不必重開視窗）。
+/// 版本號來自 package_info_plus（Android 的 versionName，即 pubspec 的 version）
+class _VersionTile extends StatefulWidget {
+  final String label;
+
+  const _VersionTile({required this.label});
+
+  @override
+  State<_VersionTile> createState() => _VersionTileState();
+}
+
+class _VersionTileState extends State<_VersionTile> {
+  late final Future<PackageInfo> _info = PackageInfo.fromPlatform();
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<PackageInfo>(
+      future: _info,
+      builder: (context, snap) {
+        final v = snap.data == null ? '…' : '${snap.data!.version} (${snap.data!.buildNumber})';
+        return ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text(widget.label),
+          trailing: Text(v),
+        );
+      },
+    );
+  }
+}
+
 class SettingsPage extends StatelessWidget {
   final SettingsController controller;
   final IOverlayService overlayService;
@@ -66,6 +96,10 @@ class SettingsPage extends StatelessWidget {
                     ),
                 ],
               ),
+              const SizedBox(height: 24),
+              Text(l10n.settingsAbout, style: Theme.of(context).textTheme.titleSmall),
+              const SizedBox(height: 4),
+              _VersionTile(label: l10n.settingsVersion),
             ],
           );
         },

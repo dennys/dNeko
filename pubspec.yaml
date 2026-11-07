@@ -18,6 +18,7 @@ dependencies:
   dio: ^5.9.2
   # 1.0.x 需要 Gradle 9 / AGP 9 / Java 17（本專案已於階段 40 升級）
   flutter_overlay_window: ^1.0.2
+  package_info_plus: ^10.2.2
 
 dependency_overrides:
   # dgx1 = aarch64：Google 不發 linux-arm64 主機的 cmake/NDK（x86-64 版執行會報

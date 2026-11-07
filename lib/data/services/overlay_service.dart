@@ -24,9 +24,9 @@ class OverlayService implements IOverlayService {
     final payload = _payload(animalId, settings, metrics, languageCode);
 
     await FlutterOverlayWindow.showOverlay(
-      // 拖曳自己做（overlay 內的 pan 手勢）：1.0.2 的原生拖曳不會把新位置回報給
-      // Dart，PetController 的座標會和實際視窗不同步（放開後下次走路就瞬移）。
-      enableDrag: false,
+      // 原生拖曳（插件 onTouch 用 rawX/rawY）。拖曳期間由 OverlayPetDriver 暫停、
+      // overlay_main 輪詢 getOverlayPosition 同步座標，放開後再恢復自主移動。
+      enableDrag: true,
       overlayTitle: 'dNeko',
       flag: OverlayFlag.defaultFlag,
       height: settings.petSize.toInt(),

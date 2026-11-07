@@ -137,11 +137,35 @@ abstract class AppLocalizations {
   /// **'Pet'**
   String get menuPet;
 
+  /// No description provided for @menuFreeze.
+  ///
+  /// In en, this message translates to:
+  /// **'Freeze'**
+  String get menuFreeze;
+
+  /// No description provided for @menuUnfreeze.
+  ///
+  /// In en, this message translates to:
+  /// **'Unfreeze'**
+  String get menuUnfreeze;
+
   /// No description provided for @menuClose.
   ///
   /// In en, this message translates to:
   /// **'Close'**
   String get menuClose;
+
+  /// No description provided for @settingsAbout.
+  ///
+  /// In en, this message translates to:
+  /// **'About'**
+  String get settingsAbout;
+
+  /// No description provided for @settingsVersion.
+  ///
+  /// In en, this message translates to:
+  /// **'Version'**
+  String get settingsVersion;
 
   /// No description provided for @settingsTitle.
   ///
