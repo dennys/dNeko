@@ -21,7 +21,7 @@ class PetSettings {
   static const double defaultSpeedPerSecond = 90;
 
   static const double minPetSize = 80;
-  static const double maxPetSize = 180; // 素材只有 32×32，再放大會很糊
+  static const double maxPetSize = 180; // 素材 212~256px，再放大会糊
   static const double defaultPetSize = 120;
 
   /// 帶狀／角落區的邊長 = petSize × 此倍數
@@ -33,10 +33,14 @@ class PetSettings {
   final double petSize;
   final PetZone zone;
 
+  /// 目前選的動物（內建 id 或商店下載的 id）
+  final String animalId;
+
   const PetSettings({
     this.speedPxPerSecond = defaultSpeedPerSecond,
     this.petSize = defaultPetSize,
     this.zone = PetZone.fullScreen,
+    this.animalId = defaultAnimalId,
   });
 
   /// 每幀該走幾像素（速度存 px/s，才不會被 tick 長度綁死）
@@ -46,6 +50,7 @@ class PetSettings {
         'speedPxPerSecond': speedPxPerSecond,
         'petSize': petSize,
         'zone': zone.name,
+        'animalId': animalId,
       };
 
   /// 容忍髒資料：缺欄位/型別不對/zone 不認識，一律回到預設值而不是丟例外
@@ -60,6 +65,9 @@ class PetSettings {
           (z) => z.name == json['zone'],
           orElse: () => PetZone.fullScreen,
         ),
+        animalId: json['animalId'] is String && (json['animalId'] as String).isNotEmpty
+            ? json['animalId'] as String
+            : defaultAnimalId,
       );
 
   static double _number(Object? value, double fallback) =>

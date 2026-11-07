@@ -55,6 +55,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get settingsZone => '移動エリア';
 
   @override
+  String get settingsAnimal => 'ペット';
+
+  @override
   String get zoneFullScreen => '全画面';
 
   @override

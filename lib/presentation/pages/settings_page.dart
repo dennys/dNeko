@@ -1,10 +1,56 @@
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import '../../data/models/animal_resource.dart';
+import '../../data/repositories/animal_repository.dart';
 import '../../domain/i_overlay_service.dart';
 import '../../domain/pet_settings.dart';
 import '../../domain/screen_metrics.dart';
 import '../../l10n/app_localizations.dart';
 import '../controllers/settings_controller.dart';
+
+/// 動物清單（內建＋已下載都在 DB 裡）做成一顆一顆 chip，點了就換animal。
+/// Future 只建一次存成欄位：頁面會隨 slider 拖动不停重建，放 build 裡會每帧重查 DB。
+class _AnimalPicker extends StatefulWidget {
+  final AnimalRepository repository;
+  final String selected;
+  final ValueChanged<String> onSelected;
+
+  const _AnimalPicker({
+    required this.repository,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  @override
+  State<_AnimalPicker> createState() => _AnimalPickerState();
+}
+
+class _AnimalPickerState extends State<_AnimalPicker> {
+  late final Future<List<AnimalResource>> _animals = widget.repository.getAll();
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<AnimalResource>>(
+      future: _animals,
+      builder: (context, snap) {
+        final animals = snap.data;
+        if (animals == null) return const SizedBox(height: 38);
+        return Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final animal in animals)
+              ChoiceChip(
+                label: Text(animal.displayName),
+                selected: animal.animalId == widget.selected,
+                onSelected: (_) => widget.onSelected(animal.animalId),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
 
 /// 只負責：速度 / 大小 / 活動範圍三個控制項。
 /// 改動即存檔，並推給已經開著的 overlay（同一條 shareData 通道，不必重開視窗）。
@@ -40,11 +86,13 @@ class _VersionTileState extends State<_VersionTile> {
 class SettingsPage extends StatelessWidget {
   final SettingsController controller;
   final IOverlayService overlayService;
+  final AnimalRepository animalRepository;
 
   const SettingsPage({
     super.key,
     required this.controller,
     required this.overlayService,
+    required this.animalRepository,
   });
 
   @override
@@ -60,6 +108,14 @@ class SettingsPage extends StatelessWidget {
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
+              Text(l10n.settingsAnimal),
+              const SizedBox(height: 4),
+              _AnimalPicker(
+                repository: animalRepository,
+                selected: settings.animalId,
+                onSelected: (id) => _update(context, _copy(settings, animal: id)),
+              ),
+              const SizedBox(height: 16),
               Text(l10n.settingsSpeed),
               Slider(
                 value: settings.speedPxPerSecond,
@@ -107,10 +163,18 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  PetSettings _copy(PetSettings s, {double? speed, double? size, PetZone? zone}) => PetSettings(
+  PetSettings _copy(
+    PetSettings s, {
+    double? speed,
+    double? size,
+    PetZone? zone,
+    String? animal,
+  }) =>
+      PetSettings(
         speedPxPerSecond: speed ?? s.speedPxPerSecond,
         petSize: size ?? s.petSize,
         zone: zone ?? s.zone,
+        animalId: animal ?? s.animalId,
       );
 
   String _zoneLabel(AppLocalizations l10n, PetZone zone) => switch (zone) {
@@ -128,14 +192,13 @@ class SettingsPage extends StatelessWidget {
     final metrics = ScreenMetrics(
       logicalSize: mq.size,
       devicePixelRatio: mq.devicePixelRatio,
-      bottomInset: mq.padding.bottom,
     );
     final languageCode = Localizations.localeOf(context).languageCode;
 
     await controller.update(next);
     if (!await overlayService.isActive()) return;
     await overlayService.pushSettings(
-      animalId: defaultAnimalId,
+      animalId: next.animalId,
       settings: next,
       metrics: metrics,
       languageCode: languageCode,

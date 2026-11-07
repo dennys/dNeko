@@ -55,6 +55,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsZone => 'Roaming area';
 
   @override
+  String get settingsAnimal => 'Pet';
+
+  @override
   String get zoneFullScreen => 'Full screen';
 
   @override
