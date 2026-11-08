@@ -61,6 +61,32 @@ dNeko 是 ANeko 風格的桌面寵物 App（Flutter / Android）。動物可在 
 - 全螢幕漫遊用「移動小視窗」技巧：視窗只有寵物大小，靠 `moveOverlay` 移動。
 - `flutter_overlay_window` API 參數以 Android dp 為主；不要在呼叫 `moveOverlay` / `resizeOverlay` 前自行乘上 `devicePixelRatio`。
 
+## 本地 fork 插件（升級前必讀）
+
+`flutter_overlay_window` 不是 pub.dev 版，是複製進 `packages/flutter_overlay_window/` 的 fork
+（基底 = pub 1.0.2），用 path 依賴。**升級 = 解壓新版覆蓋後重打補丁，漏打不會編譯錯誤、
+只會讓「點外面關選單」無聲失效**，务必照下表逐項核對。
+
+上游已知不會收這個功能：issue #170（ACTION_OUTSIDE）被 maintainer closed as not planned。
+
+補丁只有兩處，都在 `android/.../OverlayService.java`，搜 `dNeko patch` 可定位：
+
+| # | 位置 | 內容 |
+| ---- | ---- | ---- |
+| 1 | `onStartCommand` 的 `WindowManager.LayoutParams` flags | 多加 `\| FLAG_WATCH_OUTSIDE_TOUCH` |
+| 2 | `onTouch()` 開頭（**必須在 enableDrag 早退之前**，選單開著時 drag 是關的） | `ACTION_OUTSIDE` 時 `flutterChannel.invokeMethod("onOutsideTap", null)` 後 `return false` |
+
+Dart 端（原版檔案、未改）：`lib/overlay_main.dart` 自己對 `MethodChannel('x-slayer/overlay')`
+註冊 handler 收 `onOutsideTap`。升級時確認原生端這個 channel 名字（`OverlayConstants.OVERLAY_TAG`）
+還是 `x-slayer/overlay`、且原生端沒有自己註冊同名的 Dart→native handler 之外的用途。
+
+升版流程：下載 pub 封存（`https://pub.dev/api/archives/flutter_overlay_window-<ver>.tar.gz`）
+→ 解壓覆蓋 `packages/flutter_overlay_window/`（保留例：刪除 example/ 與 test/）
+→ 重打上面兩處補丁 → 手測：開選單 → 點桌面其他地方 → 選單應收起。
+
+另外 `dependency_overrides` 把 `path_provider_android` 鎖在 2.2.23（dgx1 ARM64 的 NDK/CMake
+問題），升它之前先讀 pubspec 裡那段註解。
+
 ## 多國語言
 
 - 字串一律放 `lib/l10n/*.arb`，透過 `AppLocalizations` 取用，**禁止硬編字串**於 UI。

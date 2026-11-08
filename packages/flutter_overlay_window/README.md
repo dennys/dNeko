@@ -1,0 +1,269 @@
+<p align="center">
+  <img src="https://github.com/X-SLAYER/flutter_overlay_window/assets/22800380/d22ae453-e83d-4da6-ba68-f4eaef666ef1" height="170" alt="auto_route_logo">
+</p>
+
+<p align="center">
+  <a href="https://img.shields.io/badge/License-MIT-green">
+    <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
+  </a>
+  <a href="https://github.com/X-SLAYER/flutter_overlay_window">
+    <img src="https://img.shields.io/github/stars/X-SLAYER/flutter_overlay_window?style=flat&logo=github&colorB=green&label=stars" alt="stars">
+  </a>
+  <a href="https://pub.dev/packages/flutter_overlay_window">
+    <img src="https://img.shields.io/pub/v/flutter_overlay_window.svg?label=pub&color=orange" alt="pub version">
+  </a>
+</p>
+
+<p align="center">
+  <a href="https://www.buymeacoffee.com/xslayer" target="_blank">
+    <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="30px" width= "108px">
+  </a>
+</p>
+
+<p align="center">
+Flutter plugin for displaying your Flutter app over other apps on the screen
+</p>
+
+---
+
+## Preview
+
+|                                                          TrueCaller overlay example                                                          |                                                        click-through overlay example                                                        |                                                         Messanger chat-head example                                                         |
+| :------------------------------------------------------------------------------------------------------------------------------------------: | :-----------------------------------------------------------------------------------------------------------------------------------------: | :-----------------------------------------------------------------------------------------------------------------------------------------: |
+| <img src='https://user-images.githubusercontent.com/22800380/165636217-8957396b-dc54-4e6d-aa50-e8bfdb9383cf.gif' height='600' width='300' /> | <img src='https://user-images.githubusercontent.com/22800380/165636120-dcd9ee13-5fca-4f8a-a562-b2f53c0b5e24.gif' height='600' width='300'/> | <img src='https://user-images.githubusercontent.com/22800380/178730917-40f267bb-63a2-4ad3-ba69-f7c1285a1882.gif' height='600' width='300'/> |
+
+## Installation
+
+Add package to your pubspec:
+
+```yaml
+dependencies:
+  flutter_overlay_window: any # or the latest version on Pub
+```
+
+### Android
+
+You'll need to add the `SYSTEM_ALERT_WINDOW` permission and `OverlayService` to your Android Manifest.
+Replace `explanation_for_special_use` with your custom explanation.
+
+```XML
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+
+    <application>
+        ...
+        <service android:name="flutter.overlay.window.flutter_overlay_window.OverlayService" 
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="explanation_for_special_use"/>
+        </service>
+    </application>
+```
+
+### Entry point
+
+Inside `main.dart` create an entry point for your Overlay widget;
+
+```dart
+
+// overlay entry point
+@pragma("vm:entry-point")
+void overlayMain() {
+  runApp(const MaterialApp(
+    debugShowCheckedModeBanner: false,
+    home: Material(child: Text("My overlay"))
+  ));
+}
+
+```
+
+### USAGE
+
+```dart
+ /// check if overlay permission is granted
+ final bool status = await FlutterOverlayWindow.isPermissionGranted();
+
+ /// request overlay permission
+ /// it will open the overlay settings page and return `true` once the permission granted.
+ final bool status = await FlutterOverlayWindow.requestPermission();
+
+  /// Open overLay content
+  ///
+  /// - Optional arguments:
+  ///
+  /// `height` the overlay height and default is [WindowSize.fullCover]
+  ///
+  /// `width` the overlay width and default is [WindowSize.matchParent]
+  ///
+  /// `alignment` the alignment postion on screen and default is [OverlayAlignment.center]
+  ///
+  /// `visibilitySecret` the detail displayed in notifications on the lock screen and default is [NotificationVisibility.visibilitySecret]
+  ///
+  /// `OverlayFlag` the overlay flag and default is [OverlayFlag.defaultFlag]
+  ///
+  /// `overlayTitle` the notification message and default is "overlay activated"
+  ///
+  /// `overlayContent` the notification message
+  ///
+  /// `enableDrag` to enable/disable dragging the overlay over the screen and default is "false"
+  ///
+  /// `dismissConfig` an `OverlayDismissConfig` that enables drag-to-dismiss: a target appears at the bottom
+  /// of the screen during drag, dropping the overlay on it closes the overlay. Default is null (disabled)
+  ///
+
+  /// `positionGravity` the overlay postion after drag and default is [PositionGravity.none]
+  ///
+  /// `startPosition` the overlay start position and default is null
+  ///
+  /// `notificationIcon` name of a drawable/mipmap resource in your app used as the notification icon, default is the launcher icon
+ await FlutterOverlayWindow.showOverlay();
+
+ /// closes overlay if open
+ await FlutterOverlayWindow.closeOverlay();
+
+/// show or hide the overlay window without stopping the overlay service
+/// (the overlay keeps its state, position and size while hidden)
+await FlutterOverlayWindow.setOverlayVisible(visible: false);
+await FlutterOverlayWindow.setOverlayVisible(visible: true);
+
+ /// broadcast data to and from overlay app
+ await FlutterOverlayWindow.shareData("Hello from the other side");
+
+ /// streams message shared between overlay and main app
+  FlutterOverlayWindow.overlayListener.listen((event) {
+      log("Current Event: $event");
+    });
+
+ /// use [OverlayFlag.focusPointer] when you want to use fields that show keyboards
+ await FlutterOverlayWindow.showOverlay(flag: OverlayFlag.focusPointer);
+
+
+ /// update the overlay flag while the overlay in action
+ await FlutterOverlayWindow.updateFlag(OverlayFlag.defaultFlag);
+
+ /// Update the overlay size in the screen
+ await FlutterOverlayWindow.resizeOverlay(80, 120);
+
+ /// Update the overlay position in the screen
+ ///
+ /// `position` the new position of the overlay
+ ///
+ /// `return` true if the position updated successfully
+ await FlutterOverlayWindow.moveOverlay(OverlayPosition(0, 156))
+
+ /// Get the current overlay position
+ ///
+ /// `return` the current overlay position
+ await FlutterOverlayWindow.getOverlayPosition()
+
+ /// Get the screen size in dp (useful inside the overlay, where MediaQuery is unavailable)
+ ///
+ /// `return` an OverlayPosition where x is the width and y is the height
+ final OverlayPosition size = await FlutterOverlayWindow.getScreenSize();
+
+ /// Update the notification while the overlay is showing (only the given values change)
+ ///
+ /// `icon` name of a drawable/mipmap resource, e.g. res/drawable/ic_stat_overlay.png -> "ic_stat_overlay"
+ ///
+ /// `return` false if no overlay is active
+ await FlutterOverlayWindow.updateNotification(title: "Recording", content: "00:42", icon: "ic_stat_overlay")
+```
+
+### Drag-to-dismiss
+
+Enable a dismiss zone that appears at the bottom of the screen while dragging the overlay. Dropping the overlay on it closes it.
+
+```dart
+ /// Basic usage — built-in X-in-circle target
+ await FlutterOverlayWindow.showOverlay(
+   enableDrag: true,
+   dismissConfig: const OverlayDismissConfig(),
+ );
+
+ /// Customized built-in target
+ await FlutterOverlayWindow.showOverlay(
+   enableDrag: true,
+   dismissConfig: const OverlayDismissConfig(
+     size: 64,
+     bottomMargin: 48,
+     shape: OverlayDismissShape.rectangle,
+     borderRadius: 16,
+     backgroundColor: Color(0xCC333333),
+     activeBackgroundColor: Colors.red,   // while the overlay is over the target
+     iconColor: Colors.white,
+     iconSize: 24,
+     iconStrokeWidth: 3,
+     borderWidth: 2,
+     borderColor: Colors.white24,
+     activeBorderColor: Colors.white,
+     activeScale: 1.25,
+     hapticFeedback: true,
+   ),
+ );
+
+ /// Custom drawable resource
+ /// Place your icon in android/app/src/main/res/drawable/ (e.g. ic_dismiss.xml)
+ /// and pass the resource name without the extension:
+ await FlutterOverlayWindow.showOverlay(
+   enableDrag: true,
+   dismissConfig: const OverlayDismissConfig(icon: "ic_dismiss"),
+ );
+```
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `icon` | `null` | Drawable/mipmap resource used instead of the built-in X |
+| `size` | `56` | Width and height of the target (dp) |
+| `bottomMargin` | `40` | Distance from the bottom of the screen (dp) |
+| `shape` | `circle` | `OverlayDismissShape.circle` or `.rectangle` |
+| `borderRadius` | `12` | Corner radius for `rectangle` (dp) |
+| `backgroundColor` / `activeBackgroundColor` | `Color(0xCC333333)` | Fill color, normal / while hovered |
+| `iconColor` / `activeIconColor` | `Colors.white` | X color, normal / while hovered |
+| `iconSize` | `22` | Size of the X (dp) |
+| `iconStrokeWidth` | `4` | Stroke width of the X (dp) |
+| `borderWidth` | `0` | Border width, `0` for none (dp) |
+| `borderColor` / `activeBorderColor` | transparent | Border color, normal / while hovered |
+| `activeScale` | `1.2` | Scale applied while hovered, `1` to disable |
+| `hapticFeedback` | `true` | Vibrate when the overlay enters the target |
+
+When `icon` is set and found in the app's `drawable` or `mipmap` resources, it replaces the built-in target. The shape, color, border and icon options only apply to the built-in target; `size`, `bottomMargin`, `activeScale` and `hapticFeedback` apply to both.
+
+```dart
+
+enum OverlayFlag {
+  /// Window flag: this window can never receive touch events.
+  /// Usefull if you want to display click-through overlay
+  clickThrough,
+
+  /// Window flag: this window won't ever get key input focus
+  /// so the user can not send key or other button events to it.
+  defaultFlag,
+
+  /// Window flag: allow any pointer events outside of the window to be sent to the windows behind it.
+  /// Usefull when you want to use fields that show keyboards.
+  focusPointer,
+}
+
+```
+
+```dart
+
+  /// Type of dragging behavior for the overlay.
+  enum PositionGravity {
+    /// The `PositionGravity.none` will allow the overlay to postioned anywhere on the screen.
+    none,
+
+    /// The `PositionGravity.right` will allow the overlay to stick on the right side of the screen.
+    right,
+
+    /// The `PositionGravity.left` will allow the overlay to stick on the left side of the screen.
+    left,
+
+    /// The `PositionGravity.auto` will allow the overlay to stick either on the left or right side of the screen depending on the overlay position.
+    auto,
+  }
+
+
+```
