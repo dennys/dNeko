@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 import 'l10n/app_localizations.dart';
 import 'data/repositories/animal_repository.dart';
@@ -149,12 +150,21 @@ class _OverlayAppState extends State<_OverlayApp> {
     }
   }
 
+  /// 本地 fork（packages/flutter_overlay_window）在視窗被點到外面時從原生打進來的 channel
+  /// （插件原生端的 OVERLAY_TAG；原版這名字只用在 Dart→原生方向，不會跟我們搶 handler）
+  static const _nativeChannel = MethodChannel('x-slayer/overlay');
+
   @override
   void initState() {
     super.initState();
     // 這條訂閱之前沒有人 cancel（也不存成欄位），overlay isolate 结束前就一直吊著
     // state 與整條控制器鏈。
     _eventSub = FlutterOverlayWindow.overlayListener.listen(_onData);
+    _nativeChannel.setMethodCallHandler((call) async {
+      if (call.method == 'onOutsideTap' && _state == _WindowState.menu) {
+        await _closeMenu();
+      }
+    });
     unawaited(_loadDefaultAnimal());
   }
 

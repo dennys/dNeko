@@ -17,7 +17,10 @@ dependencies:
   path: ^1.9.1
   dio: ^5.9.2
   # 1.0.x 需要 Gradle 9 / AGP 9 / Java 17（本專案已於階段 40 升級）
-  flutter_overlay_window: ^1.0.2
+  # 本地 fork（packages/flutter_overlay_window）：原生端加了 ACTION_OUTSIDE 支援，
+  # 讓選單可以「點螢幕其他地方」關掉。升級前必讀 AGENT.md 的「本地 fork 插件」。
+  flutter_overlay_window:
+    path: packages/flutter_overlay_window
   package_info_plus: ^10.2.2
 
 dependency_overrides:
