@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -32,13 +34,17 @@ android {
     signingConfigs {
         // 固定簽名：之前 release 用 debug key，但 CI 每台 runner 的 debug.keystore
         // 都是現生的一次性金鑰 → 每版簽名不同，只能砍掉重裝。
-        // keystore 本體不進版控：本地在 android/app/debug.keystore，CI 由
-        // secret KEYSTORE_B64 解码到同一路徑。
+        // keystore 與密碼都不進版控（repo 是 public）：本地放 android/app/{debug.keystore,
+        // key.properties}，CI 由 secrets KEYSTORE_B64 / KEY_PROPERTIES 還原到同一路徑。
         create("release") {
-            storeFile = file("debug.keystore")
-            storePassword = "iu6cv1o8k5b7re0d"
-            keyAlias = "dneko"
-            keyPassword = "iu6cv1o8k5b7re0d"
+            val propsFile = file("key.properties")
+            if (propsFile.exists()) {
+                val props = Properties().apply { propsFile.inputStream().use { load(it) } }
+                storeFile = file(props.getProperty("storeFile"))
+                storePassword = props.getProperty("storePassword")
+                keyAlias = props.getProperty("keyAlias")
+                keyPassword = props.getProperty("keyPassword")
+            }
         }
     }
 

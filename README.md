@@ -69,8 +69,10 @@ flutter build apk --release --target-platform android-arm64 --no-tree-shake-icon
 
 ## 🔑 簽名（升級免重裝）
 
-release 以固定 keystore 簽名（`android/app/debug.keystore`，**不在版控中，自行備份**）。
-CI 由 repo secret `KEYSTORE_B64`（keystore 的 base64）還原。**keystore 遺失 = 使用者必須砍掉重裝。**
+release 以固定 keystore 簽名。repo 是 public，因此金鑰與密碼**都不進版控**：
+本地放 `android/app/debug.keystore` + `android/app/key.properties`（兩者已 gitignore，自行備份），
+CI 由 repo secrets `KEYSTORE_B64`（keystore 的 base64）與 `KEY_PROPERTIES`（key.properties 內容）還原。
+**keystore 遺失 = 使用者必須砍掉重裝。**
 
 ## 📦 本地 fork 插件
 

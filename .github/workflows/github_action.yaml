@@ -70,20 +70,31 @@ jobs:
       - name: Run tests
         run: flutter test
 
-      # 固定簽名金鑰（Repo secret KEYSTORE_B64 = debug.keystore 的 base64）；
-      # 沒這步每版簽名都不同，覆蓋安裝會被系統擋掉
-      - name: Decode signing key
+      # 固定簽名金鑰（repo secrets：KEYSTORE_B64 = debug.keystore 的 base64、
+      # KEY_PROPERTIES = key.properties 內容）；沒金鑰每版簽名都不同，覆蓋安裝會被系統擋掉
+      - name: Restore signing key
         env:
           KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+          KEY_PROPERTIES: ${{ secrets.KEY_PROPERTIES }}
         run: |
-          test -n "$KEYSTORE_B64" || { echo "missing secret KEYSTORE_B64"; exit 1; }
+          test -n "$KEYSTORE_B64" && test -n "$KEY_PROPERTIES" || { echo "missing secrets KEYSTORE_B64/KEY_PROPERTIES"; exit 1; }
           printf '%s' "$KEYSTORE_B64" | base64 -d > android/app/debug.keystore
+          printf '%s\n' "$KEY_PROPERTIES" > android/app/key.properties
 
       - name: Build debug APK
         run: flutter build apk --debug --target-platform android-arm64
 
       - name: Build release APK
         run: flutter build apk --release --target-platform android-arm64 --no-tree-shake-icons
+
+      # flutter tool 固定找 app-release.apk，所以 Gradle 輸出名稱不動，
+      # 建置完再改名成 dNeko-<mode>-v<version>.apk（版號來自 pubspec）
+      - name: Rename APKs
+        run: |
+          cd build/app/outputs/flutter-apk
+          v=$(grep '^version:' ../../../../pubspec.yaml | awk '{print $2}' | cut -d+ -f1)
+          mv app-release.apk "dNeko-release-v$v.apk"
+          mv app-debug.apk "dNeko-debug-v$v.apk"
 
       - name: Upload APKs
         uses: actions/upload-artifact@v4
