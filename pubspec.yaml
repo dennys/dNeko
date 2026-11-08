@@ -1,5 +1,7 @@
 name: dneko
 description: ANeko-like desktop pet app
+publish_to: none # app 不發布到 pub.dev；path 依賴（fork 插件）需要這行才不報 invalid_dependency
+version: 1.0.0+1
 
 environment:
   sdk: ^3.13.0
