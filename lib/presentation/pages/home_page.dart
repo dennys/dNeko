@@ -259,24 +259,18 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               const SizedBox(height: 16),
               Text(l10n.settingsLanguage),
               const SizedBox(height: 4),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  // 語言用自己的文字顯示自己的名字（業界慣例），所以不需要 l10n
-                  for (final option in <String?, String>{
-                    null: l10n.languageSystem,
-                    'en': 'English',
-                    'zh-TW': '繁體中文',
-                    'zh': '简体中文',
-                    'ja': '日本語',
-                  }.entries)
-                    ChoiceChip(
-                      label: Text(option.value),
-                      selected: settings.languageCode == option.key,
-                      onSelected: (_) => _apply(settings.copyWith(languageCode: option.key)),
-                    ),
+              // 語言用自己的文字顯示自己的名字（業界慣例），所以不需要 l10n
+              DropdownMenu<String?>(
+                expandedInsets: EdgeInsets.zero,
+                initialSelection: settings.languageCode,
+                dropdownMenuEntries: [
+                  DropdownMenuEntry(value: null, label: l10n.languageSystem),
+                  const DropdownMenuEntry(value: 'en', label: 'English'),
+                  const DropdownMenuEntry(value: 'zh-TW', label: '繁體中文'),
+                  const DropdownMenuEntry(value: 'zh', label: '简体中文'),
+                  const DropdownMenuEntry(value: 'ja', label: '日本語'),
                 ],
+                onSelected: (code) => _apply(settings.copyWith(languageCode: code)),
               ),
               const SizedBox(height: 16),
               Text(l10n.settingsTheme),

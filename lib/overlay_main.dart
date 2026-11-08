@@ -74,6 +74,11 @@ class _OverlayAppState extends State<_OverlayApp> {
   double _petSize = PetSettings.defaultPetSize;
   _WindowState _state = _WindowState.collapsed;
 
+  /// 選單開著一段時間沒動就自己關掉（overlay 視窗收不到視窗外的點擊，
+  /// 懸浮視窗也沒有「點外面」這種事件，定時器是唯一能自動脫身的办法）
+  Timer? _menuTimer;
+  static const _menuTimeout = Duration(seconds: 6);
+
   /// 實測出的視窗頂端座標可達範圍（含狀態列/導航列的安全區；見 [_measureRoam]）
   Rect? _roam;
   double? _roamPetSize;
@@ -399,10 +404,18 @@ class _OverlayAppState extends State<_OverlayApp> {
 
     await window.resize(width: _menuWidth, height: _menuHeight, enableDrag: false);
     await window.moveTo(Offset(x, y));
+    _armMenuTimer();
     setState(() => _state = _WindowState.menu);
   }
 
+  void _armMenuTimer() {
+    _menuTimer?.cancel();
+    _menuTimer = Timer(_menuTimeout, () => unawaited(_closeMenu()));
+  }
+
   Future<void> _closeMenu() async {
+    _menuTimer?.cancel();
+    _menuTimer = null;
     const window = OverlayWindow();
     await window.resize(width: _petSize, height: _petSize);
     // resize 以視窗左上角為錨點；選單開在上方時錨點不在動物身上，要搬回動物的位置
@@ -563,19 +576,24 @@ class _OverlayAppState extends State<_OverlayApp> {
     AnimalAnimationDefinition definition,
     PetController controller,
   ) {
-    final petView = SizedBox(
-      width: _petSize,
-      height: _petSize,
-      child: AnimalAnimator(
-        resource: resource,
-        definition: definition,
-        action: AnimationAction.affectionate,
-        loader: _loader,
-        displayWidth: _petSize,
-        displayHeight: _petSize,
+    final petView = GestureDetector(
+      // 選單開著時按寵物 = 收起來（視窗外的點擊收不到，這是範圍內最接近「按外面關掉」的手勢）
+      onTap: () => unawaited(_closeMenu()),
+      child: SizedBox(
+        width: _petSize,
+        height: _petSize,
+        child: AnimalAnimator(
+          resource: resource,
+          definition: definition,
+          action: AnimationAction.affectionate,
+          loader: _loader,
+          displayWidth: _petSize,
+          displayHeight: _petSize,
+        ),
       ),
     );
     final menu = FeedingMenu(
+      onInteract: _armMenuTimer, // 有動就重新計時
       feedLabel: l10n.menuFeed,
       petLabel: l10n.menuPet,
       closeLabel: l10n.menuClose,
@@ -600,6 +618,7 @@ class _OverlayAppState extends State<_OverlayApp> {
   void dispose() {
     unawaited(_eventSub?.cancel());
     _eventSub = null;
+    _menuTimer?.cancel();
     _loadSeq++; // 讓還在飛的載入流程全部作廢（它們回來時只會看到過期的顺序號）
     _dragTimer?.cancel();
     _driver?.dispose();
