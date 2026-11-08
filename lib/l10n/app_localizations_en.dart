@@ -128,4 +128,16 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get overlayPermissionDenied => 'Overlay permission was not granted';
+
+  @override
+  String get animalCat => 'Cat';
+
+  @override
+  String get animalDog => 'Dog';
+
+  @override
+  String get animalPenguin => 'Penguin';
+
+  @override
+  String get animalFox => 'Fox';
 }

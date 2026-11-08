@@ -127,6 +127,18 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get overlayPermissionDenied => '沒有取得懸浮視窗權限';
+
+  @override
+  String get animalCat => '小花猫';
+
+  @override
+  String get animalDog => '小狗';
+
+  @override
+  String get animalPenguin => '小企鹅';
+
+  @override
+  String get animalFox => '小狐狸';
 }
 
 /// The translations for Chinese, as used in Taiwan (`zh_TW`).
@@ -251,4 +263,16 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get overlayPermissionDenied => '沒有取得懸浮視窗權限';
+
+  @override
+  String get animalCat => '小花貓';
+
+  @override
+  String get animalDog => '小狗';
+
+  @override
+  String get animalPenguin => '小企鵝';
+
+  @override
+  String get animalFox => '小狐狸';
 }

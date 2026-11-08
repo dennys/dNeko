@@ -37,5 +37,9 @@
   "overlayStarting": "啟動中…",
   "overlayStopping": "關閉中…",
   "overlayFailed": "改變懸浮視窗失敗：{message}",
-  "overlayPermissionDenied": "沒有取得懸浮視窗權限"
+  "overlayPermissionDenied": "沒有取得懸浮視窗權限",
+  "animalCat": "小花猫",
+  "animalDog": "小狗",
+  "animalPenguin": "小企鹅",
+  "animalFox": "小狐狸"
 }

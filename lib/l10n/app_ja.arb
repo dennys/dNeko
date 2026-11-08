@@ -37,5 +37,9 @@
   "overlayStarting": "開始中…",
   "overlayStopping": "停止中…",
   "overlayFailed": "オーバーレイの変更に失敗：{message}",
-  "overlayPermissionDenied": "オーバーレイ権限が許可されませんでした"
+  "overlayPermissionDenied": "オーバーレイ権限が許可されませんでした",
+  "animalCat": "猫",
+  "animalDog": "犬",
+  "animalPenguin": "ペンギン",
+  "animalFox": "キツネ"
 }
