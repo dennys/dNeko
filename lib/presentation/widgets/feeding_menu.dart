@@ -18,6 +18,9 @@ class FeedingMenu extends StatelessWidget {
   final VoidCallback onClose;
   final VoidCallback onQuit;
 
+  /// 任一列被按到时通知外面（用來重置自動關閉計時器）
+  final VoidCallback? onInteract;
+
   const FeedingMenu({
     super.key,
     required this.feedLabel,
@@ -30,10 +33,16 @@ class FeedingMenu extends StatelessWidget {
     required this.onFreeze,
     required this.onClose,
     required this.onQuit,
+    this.onInteract,
   });
 
   @override
   Widget build(BuildContext context) {
+    void tap(VoidCallback action) {
+      onInteract?.call();
+      action();
+    }
+
     return Card(
       elevation: 3,
       margin: EdgeInsets.zero,
@@ -43,19 +52,19 @@ class FeedingMenu extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _MenuRow(icon: Icons.restaurant, label: feedLabel, onTap: onFeed),
-            _MenuRow(icon: Icons.favorite, label: petLabel, onTap: onPet),
+            _MenuRow(icon: Icons.restaurant, label: feedLabel, onTap: () => tap(onFeed)),
+            _MenuRow(icon: Icons.favorite, label: petLabel, onTap: () => tap(onPet)),
             _MenuRow(
               icon: Icons.pause_circle_outline,
               label: freezeLabel,
-              onTap: onFreeze,
+              onTap: () => tap(onFreeze),
             ),
-            _MenuRow(icon: Icons.keyboard_arrow_up, label: closeLabel, onTap: onClose),
+            _MenuRow(icon: Icons.keyboard_arrow_up, label: closeLabel, onTap: () => tap(onClose)),
             const Divider(height: 1, indent: 14, endIndent: 14),
             _MenuRow(
               icon: Icons.power_settings_new,
               label: quitLabel,
-              onTap: onQuit,
+              onTap: () => tap(onQuit),
               color: Theme.of(context).colorScheme.error,
             ),
           ],
