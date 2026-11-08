@@ -334,6 +334,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Overlay permission was not granted'**
   String get overlayPermissionDenied;
+
+  /// No description provided for @animalCat.
+  ///
+  /// In en, this message translates to:
+  /// **'Cat'**
+  String get animalCat;
+
+  /// No description provided for @animalDog.
+  ///
+  /// In en, this message translates to:
+  /// **'Dog'**
+  String get animalDog;
+
+  /// No description provided for @animalPenguin.
+  ///
+  /// In en, this message translates to:
+  /// **'Penguin'**
+  String get animalPenguin;
+
+  /// No description provided for @animalFox.
+  ///
+  /// In en, this message translates to:
+  /// **'Fox'**
+  String get animalFox;
 }
 
 class _AppLocalizationsDelegate

@@ -10,6 +10,7 @@ import '../../data/repositories/animal_repository.dart';
 import '../../data/services/overlay_service.dart';
 import '../../domain/pet_settings.dart';
 import '../../domain/screen_metrics.dart';
+import '../../l10n/animal_names.dart';
 import '../../l10n/app_localizations.dart';
 import '../controllers/settings_controller.dart';
 import '../controllers/store_controller.dart';
@@ -384,7 +385,9 @@ class _AnimalPickerState extends State<_AnimalPicker> {
           children: [
             for (final animal in animals)
               ChoiceChip(
-                label: Text(animal.displayName),
+                label: Text(
+                  AppLocalizations.of(context)!.animalName(animal.animalId, animal.displayName),
+                ),
                 selected: animal.animalId == widget.selected,
                 onSelected: (_) => widget.onSelected(animal.animalId),
               ),

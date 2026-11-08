@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../l10n/animal_names.dart';
 import '../../l10n/app_localizations.dart';
 import '../controllers/store_controller.dart';
 
@@ -85,7 +86,7 @@ class _StoreTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListTile(
       leading: const CircleAvatar(child: Icon(Icons.pets)),
-      title: Text(state.item.displayName),
+      title: Text(l10n.animalName(state.item.animalId, state.item.displayName)),
       subtitle: Text('v${state.item.version}'),
       trailing: _buildTrailing(),
     );

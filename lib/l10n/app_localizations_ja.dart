@@ -127,4 +127,16 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get overlayPermissionDenied => 'オーバーレイ権限が許可されませんでした';
+
+  @override
+  String get animalCat => '猫';
+
+  @override
+  String get animalDog => '犬';
+
+  @override
+  String get animalPenguin => 'ペンギン';
+
+  @override
+  String get animalFox => 'キツネ';
 }

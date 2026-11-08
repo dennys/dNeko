@@ -37,5 +37,9 @@
   "overlayStarting": "Starting...",
   "overlayStopping": "Stopping...",
   "overlayFailed": "Failed to change overlay: {message}",
-  "overlayPermissionDenied": "Overlay permission was not granted"
+  "overlayPermissionDenied": "Overlay permission was not granted",
+  "animalCat": "Cat",
+  "animalDog": "Dog",
+  "animalPenguin": "Penguin",
+  "animalFox": "Fox"
 }
