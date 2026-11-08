@@ -29,10 +29,22 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        // 固定簽名：之前 release 用 debug key，但 CI 每台 runner 的 debug.keystore
+        // 都是現生的一次性金鑰 → 每版簽名不同，只能砍掉重裝。
+        // keystore 本體不進版控：本地在 android/app/debug.keystore，CI 由
+        // secret KEYSTORE_B64 解码到同一路徑。
+        create("release") {
+            storeFile = file("debug.keystore")
+            storePassword = "iu6cv1o8k5b7re0d"
+            keyAlias = "dneko"
+            keyPassword = "iu6cv1o8k5b7re0d"
+        }
+    }
+
     buildTypes {
         release {
-            // Human decision: release keeps signing with the debug key.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 }

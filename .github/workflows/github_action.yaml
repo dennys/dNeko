@@ -70,6 +70,15 @@ jobs:
       - name: Run tests
         run: flutter test
 
+      # 固定簽名金鑰（Repo secret KEYSTORE_B64 = debug.keystore 的 base64）；
+      # 沒這步每版簽名都不同，覆蓋安裝會被系統擋掉
+      - name: Decode signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+        run: |
+          test -n "$KEYSTORE_B64" || { echo "missing secret KEYSTORE_B64"; exit 1; }
+          printf '%s' "$KEYSTORE_B64" | base64 -d > android/app/debug.keystore
+
       - name: Build debug APK
         run: flutter build apk --debug --target-platform android-arm64
 
