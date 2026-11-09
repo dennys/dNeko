@@ -326,3 +326,37 @@ of Flutter`（guide：docs.flutter.dev/release/breaking-changes/migrate-to-built
 細節與步驟方向写在 **`../d2048/TODO.md`**（同一時間寫的同一件事）。**d2048 已於 2026-11-09 試通**（AGP 9.1.0；用 init script 實測 `:app` 的 `pluginManager.hasPlugin("org.jetbrains.kotlin.android")` 由 true 變 false，就真的生效了），可以照抄——
 本案有本地 fork 的原生插件／drift／health 等原生依賴，直接動風險高得多。驗收要含一次 release build
 （AOT 只能在 x86-64 機器或 CI 驗）。
+
+## 2026-11-09 評估完、**保留不動**：`package_info_plus` 是本案 built-in Kotlin 的唯一 blocker
+
+**事實（2026-11-09 查證）**
+· 本案原生依賴裡，只有 `package_info_plus` 10.2.2 會被擋：`android/build.gradle.kts:38` 有
+  `apply(plugin = "org.jetbrains.kotlin.android")`。其餘（`path_provider_android`、`sqflite_android`、
+  本地 fork `flutter_overlay_window`）都已 built-in ✅ → 移除它，本案就能翻 `android.builtInKotlin=true`。
+· 升版解不了：pub.dev 最新就是 10.2.2；上游 `fluttercommunity/plus_plugins` 的 main 也還套著 KGP（查於當日）。
+· **決定：不 fork**（人類 2026-11-09 定的），所以只能等上游或移除依賴。
+· 我們其實只用兩個欄位：`lib/presentation/pages/home_page.dart:411,415,418` 的
+  `PackageInfo.fromPlatform()` → `version` 與 `buildNumber`，而這兩個的本質是 build 時 `flutter build`
+  從 `pubspec.yaml` 的 `version:` 蓋進 AndroidManifest 的 versionName/versionCode —— 打包當下就知道了，
+  插件只是 runtime 用 MethodChannel 再問原生端一次。它其余的 appName/packageName/installerStore/
+  buildSignature/changingPackages 與 Windows 端 fileVersion 那套，我們一個都沒用。
+
+**四个選項與取捨（未做，留給要動的那天）**
+| | 做法 | 缺點 |
+|---|---|---|
+| A 等上游 | 什麼都不做 | 日期未知；本案一直進不了 built-in Kotlin |
+| B `--dart-define` | `String.fromEnvironment('APP_VERSION')` + build 時傳 `--dart-define=APP_VERSION=1.0.0+1` | 每台機器與 CI 都要記得傳；忘傳 UI 就顯示錯 |
+| **C 小檔 + 測試**（評估時的建議） | `lib/gen/app_version.dart` 由兩行腳本從 pubspec 生，簽進版控；再加一個 test 解析 pubspec 比對，不同就紅 | 升版要重生一次（但 test 立刻擋，不會無聲說謊） |
+| D 自己開 MethodChannel | 在本地 fork 的原生碼加個小 channel | 版號邏輯塞進 fork，耦合更糟、原生碼變多 → 不划算 |
+
+**重啟這條的時機**
+1. 要翻本案 `android.builtInKotlin=true` 的時候（順序見 `../d2048/TODO.md`：d2048 → dNeko → dHealth）。
+2. **反向訊號**：哪天要做「偵測非官方渠道安裝／APK 被重打包」，就需要 `installerStore` 或 `buildSignature`
+   （Android 專屬，只能問原生端，`dart-define` 給不了）→ 那時候就**留著這個插件等上游**，別移除。
+   （搜 `installerStore|buildSignature|installer|簽章檢查` 於 TODO/AGENTS/lib：0 命中，目前純粹是關於頁顯示版號。）
+
+**掃 blocker 的兩個坑（下次別再踩）**
+· 正則要連 Kotlin DSL 的 `apply(plugin = "org.jetbrains.kotlin.android")` 一起算，只寫
+  `apply plugin:'kotlin-android'` / `id("...")` 會把 plus_plugins 整派漏掉（我 2026-11-09 就漏過一次）。
+· 只掃插件的 `android/build.gradle(.kts)`；遞迴掃 `android/**` 會連插件自帶的 `example/android/app/**`
+  算進來 → 每個插件都假陽性。
