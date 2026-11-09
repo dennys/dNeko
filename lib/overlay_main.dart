@@ -13,6 +13,7 @@ import 'data/models/animal_resource.dart';
 import 'data/models/animation_definition.dart';
 import 'data/models/animation_action.dart';
 import 'domain/pet_settings.dart';
+import 'domain/menu_placement.dart';
 import 'domain/pet_stats.dart';
 import 'domain/screen_metrics.dart';
 import 'presentation/controllers/pet_controller.dart';
@@ -418,22 +419,17 @@ class _OverlayAppState extends State<_OverlayApp> {
     const window = OverlayWindow();
     final roam = await _roamFor(_petSize);
     final pos = await window.currentPosition();
-    final extra = _menuHeight - _petSize;
-    final maxTop = roam.bottom + _petSize - _menuHeight; // 選單不壓到導航列的最大 y
-    final belowFits = pos.dy <= maxTop;
-    final aboveFits = pos.dy - extra >= roam.top;
-    _menuAbove = !belowFits && (aboveFits || pos.dy - roam.top > roam.bottom - pos.dy);
-
-    final maxLeft = roam.right + _petSize - _menuWidth; // 同理，左右不出界
-    var x = pos.dx - (_menuWidth - _petSize) / 2;
-    if (x < roam.left) x = roam.left;
-    if (maxLeft >= roam.left && x > maxLeft) x = maxLeft;
-    var y = _menuAbove ? pos.dy - extra : pos.dy;
-    if (y < roam.top) y = roam.top;
-    if (maxTop >= roam.top && y > maxTop) y = maxTop;
+    final placement = placeMenu(
+      petPos: pos,
+      roam: roam,
+      petSize: _petSize,
+      menuWidth: _menuWidth,
+      menuHeight: _menuHeight,
+    );
+    _menuAbove = placement.above;
 
     await window.moveAndResize(
-      position: Offset(x, y),
+      position: placement.topLeft,
       width: _menuWidth,
       height: _menuHeight,
       enableDrag: false,

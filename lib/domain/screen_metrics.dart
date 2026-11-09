@@ -29,6 +29,16 @@ class ScreenMetrics {
         (logicalSize.height - petSize).clamp(0.0, double.infinity).toDouble(),
       );
 
+  /// 把上次存的寵物左上角夾回目前螢幕內（螢幕轉向或換機後可能已在畫面外）
+  Offset clampPetPosition(Offset saved, double petSize) {
+    final maxX = (logicalSize.width - petSize).clamp(0.0, double.infinity).toDouble();
+    final maxY = (logicalSize.height - petSize).clamp(0.0, double.infinity).toDouble();
+    return Offset(
+      saved.dx.clamp(0.0, maxX).toDouble(),
+      saved.dy.clamp(0.0, maxY).toDouble(),
+    );
+  }
+
   Map<String, dynamic> toJson() => {
         'width': logicalSize.width,
         'height': logicalSize.height,
