@@ -95,6 +95,36 @@
 
 ---
 
+## 2026-11-09 審查後仍開著的（代碼面；已做的都進 CHANGELOG 了）
+
+### 1. `dependency_overrides` 是**全域** pin，不是本機 pin
+`pubspec.yaml` 把 `path_provider_android` 釘在 2.2.23，而且它在 git 裡 → **CI 與 Windows
+也跟著用 2.2.23**。這是刻意的決定（pubspec 的註解已寫清楚），不是漏搬：要讓它只影響 dgx1，
+就照 dHealth 的作法搬到本機 `pubspec_overrides.yaml`（已被 .gitignore 擋掉）。
+代價記在這裡，別哪天 CI 版號對不上時才發現是這條。
+
+### 2. 從商店返回後不重載動物清單
+`home_page.dart` 的商店 `onPressed` 只有 `push(...)`，沒有 `await` 之後重刷 ——
+下載完回主頁，`_AnimalPicker` 的 `late final _animals` 還是舊清單。
+（開放商店時才有意義，見上面「擱置中的兩件事 #1」；`kStoreEnabled` 現在是 false。）
+
+### 3. 預覽塊（`PetPreview`）的兩條已知限制
+- app 進背景時 tick 仍舊在跑（`PetController` 只有 dispose、沒有 pause）。真機 P-8
+  若測出明顯耗電/發熱，就給 PetController 補 pause/resume。
+- 不做拖曳：預覽塊裡拖牠沒有意義（要拖去懸浮拖）。要的是能摸能餵，已經有了。
+
+### 4. 上架前再說（2026-11-09 人類決定：上架擱置，先不排）
+- `--no-tree-shake-icons`（`.github/workflows/github_action.yaml:145`）讓 release APK 帶整套
+  Material 字型；查一下是不是某個圖示需要，能拿掉就拿掉。
+- `ios/` 是死重量（52K）：fork 的 `flutter_overlay_window` 只有 Android 實作，iOS runner
+  永遠跑不起來，留著只誤導人。
+- 舊安裝的 cat 顯示名仍是 `'ねこ'`（`ConflictAlgorithm.ignore`，當初決定不寫 migration）；
+  真要改名，記得**連 DB 既有那列一起改**。
+- 拖曳判定是 50ms 輪詢 + 400ms 靜止：拖曳中停頓超過 400ms 會被誤判放手。根治要 fork 插件
+  補 `ACTION_UP` 回調，目前可接受（DEVICE_TEST A-8 只確認「不會更糟」）。
+
+---
+
 ## 擱置中的兩件事（2026-11-05 人類決定：之後再做）
 
 ### 1. 「商店下載動物」目前是空殼，不能上線
@@ -127,14 +157,11 @@ eat1.png    eat2.png      afct1.png   afct2.png   afct3.png
 
 ## 2026-11-06：懸浮寵物功能（速度／大小／活動範圍／互動）落地後的待辦
 
-### A. 真機要驗的 6 項（本輪改動的驗收單，尚未有一項在真機跑過）
-1. 懸浮開著 → 開設定改速度／大小／範圍 → 應**立即**生效（走 `pushSettings`，不重開視窗）
-2. **拖曳**：現在應該拖得動（`enableDrag` 已關，改由 overlay 內 pan 手勢處理），
-   而且拖不出所選區域
-3. 餵食：按了會**走過去**再播吃東西動畫（`PetController.feedAt` → `goToFood` → `eat`）
-4. 「僅下方」有沒有被 navigation bar 壓到（`ScreenMetrics.bottomInset` 已傳入，實測校正值）
-5. 殺 app 重開 → 餓度還在（節流 60 秒，餵食瞬間的變化最多延後 1 分鐘落盤）
-6. 六種活動範圍（全螢幕／僅下方／四角）是否都真的把牠關住
+### A. 真機驗收單 → 已搬到 **`../DEVICE_TEST.md`**（跨 dHealth／dNeko 一份）
+
+2026-11-09：驗收單集中到 repo 外的 `../DEVICE_TEST.md`，做新功能時把它的驗收步驟當場加進
+那一節，最後一次真機 session 一起清掉。**至今仍然一項都沒在真機跑過**，其中 A-5（餓度跨重開）
+現在才有辦法執行 —— `HungerBar` 寫好以來零個使用者，餓度在 app 裡根本看不到。
 
 ### B. 已知缺口（按優先序）
 1. **水平走的正式解法**：現在 `AnimalAnimationDefinition._missingFrameAlias` 借用 `walkDown`
