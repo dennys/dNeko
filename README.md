@@ -69,10 +69,17 @@ flutter build apk --release --target-platform android-arm64 --no-tree-shake-icon
 
 ## 🔑 簽名（升級免重裝）
 
-release 以固定 keystore 簽名。repo 是 public，因此金鑰與密碼**都不進版控**：
-本地放 `android/app/debug.keystore` + `android/app/key.properties`（兩者已 gitignore，自行備份），
-CI 由 repo secrets `KEYSTORE_B64`（keystore 的 base64）與 `KEY_PROPERTIES`（key.properties 內容）還原。
+release 以固定 keystore 簽名。repo 是 public，因此金鑰與密碼**不進版控**：
+本地放 `android/app/dneko.keystore` + `android/app/key.properties`（兩者已 gitignore，自行備份），
+CI 由 repo secrets `KEYSTORE_B64`（keystore 的 base64）與 `KEY_PROPERTIES`（key.properties 內容）還原；
+CI 寫完立刻用 `keytool -importkeystore` 預驗 store/key 密碼與 alias（`keytool -list` 只驗 store 密碼，
+keyPassword/keyAlias 打錯照样綠燈），不對就一步報錯，不會等 Gradle 兩分鐘後才炸。
 **keystore 遺失 = 使用者必須砍掉重裝。**
+
+> ⚠️ 2026-11-09 換鑰：舊 `dneko` 共用鑰的密碼曾以明文寫進 `android/app/build.gradle.kts` 並 commit
+> （`600ae0f` 加入、`cbb8e26` 才移除）。公開 repo 的歷史 commit 改不掉，該密碼永久視為洩漏——
+> 拿到它的人能簽出可覆蓋升級舊安裝的 APK。已換發新鑰，**換鑰後的首次安裝必須先砍掉重裝**。
+> 日後再洩：重生成 keystore → 更新兩個 secrets → 到這裡補一筆（同 dHealth README 的處理原則）。
 
 ## 📦 本地 fork 插件
 
