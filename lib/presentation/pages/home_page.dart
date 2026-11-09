@@ -65,13 +65,20 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   static const _hungerRefresh = Duration(seconds: 20);
   Timer? _hungerTimer;
 
+  // The pet lives in another process, so the persisted hunger only changes while
+  // this app is in the foreground: polling every 20 s in the background was pure
+  // battery/CPU drain on an app meant to stay open.
+  bool _appActive = true;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _checkStatus();
     _refreshHunger();
-    _hungerTimer = Timer.periodic(_hungerRefresh, (_) => _refreshHunger());
+    _hungerTimer = Timer.periodic(_hungerRefresh, (_) {
+      if (_appActive) unawaited(_refreshHunger());
+    });
     // 懸浮選單按「結束」→ overlay 送 quit 過來：把主 app 自己也關掉
     _quitSub = _overlayService.events.listen(_onOverlayEvent);
     // 桌面捷徑在懸浮沒開時會把 MainActivity 拉起來並帶 pending action
@@ -102,6 +109,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    _appActive = state == AppLifecycleState.resumed;
     // 用捷徑開關過後回來，按鈕狀態要跟上（不然會停在舊值）
     if (state != AppLifecycleState.resumed) return;
     _checkStatus();

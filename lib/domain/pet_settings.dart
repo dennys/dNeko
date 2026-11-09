@@ -1,7 +1,7 @@
 /// 寵物自主行為主迴圈的 tick 長度（16ms ≈ 60fps）
 const Duration petTick = Duration(milliseconds: 16);
 
-/// 目前唯一內建的動物（商店下載的東西以後由 DB 決定）
+/// The animal used before the user picked one. Built-in ids live in AnimalRepository.builtIns.
 const String defaultAnimalId = 'cat';
 
 /// 可漫遊區域
