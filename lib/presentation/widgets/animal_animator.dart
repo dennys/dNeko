@@ -106,8 +106,9 @@ class _AnimalAnimatorState extends State<AnimalAnimator> with TickerProviderStat
     final imageProvider = widget.loader.getFrameImage(widget.resource, frameName);
     final width = widget.displayWidth ?? widget.definition.frameWidth.toDouble();
     final height = widget.displayHeight ?? widget.definition.frameHeight.toDouble();
+    final mirrored = widget.definition.mirrorsSideFor(widget.action);
 
-    return Image(
+    final image = Image(
       image: imageProvider,
       width: width,
       height: height,
@@ -124,6 +125,9 @@ class _AnimalAnimatorState extends State<AnimalAnimator> with TickerProviderStat
         ),
       ),
     );
+
+    if (!mirrored) return image;
+    return Transform.flip(flipX: true, child: image);
   }
 }
 

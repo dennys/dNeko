@@ -135,6 +135,26 @@ void main() {
       expect(notifications, greaterThanOrEqualTo(5), reason: '每幀都真的移動了一整像素');
       c.dispose();
     });
+
+    testWidgets('暫停時不自主移動，解除後恢復', (tester) async {
+      final c = PetController(
+        bounds: const Rect.fromLTWH(0, 0, 1000, 1000),
+        brain: _AlwaysIdleBrain(),
+        speedPerTick: 10,
+        stats: PetStats(initialHunger: 50),
+      )..start();
+
+      c.feedAt(const Offset(500, 900));
+      c.setPaused(true);
+      final before = c.position;
+      await pumpTicks(tester, 10);
+      expect(c.position, before, reason: '選單開著時位置不能被漫遊改掉');
+
+      c.setPaused(false);
+      await pumpTicks(tester, 5);
+      expect(c.position, isNot(before));
+      c.dispose();
+    });
   });
 }
 

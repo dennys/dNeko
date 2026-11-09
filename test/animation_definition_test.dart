@@ -38,6 +38,25 @@ void main() {
       expect(def.getAction(AnimationAction.walkLeft)!.frames, ['walkleft1']);
     });
 
+    test('素材有 WalkSide 時水平走用它；往右走才鏡像', () {
+      final def = AnimalAnimationDefinition.fromJson(
+        jsonDecode(jsonEncode(_json(['WalkUp', 'WalkDown', 'WalkSide']))) as Map<String, dynamic>,
+      );
+
+      expect(def.getAction(AnimationAction.walkLeft)!.frames, ['walkside1']);
+      expect(def.getAction(AnimationAction.walkRight)!.frames, ['walkside1']);
+      expect(def.mirrorsSideFor(AnimationAction.walkRight), isTrue);
+      expect(def.mirrorsSideFor(AnimationAction.walkLeft), isFalse);
+    });
+
+    test('沒有 WalkSide 時不鏡像，仍借 walk_d', () {
+      final def = AnimalAnimationDefinition.fromJson(
+        jsonDecode(jsonEncode(_json(['WalkUp', 'WalkDown']))) as Map<String, dynamic>,
+      );
+
+      expect(def.mirrorsSideFor(AnimationAction.walkRight), isFalse);
+    });
+
     test('非走路動作缺幀仍然回 null（讓 AnimalAnimator 的後備接手）', () {
       final def = AnimalAnimationDefinition.fromJson(
         jsonDecode(jsonEncode(_json(['WalkDown']))) as Map<String, dynamic>,

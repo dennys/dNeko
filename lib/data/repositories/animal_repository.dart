@@ -81,6 +81,10 @@ class AnimalRepository implements IAnimalRepository {
           ('cat', '小花貓'),
           ('dog', '小狗'),
           ('penguin', '小企鵝'),
+          ('heart_dog', '愛心狗'),
+          ('racoon', '浣熊'),
+          ('sloth', '樹懶'),
+          ('monkey', '猴子'),
         ])
           AnimalResource(
             animalId: id,
@@ -105,11 +109,15 @@ class AnimalRepository implements IAnimalRepository {
   ///
   /// Seeding on every start used to resurrect built-ins the user had deleted
   /// from the store, so the delete silently came back at the next launch.
-  /// shortcut: an app update that adds a new built-in animal will not appear for
-  /// existing installs; when that happens, seed per-id or bump petDbVersion.
+  /// 既有安裝補上新增的內建動物由 pet_database 的 onUpgrade（petDbVersion）處理。
   Future<void> seedBuiltIns() async {
     final db = await _database;
     if ((await db.query(_tableName, limit: 1)).isNotEmpty) return; // user deletes must stick
+    await insertBuiltIns(db);
+  }
+
+  /// 逐筆寫入內建動物；animal_id 已存在就略過（不覆蓋使用者的列）。
+  static Future<void> insertBuiltIns(DatabaseExecutor db) async {
     for (final animal in builtIns) {
       final row = animal.toMap()
         ..remove('id') // 交給 AUTOINCREMENT

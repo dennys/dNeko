@@ -115,6 +115,11 @@ class PetController extends ChangeNotifier {
   bool _frozen = false;
   bool get frozen => _frozen;
 
+  /// 選單開著時暫停自主移動（與使用者的定格分開，不互相覆蓋）。
+  /// 飢餓照常累積；位置凍結，關選單時視窗才不會被搬到漫遊後的座標。
+  bool _paused = false;
+  void setPaused(bool value) => _paused = value;
+
   void setFrozen(bool value) {
     if (_frozen == value) return;
     _frozen = value;
@@ -126,7 +131,7 @@ class PetController extends ChangeNotifier {
 
   void _onTick() {
     _stats.tick(_tick);
-    if (_isDragging || _frozen) return;
+    if (_isDragging || _frozen || _paused) return;
 
     if (_behavior == PetBehavior.wander || _behavior == PetBehavior.goToFood) {
       _move();

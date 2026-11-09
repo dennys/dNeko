@@ -1,12 +1,20 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ui';
 import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 import '../../domain/i_overlay_service.dart';
 import '../../domain/screen_metrics.dart';
 import '../../domain/pet_settings.dart';
+import '../repositories/settings_repository.dart';
 
 class OverlayService implements IOverlayService {
   static const double collapsedSize = PetSettings.defaultPetSize;
+  static const _firstRunPosition = OverlayPosition(48, 96);
+
+  OverlayService({SettingsRepository? positions})
+      : _positions = positions ?? SettingsRepository();
+
+  final SettingsRepository _positions;
 
   @override
   Future<bool> hasPermission() => FlutterOverlayWindow.isPermissionGranted();
@@ -22,6 +30,7 @@ class OverlayService implements IOverlayService {
     required String languageCode,
   }) async {
     final payload = _payload(animalId, settings, metrics, languageCode);
+    final start = await _startPosition(metrics, settings.petSize);
 
     await FlutterOverlayWindow.showOverlay(
       // 原生拖曳（插件 onTouch 用 rawX/rawY）。拖曳期間由 OverlayPetDriver 暫停、
@@ -33,10 +42,28 @@ class OverlayService implements IOverlayService {
       width: settings.petSize.toInt(),
       alignment: OverlayAlignment.topLeft,
       positionGravity: PositionGravity.none,
-      startPosition: const OverlayPosition(48, 96),
+      startPosition: start,
     );
 
     unawaited(_shareStartupData(payload));
+  }
+
+  /// 上次關閉時的位置，夾回目前螢幕內（螢幕轉向或換機後可能已經在畫面外）
+  Future<OverlayPosition> _startPosition(ScreenMetrics metrics, double petSize) async {
+    final Offset? saved;
+    try {
+      saved = await _positions.loadPosition();
+    } catch (_) {
+      return _firstRunPosition;
+    }
+    if (saved == null) return _firstRunPosition;
+
+    final maxX = (metrics.logicalSize.width - petSize).clamp(0.0, double.infinity).toDouble();
+    final maxY = (metrics.logicalSize.height - petSize).clamp(0.0, double.infinity).toDouble();
+    return OverlayPosition(
+      saved.dx.clamp(0.0, maxX).toDouble(),
+      saved.dy.clamp(0.0, maxY).toDouble(),
+    );
   }
 
   @override
@@ -81,8 +108,22 @@ class OverlayService implements IOverlayService {
     }
   }
 
+  /// 關閉前先記下視窗位置（夾在螢幕內的值由 show 負責），下次開啟時還原
   @override
-  Future<void> close() => FlutterOverlayWindow.closeOverlay();
+  Future<void> close() async {
+    await _rememberPosition();
+    await FlutterOverlayWindow.closeOverlay();
+  }
+
+  Future<void> _rememberPosition() async {
+    try {
+      if (!await FlutterOverlayWindow.isActive()) return;
+      final p = await FlutterOverlayWindow.getOverlayPosition();
+      await _positions.savePosition(Offset(p.x, p.y));
+    } catch (_) {
+      // 記不住位置不能擋住關閉：下次開啟退回上一次存的值
+    }
+  }
 
   @override
   Stream<dynamic> get events => FlutterOverlayWindow.overlayListener;

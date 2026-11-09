@@ -47,7 +47,13 @@ flutter:
   assets:
     - assets/animals/cat/
     - assets/animals/dog/
+    - assets/animals/cat/
+    - assets/animals/dog/
     - assets/animals/penguin/
+    - assets/animals/heart_dog/
+    - assets/animals/racoon/
+    - assets/animals/sloth/
+    - assets/animals/monkey/
 
 flutter_launcher_icons:
   android: "launcher_icon"
