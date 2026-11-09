@@ -315,3 +315,14 @@ eat1.png    eat2.png      afct1.png   afct2.png   afct3.png
 - 需要真機驗證，尤其是 Android 版本差異與 dismiss 區（目前 `dismissConfig` 為 null，理論上不會出現）。
 
 **替代方案 (b)**：fork 或 vendor 插件，在 `ACTION_UP` 時回傳事件，可徹底解決放手判定，但需要維護插件副本。
+
+## 2026-11-09 待辦：遷移到 Flutter Built-in Kotlin（三案共同，先拿 d2048 試）
+
+每次 build 都噴 `applies the Kotlin Gradle Plugin, which will cause build failures in future versions
+of Flutter`（guide：docs.flutter.dev/release/breaking-changes/migrate-to-built-in-kotlin）。
+現在靠 `android/gradle.properties` 的 `android.builtInKotlin=false`／`android.newDsl=false`
+（Flutter migrator 自動加的）壓住，還跑得動；等它變成 error 就會被卡死在不能升 Flutter 版，到時是被動改。
+
+細節與步驟方向写在 **`../d2048/TODO.md`**（同一時間寫的同一件事）。先在最單純的 d2048 試通再複製過來——
+本案有本地 fork 的原生插件／drift／health 等原生依賴，直接動風險高得多。驗收要含一次 release build
+（AOT 只能在 x86-64 機器或 CI 驗）。
