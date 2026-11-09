@@ -34,8 +34,10 @@ android {
     signingConfigs {
         // 固定簽名：之前 release 用 debug key，但 CI 每台 runner 的 debug.keystore
         // 都是現生的一次性金鑰 → 每版簽名不同，只能砍掉重裝。
-        // keystore 與密碼都不進版控（repo 是 public）：本地放 android/app/{debug.keystore,
+        // keystore 與密碼都不進版控（repo 是 public）：本地放 android/app/{dneko.keystore,
         // key.properties}，CI 由 secrets KEYSTORE_B64 / KEY_PROPERTIES 還原到同一路徑。
+        // 檔名不叫 debug.keystore：這是正式 release 鑰，叫 debug 會在查問題時把人帶偏（與 dHealth 對齊）。
+        // 2026-11-09 換鑰：舊 dneko 共用鑰的密碼曾進 git 歷史（公開 repo，歷史改不掉）→ 視為作廢。
         create("release") {
             val propsFile = file("key.properties")
             if (propsFile.exists()) {
