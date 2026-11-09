@@ -5,6 +5,46 @@
 新的完成紀錄加在最上面。
 
 ---
+
+## 2026-11-09 本輪：把審查報告的缺口做掉（代碼面，commit `0f56ce9`）
+
+`flutter analyze` 0 issue、`flutter test` 92 全過（85 → 92，+4 預覽塊 / +3 previewBounds）。
+**逐條都還沒在真機跑過** —— 驗收單集中到 **`../DEVICE_TEST.md`**，所以下面每一條的意義是
+「程式碼這樣寫了並有單元測試」，不是「真機驗過了」。
+
+- **README 宣稱的「App 內模式」補實作**（`presentation/widgets/pet_preview.dart`）：主頁上方一塊
+  預覽塊，跑與 overlay **同一套** `PetController`／`AnimalAnimator`，短按=撫摸、雙擊=餵食、
+  改速度/大小即時反映。刻意不做長按選單（選單是 overlay 限定）、忽略 zone（預覽塊沒有
+  「全螢幕／僅下方」的語意）、餓度用**獨立沙箱**（共用持久化會讓「app 裡餵一口、懸浮那隻也飽」，
+  還會跟 overlay 的缺席補算打架）。README 順手改掉三處不實敘述（含「餓度隨時間下降」其實是上升）。
+- **餓度第一次變得看得見**：`HungerBar` 寫好以來**零個使用者** —— 代表 TODO 上那條
+  「餵飽 → 殺 app → 重開，看餓度是否還在」從寫下來那天就無法執行。補兩處、走兩條獨立路徑
+  好歸因：主頁那一欄讀 DB（=overlay 寫不寫得進去）、懸浮選單頂部讀活 stats（=overlay 讀不讀得回來）。
+  `HungerBar` 改收 `double`（主頁那側沒有活的 PetStats，不為了顯示一個數字去 new 一個）。
+- **`AnimalAnimator` 一個真 bug**：換動作時用同一個 vsync 重建 `AnimationController`，
+  `SingleTickerProviderStateMixin` 第二次就斷言失敗 → 改 `TickerProviderStateMixin`。
+  是預覽塊的 widget 測試第一天抓到的；**不只預覽塊，overlay 在 debug 換動作的瞬間一樣會炸**
+  （release 只是剛好沒斷言，ticker 也漏在 mixin 的記錄之外）。
+- **啟動防護**（`main.dart`）：`runApp()` 前那兩件會碰 DB 的事各補 try/catch，DB 損毀時用內建
+  素材 + 預設設定把 app 開起來（以前是白屏崩潰到連重裝的按鈕都看不到），並加 `runZonedGuarded`
+  —— 沒有後端也沒有 crash 回報的專案，logcat 是唯一支持管道。overlay 端早就有 `_readOr` 防呆，
+  主 app 卻沒有，這條是把不對稱補平。
+- **轉屏會推新尺寸給 overlay**（`home_page.dart`）：原本只聽 `resumed`、沒實作 `didChangeMetrics`，
+  轉屏後 overlay 繼續用舊螢幕的校準範圍跑，寵物卡在半邊螢幕直到使用者手動開關一次。
+  設定改動與轉屏現在共用 `_pushCurrentSettings()` 一條路。
+- **啟動 payload 去重**：`_shareStartupData` 的 4 次延遲重送，從前每次收下來都跑一趟
+  `_applySettings`（含 resize、必要時重校準）→ 寵物剛出現時看得見地抖。套過的 payload 直接丟。
+- **`_resolveResource` 收進 `AnimalRepository`**：「DB 優先於內建」這個順序之前只存在於
+  `overlay_main`，預覽塊要共用就得收出來（否則兩邊各養一份，遲早對不起來）。
+- **`_readOr`／`_writeHungerQuietly` 的 catch 從無聲改成留 log**（新增 `utils/log.dart`，
+  與 dHealth 同一套 `dhealth`／`dhealth.error` 對應的 `dneko`／`dneko.error`）：
+  「DB 壞了」與「真的沒存過」在外部表現一模一樣，A-5 沒這條 log 就查不動。
+
+**本輪沒做**：商店開放（`kStoreEnabled` 仍 false）、狗的 13 張素材、真機驗收單全部、
+上架相關（`--no-tree-shake-icons`、`ios/` 死目錄、內建 cat 顯示名仍是 `'ねこ'`）—— 都在 TODO。
+
+---
+
 ## 2026-11-06 第七輪：素材守門員（`test/asset_frames_test.dart`）
 
 新增 10 條測試自動驗素材（`flutter test test/asset_frames_test.dart`），對應 `ASSET_PROMPT.md` 第 6 節。
