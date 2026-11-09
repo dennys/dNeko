@@ -27,6 +27,12 @@ class AnimalDownloadService {
     void Function(double progress)? onProgress,
   }) async {
     final localFolder = await _resolveLocalFolder(animalId);
+    // Wipe the folder first: a re-download that fails halfway used to leave
+    // new animation.json next to old frames, and _verifyAssets only checks that
+    // every file name exists, so that mixed set passed verification.
+    if (await localFolder.exists()) {
+      await localFolder.delete(recursive: true);
+    }
     await localFolder.create(recursive: true);
 
     for (var i = 0; i < fileNames.length; i++) {

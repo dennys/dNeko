@@ -101,12 +101,15 @@ class AnimalRepository implements IAnimalRepository {
     return null;
   }
 
-  /// 把內建動物塞進 DB，讓主頁選單看得到牠們。重複呼叫是安全的。
+  /// 把内建动物塞进 DB，让主页选菜单看得到它们 —— but only on a fresh install.
   ///
-  /// shortcut: 舊安裝已存在的列（cat 顯示名 'ねこ'）不會被蓋掉 —— 那正是 ConflictAlgorithm.ignore
-  /// 的原意（不覆蓋使用者自己的資料）。app 還沒對外發布，開發機要重置就清 app 資料。
+  /// Seeding on every start used to resurrect built-ins the user had deleted
+  /// from the store, so the delete silently came back at the next launch.
+  /// shortcut: an app update that adds a new built-in animal will not appear for
+  /// existing installs; when that happens, seed per-id or bump petDbVersion.
   Future<void> seedBuiltIns() async {
     final db = await _database;
+    if ((await db.query(_tableName, limit: 1)).isNotEmpty) return; // user deletes must stick
     for (final animal in builtIns) {
       final row = animal.toMap()
         ..remove('id') // 交給 AUTOINCREMENT

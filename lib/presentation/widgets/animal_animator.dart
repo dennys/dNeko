@@ -47,7 +47,11 @@ class _AnimalAnimatorState extends State<AnimalAnimator> with TickerProviderStat
   @override
   void didUpdateWidget(AnimalAnimator oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.action != widget.action) {
+    // 换动物时 action 常不变（两动物都 sit 起手）：frame 清单与 duration 都要换，
+    // 否则画面仍用旧动物帧（AnimalAnimator 是同一 position in tree，State 不 rebuild）。
+    if (oldWidget.action != widget.action ||
+        oldWidget.definition != widget.definition ||
+        oldWidget.resource != widget.resource) {
       _controller.dispose();
       _setupAnimation();
     }

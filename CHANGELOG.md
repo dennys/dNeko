@@ -5,7 +5,20 @@
 新的完成紀錄加在最上面。
 
 ---
+## 2026-11-10 four user-visible fixes (device checks still zero)
 
+- `animal_animator.dart`: `didUpdateWidget` also watches `definition`/`resource`. Switching
+  animal while the action stays `sit` used to keep drawing the previous animal
+  (`test/animal_animator_test.dart` fails on the old code: dog folder + cat frame).
+- `animal_download_service.dart`: wipe `animals/<id>/` before downloading, so a half-failed
+  re-download cannot leave a new manifest next to old frames (`_verifyAssets` only checks names).
+- `animal_repository.dart`: `seedBuiltIns()` seeds only when the table is empty, so deleting a
+  built-in animal survives the next launch (shortcut: a newly added built-in will not appear
+  for existing installs). `static_store_catalog.dart` no longer lists built-in `penguin`.
+- `home_page.dart`: the 20 s hunger poll is skipped unless the app is resumed.
+- `pet_display_mode.dart` deleted (0 references); stale "only one built-in animal" comment fixed.
+
+---
 ## 2026-11-09 本輪：把審查報告的缺口做掉（代碼面，commit `0f56ce9`）
 
 `flutter analyze` 0 issue、`flutter test` 92 全過（85 → 92，+4 預覽塊 / +3 previewBounds）。
