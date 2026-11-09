@@ -67,19 +67,65 @@ flutter build apk --release --target-platform android-arm64 --no-tree-shake-icon
 
 只出 arm64（通用 APK 會多塞兩份引擎庫 +30MB）。CI（GitHub Actions，`.github/workflows/github_action.yaml`）會跑 analyze / test / debug+release APK 建置。
 
+**哪台機器能出什麼**（`--release` 需要 AOT 編譯器 `gen_snapshot`，Google 只發 x86-64 host 版 ——
+這是**主機平台**的限制，跟本專案無關）：
+
+| 機器 | debug | release |
+|---|---|---|
+| Windows（x86-64） | ✅ | ✅ 實測可裝機（需 keystore + key.properties，見下節） |
+| GitHub Actions（ubuntu-latest，x86-64） | ✅ | ✅ 產在 artifacts |
+| dgx1（Linux / aarch64） | ✅ 實測 82.6 MiB | ❌ 沒有 linux-arm64 的 `gen_snapshot`（qemu 模擬那條已證可行不了） |
+
+所以在 dgx1 上日常只跑 `--debug`；**要 release 就在 Windows 出，或 push 後取 CI 的 artifact。**
+
 ## 🔑 簽名（升級免重裝）
 
-release 以固定 keystore 簽名。repo 是 public，因此金鑰與密碼**不進版控**：
-本地放 `android/app/dneko.keystore` + `android/app/key.properties`（兩者已 gitignore，自行備份），
-CI 由 repo secrets `KEYSTORE_B64`（keystore 的 base64）與 `KEY_PROPERTIES`（key.properties 內容）還原；
-CI 寫完立刻用 `keytool -importkeystore` 預驗 store/key 密碼與 alias（`keytool -list` 只驗 store 密碼，
-keyPassword/keyAlias 打錯照样綠燈），不對就一步報錯，不會等 Gradle 兩分鐘後才炸。
-**keystore 遺失 = 使用者必須砍掉重裝。**
+release 以**固定的一把** keystore 簽名（同一案只准有一把：換鑰 = 舊安裝無法覆蓋升級，只能砍掉重裝）。
+repo 是 public，金鑰與密碼**不進版控**，放在三個地方：
+
+| 位置 | 放什麼 |
+|---|---|
+| Windows 開發機 | `android\app\dneko.keystore` + `android\app\key.properties` |
+| dgx1（Linux/aarch64） | `android/app/dneko.keystore` + `android/app/key.properties` |
+| GitHub Actions | secrets `KEYSTORE_B64`（keystore 檔的 base64）、`KEY_PROPERTIES`（key.properties 全文） |
+
+三處必須是**同一把**。`key.properties` 四行（`storeFile` 是**相對 `android/app/` 的路徑**，別寫成 `app/dneko.keystore`）：
+
+```properties
+storeFile=dneko.keystore
+storePassword=<密碼>
+keyAlias=dneko
+keyPassword=<同上那個密碼>
+```
+
+> ⚠️ `keyPassword` 請填**與 `storePassword 相同**的值。實測 JDK 21：PKCS12 的 private key 是用
+> **store 密碼**保護的，`keytool -genkeypair -keypass` 給不同值也不會真的分開保護 —— 之後拿那個
+> 不同的值去 `getKey()` 會 `UnrecoverableKeyException: Given final block not properly padded`，
+> 而 Gradle 簽名走的正是 `getKey()`（`build.gradle.kts` 直接把這四行餵給 signingConfig）。
+
+⚠️ **不要在新機器上 `keytool -genkeypair` 另生一把** —— 簽名不同就等於換鑰，舊安裝收不到覆蓋更新。
+新機器請從既有機器複製（dgx1 上的備份份在 `~/backups/dneko-signing-20261109/`）：
+
+```bash
+scp dgx1:~/backups/dNeko-signing-20261109/dneko.keystore   <win>:<repo>/android/app/
+scp dgx1:~/backups/dNeko-signing-20261109/key.properties    <win>:<repo>/android/app/
+```
+（只有第一次建立、或鑰真的遺失／作廢時，才重新生成 keystore 並**同時**更新兩個 secrets。）
+
+CI 的 `Restore signing key` 會先清洗 secret 被判貼帶入的空白/`\r`，再用一小段 Java 做**跟 Gradle 同一條路**的
+預檢：`load(storePassword)` → `getKey(keyAlias, keyPassword)`，三個值有任何一個不對就一步報錯，
+不會等 Gradle 兩分鐘後才在 `:app:packageRelease` 炸 `keystore password was incorrect`。
+（`keytool` 不能用：`-list` 只驗 store 密碼；`-importkeystore -srckeypass` 對 PKCS12 也驗不到 key 密碼 ——
+兩種都是假綠燈，實測於 JDK 21。）
 
 > ⚠️ 2026-11-09 換鑰：舊 `dneko` 共用鑰的密碼曾以明文寫進 `android/app/build.gradle.kts` 並 commit
 > （`600ae0f` 加入、`cbb8e26` 才移除）。公開 repo 的歷史 commit 改不掉，該密碼永久視為洩漏——
 > 拿到它的人能簽出可覆蓋升級舊安裝的 APK。已換發新鑰，**換鑰後的首次安裝必須先砍掉重裝**。
+> CI 有防呆：貼回那把作廢的鑰（`storePassword` 等於歷史洩漏值）會被預檢直接擋下。
 > 日後再洩：重生成 keystore → 更新兩個 secrets → 到這裡補一筆（同 dHealth README 的處理原則）。
+>
+> 📌 遺失風險：目前新鑰只有 `android/app/` 與 `~/backups/` 兩份，**同一台機器同一顆硬碟**。
+> 建議再拷一份到另一台機器或密碼管理器（`keystore` 遺失＝使用者必須砍掉重裝）。
 
 ## 📦 本地 fork 插件
 
