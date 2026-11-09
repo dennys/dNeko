@@ -58,13 +58,10 @@ class OverlayService implements IOverlayService {
     }
     if (saved == null) return _firstRunPosition;
 
-    final maxX = (metrics.logicalSize.width - petSize).clamp(0.0, double.infinity).toDouble();
-    final maxY = (metrics.logicalSize.height - petSize).clamp(0.0, double.infinity).toDouble();
-    return OverlayPosition(
-      saved.dx.clamp(0.0, maxX).toDouble(),
-      saved.dy.clamp(0.0, maxY).toDouble(),
-    );
+    final clamped = metrics.clampPetPosition(saved, petSize);
+    return OverlayPosition(clamped.dx, clamped.dy);
   }
+
 
   @override
   Future<void> pushSettings({
