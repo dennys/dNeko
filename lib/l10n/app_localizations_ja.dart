@@ -139,4 +139,15 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get animalFox => 'キツネ';
+
+  @override
+  String get hungerLabel => '空腹度';
+
+  @override
+  String get hungerNeverSaved => 'まだ保存されていません。';
+
+  @override
+  String hungerSavedAt(Object time) {
+    return '$time に保存';
+  }
 }

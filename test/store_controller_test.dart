@@ -30,6 +30,8 @@ class _FakeRepository implements IAnimalRepository {
   Future<AnimalResource?> getById(String animalId) async =>
       store.where((e) => e.animalId == animalId).cast<AnimalResource?>().firstOrNull;
   @override
+  Future<AnimalResource?> resolveResource(String animalId) async => await getById(animalId);
+  @override
   Future<void> upsert(AnimalResource resource) async => store.add(resource);
   @override
   Future<void> delete(String animalId) async =>

@@ -358,6 +358,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Fox'**
   String get animalFox;
+
+  /// No description provided for @hungerLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Hunger'**
+  String get hungerLabel;
+
+  /// No description provided for @hungerNeverSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Not saved yet.'**
+  String get hungerNeverSaved;
+
+  /// No description provided for @hungerSavedAt.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved at {time}'**
+  String hungerSavedAt(Object time);
 }
 
 class _AppLocalizationsDelegate

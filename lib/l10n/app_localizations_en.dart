@@ -140,4 +140,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get animalFox => 'Fox';
+
+  @override
+  String get hungerLabel => 'Hunger';
+
+  @override
+  String get hungerNeverSaved => 'Not saved yet.';
+
+  @override
+  String hungerSavedAt(Object time) {
+    return 'Saved at $time';
+  }
 }

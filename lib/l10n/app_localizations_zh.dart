@@ -139,6 +139,17 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get animalFox => '小狐狸';
+
+  @override
+  String get hungerLabel => '餓度';
+
+  @override
+  String get hungerNeverSaved => '還沒有存過盤（開懸浮餵牠一次就會出現）。';
+
+  @override
+  String hungerSavedAt(Object time) {
+    return '存於 $time';
+  }
 }
 
 /// The translations for Chinese, as used in Taiwan (`zh_TW`).
@@ -275,4 +286,15 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get animalFox => '小狐狸';
+
+  @override
+  String get hungerLabel => '餓度';
+
+  @override
+  String get hungerNeverSaved => '還沒有存過盤（開懸浮餵牠一次就會出現）。';
+
+  @override
+  String hungerSavedAt(Object time) {
+    return '存於 $time';
+  }
 }
