@@ -70,16 +70,45 @@ jobs:
       - name: Run tests
         run: flutter test
 
-      # 固定簽名金鑰（repo secrets：KEYSTORE_B64 = debug.keystore 的 base64、
-      # KEY_PROPERTIES = key.properties 內容）；沒金鑰每版簽名都不同，覆蓋安裝會被系統擋掉
+      # 固定簽名金鑰（repo secrets：KEYSTORE_B64 = dneko.keystore 的 base64、
+      # KEY_PROPERTIES = key.properties 內容）；沒金鑰每版簽名都不同，覆蓋安裝會被系統擋掉。
+      # 兩件必做的事（與 dHealth 同步，兩案同一套腳本）：
+      # ① secrets 從 GitHub UI 貼進來常帶 \r/\n/空白 —— base64 先把全部空白清掉再解，
+      #    key.properties 只去 \r（properties 的內部版面有意義）；
+      # ② 寫完立刻預驗，讓「兩個 secret 不配」在這裡就 ::error::，而不是讓 Gradle 兩分鐘後
+      #    死在 :app:packageRelease 的 KeytoolException。
       - name: Restore signing key
         env:
           KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
           KEY_PROPERTIES: ${{ secrets.KEY_PROPERTIES }}
         run: |
-          test -n "$KEYSTORE_B64" && test -n "$KEY_PROPERTIES" || { echo "missing secrets KEYSTORE_B64/KEY_PROPERTIES"; exit 1; }
-          printf '%s' "$KEYSTORE_B64" | base64 -d > android/app/debug.keystore
-          printf '%s\n' "$KEY_PROPERTIES" > android/app/key.properties
+          test -n "$KEYSTORE_B64" && test -n "$KEY_PROPERTIES" || { echo "::error::missing secrets KEYSTORE_B64/KEY_PROPERTIES"; exit 1; }
+          printf '%s' "$KEYSTORE_B64" | tr -d '[:space:]' | base64 -d > android/app/dneko.keystore
+          printf '%s\n' "$KEY_PROPERTIES" | tr -d '\r' > android/app/key.properties
+          # Properties 允許「storePassword = xx」這種等號前後帶空格的寫法，grep '^storePassword=' 會漏抓
+          prop(){ sed -n "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*//p" android/app/key.properties | head -1 | tr -d '\r'; }
+          PW=$(prop storePassword); KP=$(prop keyPassword); ALIAS=$(prop keyAlias)
+          KP="${KP:-$PW}" # properties 少寫 keyPassword 時，Gradle 也用 store 密碼之外獨立讀——這裡當同值處理
+          test -n "$PW" && test -n "$ALIAS" || { echo "::error::KEY_PROPERTIES 裡找不到 storePassword= 或 keyAlias= 這行"; exit 1; }
+          echo "::add-mask::$PW" # 後續步驟不小心印到時由 GitHub 打碼
+          echo "::add-mask::$KP"
+          KEYTOOL="${JAVA_HOME:-}/bin/keytool"
+          command -v "$KEYTOOL" >/dev/null 2>&1 || KEYTOOL=keytool # setup-java 有進 PATH，這裡只求穩
+          # 用 importkeystore 而不是 -list：-list 只驗 store 密碼，keyAlias/keyPassword 打錯照样綠燈。
+          #  Gradle 簽名時用的正是這三個值：load(storePassword) → getKey(alias, keyPassword) → 簽，
+          #  keyPassword 不對就在 :app:packageRelease 丟 UnrecoverableKeyException（實測過）。
+          #  -srckeypass 是必需品而不是可選（JDK 8/21/25 都有這個旗標）：不給的話 keytool
+          #  轉成互動提問連問三次，然後 "Too many failures - try later"，預檢變成假紅。
+          TMP=$(mktemp -u /tmp/preflight-XXXXXX.p12)
+          if ! "$KEYTOOL" -importkeystore -srckeystore android/app/dneko.keystore \
+              -srcstorepass "$PW" -srcalias "$ALIAS" -srckeypass "$KP" \
+              -destkeystore "$TMP" -deststorepass preflight > /tmp/preflight.log 2>&1; then
+            cat /tmp/preflight.log
+            rm -f "$TMP" /tmp/preflight.log
+            echo "::error::KEYSTORE_B64 與 KEY_PROPERTIES 不是同一把 key（store/key 密碼或 keyAlias 不對，或內容被剪到），請重新產生並貼上這兩個 secrets"
+            exit 1
+          fi
+          rm -f "$TMP" /tmp/preflight.log
 
       - name: Build debug APK
         run: flutter build apk --debug --target-platform android-arm64
