@@ -88,27 +88,55 @@ jobs:
           # Properties 允許「storePassword = xx」這種等號前後帶空格的寫法，grep '^storePassword=' 會漏抓
           prop(){ sed -n "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*//p" android/app/key.properties | head -1 | tr -d '\r'; }
           PW=$(prop storePassword); KP=$(prop keyPassword); ALIAS=$(prop keyAlias)
-          KP="${KP:-$PW}" # properties 少寫 keyPassword 時，Gradle 也用 store 密碼之外獨立讀——這裡當同值處理
-          test -n "$PW" && test -n "$ALIAS" || { echo "::error::KEY_PROPERTIES 裡找不到 storePassword= 或 keyAlias= 這行"; exit 1; }
+          # 三行都要有：build.gradle.kts 是 getProperty 直接讀，少一行會拿到 null，
+          # 到 :app:packageRelease 才炸就很難猜，在這裡就報清楚。
+          test -n "$PW" && test -n "$KP" && test -n "$ALIAS" || { echo "::error::KEY_PROPERTIES 需要 storePassword= / keyPassword= / keyAlias= 三行（缺 keyPassword 也算錯）"; exit 1; }
           echo "::add-mask::$PW" # 後續步驟不小心印到時由 GitHub 打碼
           echo "::add-mask::$KP"
-          KEYTOOL="${JAVA_HOME:-}/bin/keytool"
-          command -v "$KEYTOOL" >/dev/null 2>&1 || KEYTOOL=keytool # setup-java 有進 PATH，這裡只求穩
-          # 用 importkeystore 而不是 -list：-list 只驗 store 密碼，keyAlias/keyPassword 打錯照样綠燈。
-          #  Gradle 簽名時用的正是這三個值：load(storePassword) → getKey(alias, keyPassword) → 簽，
-          #  keyPassword 不對就在 :app:packageRelease 丟 UnrecoverableKeyException（實測過）。
-          #  -srckeypass 是必需品而不是可選（JDK 8/21/25 都有這個旗標）：不給的話 keytool
-          #  轉成互動提問連問三次，然後 "Too many failures - try later"，預檢變成假紅。
-          TMP=$(mktemp -u /tmp/preflight-XXXXXX.p12)
-          if ! "$KEYTOOL" -importkeystore -srckeystore android/app/dneko.keystore \
-              -srcstorepass "$PW" -srcalias "$ALIAS" -srckeypass "$KP" \
-              -destkeystore "$TMP" -deststorepass preflight > /tmp/preflight.log 2>&1; then
-            cat /tmp/preflight.log
-            rm -f "$TMP" /tmp/preflight.log
-            echo "::error::KEYSTORE_B64 與 KEY_PROPERTIES 不是同一把 key（store/key 密碼或 keyAlias 不對，或內容被剪到），請重新產生並貼上這兩個 secrets"
+          # 2026-11-09 換發過鑰：舊共用鑰的密碼曾以明文 commit 進這個 public repo
+          # （dNeko 600ae0f 加入、cbb8e26 移除；dHealth 亦然），那把鑰永久作廢。
+          # 該密碼早已公開於歷史 commit，寫死在這裡比對不會多洩任何东西。
+          if [ "$PW" = "iu6cv1o8k5b7re0d" ] || [ "$KP" = "iu6cv1o8k5b7re0d" ]; then
+            echo "::error::用的是 2026-11-09 已作廢的共用鑰密碼（公開 repo 歷史 commit 洩漏）；請改用新鑰，並 KEYSTORE_B64 與 KEY_PROPERTIES 兩個 secrets 一起更新"
             exit 1
           fi
-          rm -f "$TMP" /tmp/preflight.log
+          # 預檢一定要走 JCA —— 跟 Gradle 簽名時同一條路：load(store 密碼) → getKey(alias, key 密碼) → 簽。
+          # 不能用 keytool（皆實測於 JDK 21）：
+          #   · keytool -list 只驗 store 密碼，keyPassword/keyAlias 打錯照样綠燈；
+          #   · keytool -importkeystore -srckeypass 對 PKCS12 同樣驗不到 key 密碼（PKCS12 的 key 是用
+          #     store 密碼保護的，-srckeypass 給錯值照样成功）→ 另一種假綠燈。
+          # 只有 getKey() 真的拿 keyPassword 去解 key（不對就 UnrecoverableKeyException），
+          # 而那正是 :app:packageRelease 在做的事，所以這裡過 = Gradle 那邊也會過。
+          JAVA_BIN="${JAVA_HOME:-}/bin/java"
+          command -v "$JAVA_BIN" >/dev/null 2>&1 || JAVA_BIN=java # setup-java 有進 PATH，這裡只求穩
+          cat > /tmp/KeystorePreflight.java <<'JAVA'
+          import java.io.*; import java.security.*; import java.util.Enumeration;
+          import java.security.cert.X509Certificate;
+          public class KeystorePreflight {
+            public static void main(String[] a) throws Exception {
+              // argv: keystore 路徑、alias；密碼走環境變數，避免出現在 ps 的 cmdline 上。
+              char[] sp = System.getenv("PF_STORE_PW").toCharArray();
+              KeyStore ks = KeyStore.getInstance(new File(a[0]), (char[]) null); // 靠 magic 自動判 PKCS12/JKS
+              try (InputStream in = new FileInputStream(a[0])) { ks.load(in, sp); }        // 驗 store 密碼
+              Key key = ks.getKey(a[1], System.getenv("PF_KEY_PW").toCharArray());        // 驗 key 密碼與 alias
+              if (key == null) {
+                StringBuilder sb = new StringBuilder();
+                for (Enumeration<String> e = ks.aliases(); e.hasMoreElements();) sb.append(' ').append(e.nextElement());
+                System.err.println("alias「" + a[1] + "」在 keystore 裡找不到對應的 private key，現有別名:" + sb);
+                System.exit(2);
+              }
+              X509Certificate c = (X509Certificate) ks.getCertificate(a[1]);
+              System.out.println("簽章預檢 OK：type=" + ks.getType() + "，" + key.getAlgorithm()
+                  + "，憑證簽章 " + c.getSigAlgName() + "，到期 " + c.getNotAfter());
+            }
+          }
+          JAVA
+          if ! PF_STORE_PW="$PW" PF_KEY_PW="$KP" "$JAVA_BIN" /tmp/KeystorePreflight.java android/app/dneko.keystore "$ALIAS"; then
+            rm -f /tmp/KeystorePreflight.java
+            echo "::error::KEYSTORE_B64 與 KEY_PROPERTIES 湊不出能簽名的 key（store 密碼／keyPassword／keyAlias 不對，或 keystore 被剪到）。請重新產生並貼上這兩個 secrets；PKCS12 的 keyPassword 通常要與 storePassword 同值。"
+            exit 1
+          fi
+          rm -f /tmp/KeystorePreflight.java
 
       - name: Build debug APK
         run: flutter build apk --debug --target-platform android-arm64
