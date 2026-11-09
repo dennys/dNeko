@@ -20,7 +20,7 @@
 
 ## 🏗️ 架構
 
-採分層架構，遵循 SOLID 原則（詳見 `AGENT.md`）：
+採分層架構，遵循 SOLID 原則（詳見 `AGENTS.md`）：
 
 ```text
 lib/
@@ -78,7 +78,7 @@ CI 由 repo secrets `KEYSTORE_B64`（keystore 的 base64）與 `KEY_PROPERTIES`�
 
 `flutter_overlay_window` 改用 `packages/flutter_overlay_window/`（基底 = pub 1.0.2 的 fork），
 原生端加了 `ACTION_OUTSIDE` 支援，讓 overlay 選單可以「點螢幕其他地方」關掉（上游 issue #170 被拒絕，不會有官方版）。
-**升級此插件前必讀 `AGENT.md` 的「本地 fork 插件」章節**：補丁清单、升版流程、手測步驟。
+**升級此插件前必讀 `AGENTS.md` 的「本地 fork 插件」章節**：補丁清单、升版流程、手測步驟。
 
 ## 🐱 新增／下載動物
 
