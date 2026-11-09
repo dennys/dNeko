@@ -42,6 +42,10 @@
   "animalDog": "Dog",
   "animalPenguin": "Penguin",
   "animalFox": "Fox",
+  "animalHeartDog": "Heart Dog",
+  "animalRacoon": "Raccoon",
+  "animalSloth": "Sloth",
+  "animalMonkey": "Monkey",
   "hungerLabel": "Hunger",
   "hungerNeverSaved": "Not saved yet.",
   "hungerSavedAt": "Saved at {time}"

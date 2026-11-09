@@ -58,12 +58,24 @@ class AnimalAnimationDefinition {
   FrameAnimation? getAction(AnimationAction action) {
     final direct = actions[action];
     if (direct != null) return direct;
+    if (_isSideAction(action) && actions[AnimationAction.walkSide] != null) {
+      return actions[AnimationAction.walkSide];
+    }
     final alias = _missingFrameAlias[action];
     return alias == null ? null : actions[alias];
   }
 
-  /// 素材沒有水平走的幀（貓只有 walk_u / walk_d 兩組），水平移動就借用往下走的幀。
-  /// shortcut: 左右走看起來像在往下走；補到真正的 walk_l/r 素材後整張表可以刪掉
+  /// 水平走是否要把 walkSide 幀鏡像（只有「借用 walkSide 去走向右」時才需要）。
+  bool mirrorsSideFor(AnimationAction action) =>
+      action == AnimationAction.walkRight &&
+      actions[AnimationAction.walkRight] == null &&
+      actions[AnimationAction.walkSide] != null;
+
+  static bool _isSideAction(AnimationAction action) =>
+      action == AnimationAction.walkLeft || action == AnimationAction.walkRight;
+
+  /// 素材沒有水平走的幀時，水平移動就借用往下走的幀（walkSide 有的話優先用 walkSide，見 getAction）。
+  /// shortcut: 斜向走看起來像在往上/下走；之後補上斜向素材後這張表可以刪掉
   /// （actions 有直接命中就不會走到這裡）。
   static const Map<AnimationAction, AnimationAction> _missingFrameAlias = {
     AnimationAction.walkLeft: AnimationAction.walkDown,

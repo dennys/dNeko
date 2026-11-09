@@ -74,6 +74,10 @@ class _OverlayAppState extends State<_OverlayApp> {
 
   /// 已經完整套過一次的 payload（去重用，見 `_onData`）
   String? _lastAppliedPayload;
+  // 寵物與選單共用同一個動畫元件（GlobalKey 讓狀態跨切換保留，避免開關選單時重載幀）
+  final _animatorKey = GlobalKey();
+  // 收過主 app 的 payload 就不再讓預設值（讀 DB）覆蓋設定
+  bool _hasPayload = false;
   AnimalAnimationDefinition? _definition;
   PetSettings _settings = const PetSettings();
   ScreenMetrics _metrics = const ScreenMetrics(
@@ -177,8 +181,11 @@ class _OverlayAppState extends State<_OverlayApp> {
   }
 
   Future<void> _loadDefaultAnimal() async {
-    _settings = await _readOr(() => _settingsRepository.load(), const PetSettings());
-    if (!mounted || _resource != null) return; // 主 app 的 payload 先到就別再用預設值重載
+    final saved = await _readOr(() => _settingsRepository.load(), const PetSettings());
+    // 主 app 的 payload 先到就以它為準：讀回來的舊值（或讀取失敗的預設 120）不能蓋掉它，
+    // 否则寵物尺寸會被重設成預設值
+    if (!mounted || _hasPayload || _resource != null) return;
+    _settings = saved;
     await _loadAnimal(_settings.animalId);
   }
 
@@ -206,6 +213,7 @@ class _OverlayAppState extends State<_OverlayApp> {
 
     final animalId = map['animalId'] as String?;
     if (animalId == null) return;
+    _hasPayload = true;
 
     // 同一份 payload 重複送是 `_shareStartupData` 的延遲重送（視窗可能還沒訂閱），
     // 不是設定改了：每收一次就跑一趟 `_applySettings`（含 resize、必要時重校準），
@@ -406,6 +414,7 @@ class _OverlayAppState extends State<_OverlayApp> {
   /// 不夠就往上長（動物固定在視窗底部）；變寬的視窗也置中回動物原本的位置。
   Future<void> _openMenu() async {
     _driver?.setEnabled(false);
+    _controller?.setPaused(true);
     const window = OverlayWindow();
     final roam = await _roamFor(_petSize);
     final pos = await window.currentPosition();
@@ -423,8 +432,12 @@ class _OverlayAppState extends State<_OverlayApp> {
     if (y < roam.top) y = roam.top;
     if (maxTop >= roam.top && y > maxTop) y = maxTop;
 
-    await window.resize(width: _menuWidth, height: _menuHeight, enableDrag: false);
-    await window.moveTo(Offset(x, y));
+    await window.moveAndResize(
+      position: Offset(x, y),
+      width: _menuWidth,
+      height: _menuHeight,
+      enableDrag: false,
+    );
     _armMenuTimer();
     setState(() => _state = _WindowState.menu);
   }
@@ -437,11 +450,21 @@ class _OverlayAppState extends State<_OverlayApp> {
   Future<void> _closeMenu() async {
     _menuTimer?.cancel();
     _menuTimer = null;
+    _controller?.setPaused(false);
     const window = OverlayWindow();
-    await window.resize(width: _petSize, height: _petSize);
-    // resize 以視窗左上角為錨點；選單開在上方時錨點不在動物身上，要搬回動物的位置
+    // resize 以視窗左上角為錨點；選單開在上方時錨點不在動物身上，要搬回動物的位置。
+    // 位置與尺寸同一次寫入，不先縮再搬
     final controller = _controller;
-    if (controller != null) await window.moveTo(controller.position);
+    if (controller != null) {
+      await window.moveAndResize(
+        position: controller.position,
+        width: _petSize,
+        height: _petSize,
+        enableDrag: true,
+      );
+    } else {
+      await window.resize(width: _petSize, height: _petSize);
+    }
     _driver?.setEnabled(true);
     setState(() => _state = _WindowState.collapsed);
   }
@@ -484,10 +507,14 @@ class _OverlayAppState extends State<_OverlayApp> {
   /// 結束整個程式：先知會主 app（還活著的話它會連自己一起關掉），再關懸浮服務。
   /// 主 app 已被使用者划掉時 shareData 沒人收，但 closeOverlay 一樣把服務殺掉。
   Future<void> _quitApp() async {
+    // shareData 會等主 app 回覆；主 app 沒回（或已被划掉）時會卡住，所以不 await，
+    // 也不讓位置存檔卡住關閉動作
+    unawaited(FlutterOverlayWindow.shareData(jsonEncode({'cmd': 'quit'})).catchError((_) {}));
     try {
-      await FlutterOverlayWindow.shareData(jsonEncode({'cmd': 'quit'}));
+      final p = await const OverlayWindow().currentPosition()
+          .timeout(const Duration(milliseconds: 500));
+      await _settingsRepository.savePosition(p).timeout(const Duration(milliseconds: 500));
     } catch (_) {}
-    await Future.delayed(const Duration(milliseconds: 60));
     try {
       await const OverlayWindow().close();
     } catch (_) {}
@@ -579,6 +606,7 @@ class _OverlayAppState extends State<_OverlayApp> {
         child: AnimatedBuilder(
           animation: controller,
           builder: (context, _) => AnimalAnimator(
+            key: _animatorKey,
             resource: resource,
             definition: definition,
             action: controller.action,
@@ -604,6 +632,7 @@ class _OverlayAppState extends State<_OverlayApp> {
         width: _petSize,
         height: _petSize,
         child: AnimalAnimator(
+          key: _animatorKey, // 與 _buildPet 共用：開/關選單時動畫狀態不重建，不會重載幀造成閃爍
           resource: resource,
           definition: definition,
           action: AnimationAction.affectionate,

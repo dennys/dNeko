@@ -23,7 +23,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   const animalsDir = 'assets/animals';
-  const requiredActions = ['WalkUp', 'WalkDown', 'Sit', 'Sleep', 'Eat', 'Affectionate'];
+  const requiredActions = ['WalkUp', 'WalkDown', 'WalkSide', 'Sit', 'Sleep', 'Eat', 'Affectionate'];
 
   List<Directory> animalFolders() {
     if (!Directory(animalsDir).existsSync()) return const [];

@@ -42,6 +42,10 @@
   "animalDog": "小狗",
   "animalPenguin": "小企鹅",
   "animalFox": "小狐狸",
+  "animalHeartDog": "爱心狗",
+  "animalRacoon": "浣熊",
+  "animalSloth": "树懒",
+  "animalMonkey": "猴子",
   "hungerLabel": "餓度",
   "hungerNeverSaved": "還沒有存過盤（開懸浮餵牠一次就會出現）。",
   "hungerSavedAt": "存於 {time}"

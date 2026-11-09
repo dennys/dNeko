@@ -141,6 +141,18 @@ class AppLocalizationsJa extends AppLocalizations {
   String get animalFox => 'キツネ';
 
   @override
+  String get animalHeartDog => 'ハートの犬';
+
+  @override
+  String get animalRacoon => 'アライグマ';
+
+  @override
+  String get animalSloth => 'ナマケモノ';
+
+  @override
+  String get animalMonkey => 'サル';
+
+  @override
   String get hungerLabel => '空腹度';
 
   @override

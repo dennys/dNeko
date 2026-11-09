@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:ui';
 
 import 'package:sqflite/sqflite.dart';
 
@@ -12,6 +13,7 @@ typedef HungerRecord = ({double hunger, DateTime savedAt});
 class SettingsRepository {
   static const _settingsKey = 'pet_settings';
   static const _hungerKey = 'pet_hunger';
+  static const _positionKey = 'pet_position';
 
   Database? _db;
 
@@ -38,6 +40,26 @@ class SettingsRepository {
 
   Future<void> saveHunger(double hunger, {DateTime? at}) =>
       _put(_hungerKey, encodeHunger(hunger, at ?? DateTime.now()));
+
+  /// 懸浮視窗上次關閉時的左上角座標；沒存過或格式壞掉回 null
+  Future<Offset?> loadPosition() async {
+    final raw = await _row(_positionKey);
+    if (raw == null) return null;
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return null;
+      final x = (decoded['x'] as num?)?.toDouble();
+      final y = (decoded['y'] as num?)?.toDouble();
+      return x == null || y == null ? null : Offset(x, y);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> savePosition(Offset position) => _put(
+        _positionKey,
+        jsonEncode({'x': position.dx, 'y': position.dy}),
+      );
 
   /// 餓度要連「什麼時候存的」一起存：懸浮沒開時沒有 tick，重開時得依缺席時間補算餓度。
   ///

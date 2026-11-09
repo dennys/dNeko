@@ -8,6 +8,10 @@ extension AnimalNameL10n on AppLocalizations {
     'dog' => animalDog,
     'penguin' => animalPenguin,
     'fox' => animalFox,
+    'heart_dog' => animalHeartDog,
+    'racoon' => animalRacoon,
+    'sloth' => animalSloth,
+    'monkey' => animalMonkey,
     _ => fallback,
   };
 }

@@ -359,6 +359,30 @@ abstract class AppLocalizations {
   /// **'Fox'**
   String get animalFox;
 
+  /// No description provided for @animalHeartDog.
+  ///
+  /// In en, this message translates to:
+  /// **'Heart Dog'**
+  String get animalHeartDog;
+
+  /// No description provided for @animalRacoon.
+  ///
+  /// In en, this message translates to:
+  /// **'Raccoon'**
+  String get animalRacoon;
+
+  /// No description provided for @animalSloth.
+  ///
+  /// In en, this message translates to:
+  /// **'Sloth'**
+  String get animalSloth;
+
+  /// No description provided for @animalMonkey.
+  ///
+  /// In en, this message translates to:
+  /// **'Monkey'**
+  String get animalMonkey;
+
   /// No description provided for @hungerLabel.
   ///
   /// In en, this message translates to:

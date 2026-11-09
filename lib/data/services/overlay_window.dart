@@ -29,4 +29,21 @@ class OverlayWindow implements IOverlayWindow {
 
   @override
   Future<void> close() => FlutterOverlayWindow.closeOverlay();
+
+  /// 位置＋尺寸一次寫進視窗（單一 updateViewLayout）：切換選單時不會先搬後縮，中間不閃一幀。
+  /// 不放進 IOverlayWindow，避免強迫其他實作（測試假物件）跟著改。
+  Future<void> moveAndResize({
+    required Offset position,
+    required double width,
+    required double height,
+    required bool enableDrag,
+  }) async {
+    await FlutterOverlayWindow.updateOverlay(
+      x: position.dx.round(),
+      y: position.dy.round(),
+      width: width.round(),
+      height: height.round(),
+      enableDrag: enableDrag,
+    );
+  }
 }

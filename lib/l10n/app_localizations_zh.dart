@@ -141,6 +141,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get animalFox => '小狐狸';
 
   @override
+  String get animalHeartDog => '爱心狗';
+
+  @override
+  String get animalRacoon => '浣熊';
+
+  @override
+  String get animalSloth => '树懒';
+
+  @override
+  String get animalMonkey => '猴子';
+
+  @override
   String get hungerLabel => '餓度';
 
   @override
@@ -286,6 +298,18 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get animalFox => '小狐狸';
+
+  @override
+  String get animalHeartDog => '愛心狗';
+
+  @override
+  String get animalRacoon => '浣熊';
+
+  @override
+  String get animalSloth => '樹懶';
+
+  @override
+  String get animalMonkey => '猴子';
 
   @override
   String get hungerLabel => '餓度';
