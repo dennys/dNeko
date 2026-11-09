@@ -28,7 +28,12 @@ class AnimalAnimator extends StatefulWidget {
   State<AnimalAnimator> createState() => _AnimalAnimatorState();
 }
 
-class _AnimalAnimatorState extends State<AnimalAnimator> with SingleTickerProviderStateMixin {
+class _AnimalAnimatorState extends State<AnimalAnimator> with TickerProviderStateMixin {
+  // 不是 SingleTicker：換動作時 didUpdateWidget 會 dispose 舊的 AnimationController
+  // 再用同一個 vsync 建一個新的，SingleTickerProviderStateMixin 第二次就斷言失敗
+  // （debug 模式下 overlay 換動作的瞬間就會炸；release 只是剛好沒斷言，ticker 也漏在
+  //  mixin 的記錄之外）。
+
   late AnimationController _controller;
   late FrameAnimation _frameAnim;
   int _currentFrame = 0;

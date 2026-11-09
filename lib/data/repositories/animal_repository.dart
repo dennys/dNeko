@@ -41,6 +41,17 @@ class AnimalRepository implements IAnimalRepository {
     return AnimalResource.fromMap(rows.first);
   }
 
+  /// 解析一隻動物該用哪份素材。主 app 的預覽塊與 overlay 都走這裡 —— 兩邊各寫一份
+  /// 遲早對不起來（之前這個順序只存在於 `overlay_main._resolveResource`）。
+  ///
+  /// 順序很重要：先問 DB，讓「下載過/改過」的那份資料贏過過時的內建定義
+  /// （之前是內建優先，等於 cat/dog 永遠無視 DB 裡的記錄）。DB 沒有這一列（使用者刪掉了）
+  /// 才退回內建 —— 素材是隨 app 打包的，不該因為一列被刪就整個變成佔位圓。
+  @override
+  Future<AnimalResource?> resolveResource(String animalId) async {
+    return await getById(animalId) ?? AnimalRepository.builtIn(animalId);
+  }
+
   @override
   Future<void> upsert(AnimalResource resource) async {
     final db = await _database;

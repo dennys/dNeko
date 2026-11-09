@@ -2,15 +2,23 @@ import 'package:flutter/material.dart';
 import '../../domain/pet_stats.dart';
 
 /// 只負責：顯示飢餓值的進度列
+///
+/// 收 `double` 而不是 `PetStats`：主頁要顯示的是**存盤的那個值**（從 DB 讀出來的純數字，
+/// 那邊並沒有一隻活的寵物），為了顯示一個數字去 new 一個 PetStats 不划算。
 class HungerBar extends StatelessWidget {
-  final PetStats stats;
+  final double hunger;
 
-  const HungerBar({super.key, required this.stats});
+  const HungerBar({super.key, required this.hunger});
 
   @override
   Widget build(BuildContext context) {
-    final ratio = stats.hunger / PetStats.maxHunger;
-    final color = stats.isHungry ? Colors.redAccent : Colors.green;
+    final ratio = (hunger / PetStats.maxHunger).clamp(0.0, 1.0);
+    final hungry = hunger >= PetStats.defaultHungryThreshold;
+    final color = hungry ? Colors.redAccent : Colors.green;
+    // -track- 色在深色模式下 black12 幾乎看不見（DEVICE_TEST A-6b）
+    final track = Theme.of(context).brightness == Brightness.dark
+        ? Colors.white24
+        : Colors.black12;
 
     return Row(
       children: [
@@ -22,13 +30,13 @@ class HungerBar extends StatelessWidget {
             child: LinearProgressIndicator(
               value: ratio,
               minHeight: 8,
-              backgroundColor: Colors.black12,
+              backgroundColor: track,
               valueColor: AlwaysStoppedAnimation(color),
             ),
           ),
         ),
         const SizedBox(width: 6),
-        Text('${stats.hunger.toInt()}'),
+        Text('${hunger.toInt()}'),
       ],
     );
   }

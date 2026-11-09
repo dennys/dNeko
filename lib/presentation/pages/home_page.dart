@@ -12,8 +12,11 @@ import '../../domain/pet_settings.dart';
 import '../../domain/screen_metrics.dart';
 import '../../l10n/animal_names.dart';
 import '../../l10n/app_localizations.dart';
+import '../../utils/log.dart';
 import '../controllers/settings_controller.dart';
 import '../controllers/store_controller.dart';
+import '../widgets/hunger_bar.dart';
+import '../widgets/pet_preview.dart';
 import 'store_page.dart';
 
 /// 商店入口先關起來（不開放給使用者）。
@@ -54,11 +57,21 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   bool _isToggling = false;
   StreamSubscription<dynamic>? _quitSub;
 
+  /// 存盤的餓度（DEVICE_TEST A-5 的 (a) 那條證據）；null = 還不曾存過，與 0（吃飽）不同
+  double? _savedHunger;
+  DateTime? _savedHungerAt;
+
+  /// 餓度落盤本身被節流成 60 秒，主頁不必追得比它更緊（一次只讀一行 KV）
+  static const _hungerRefresh = Duration(seconds: 20);
+  Timer? _hungerTimer;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _checkStatus();
+    _refreshHunger();
+    _hungerTimer = Timer.periodic(_hungerRefresh, (_) => _refreshHunger());
     // 懸浮選單按「結束」→ overlay 送 quit 過來：把主 app 自己也關掉
     _quitSub = _overlayService.events.listen(_onOverlayEvent);
     // 桌面捷徑在懸浮沒開時會把 MainActivity 拉起來並帶 pending action
@@ -68,14 +81,39 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _hungerTimer?.cancel();
     _quitSub?.cancel();
     super.dispose();
+  }
+
+  Future<void> _refreshHunger() async {
+    try {
+      final record = await widget.settingsController.loadPersistedHunger();
+      if (!mounted) return;
+      setState(() {
+        _savedHunger = record?.hunger;
+        _savedHungerAt = record?.savedAt;
+      });
+    } catch (e, st) {
+      // 讀不到就留上一個數字：寧可短暫顯示舊值，也不要主頁閃成「沒存過」
+      appError('主頁讀餓度失敗', e, st);
+    }
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // 用捷徑開關過後回來，按鈕狀態要跟上（不然會停在舊值）
-    if (state == AppLifecycleState.resumed) _checkStatus();
+    if (state != AppLifecycleState.resumed) return;
+    _checkStatus();
+    unawaited(_refreshHunger());
+  }
+
+  @override
+  void didChangeMetrics() {
+    // 轉屏後没人推新尺寸給 overlay，牠會繼續用舊螢幕的校準範圍跑（寵物卡在半邊螢幕，
+    // 直到使用者手動開關一次）。懸浮沒在跑就不用推。
+    if (!_isActive) return;
+    unawaited(_pushCurrentSettings());
   }
 
   void _onOverlayEvent(dynamic data) {
@@ -160,12 +198,18 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   /// 設定改動：存檔，懸浮在跑就即時推過去
   Future<void> _apply(PetSettings next) async {
     await widget.settingsController.update(next);
+    await _pushCurrentSettings();
+  }
+
+  /// 把「目前的設定 + 目前的螢幕尺寸」推給跑著的 overlay（設定改動舆轉屏共用一條路）
+  Future<void> _pushCurrentSettings() async {
     if (!mounted || !_isActive || !context.mounted) return;
+    final settings = widget.settingsController.settings;
     await _overlayService.pushSettings(
-      animalId: next.animalId,
-      settings: next,
+      animalId: settings.animalId,
+      settings: settings,
       metrics: _metricsOf(context),
-      languageCode: next.languageCode ?? _systemLanguageCode(context),
+      languageCode: settings.languageCode ?? _systemLanguageCode(context),
     );
   }
 
@@ -210,7 +254,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           body: ListView(
             padding: const EdgeInsets.all(16),
             children: [
+              PetPreview(settings: settings, repository: widget.animalRepository),
+              const SizedBox(height: 16),
               _toggleCard(l10n),
+              const SizedBox(height: 8),
+              _hungerRow(l10n),
               const SizedBox(height: 24),
               Text(l10n.settingsAnimal),
               const SizedBox(height: 4),
@@ -307,6 +355,41 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         );
       },
     );
+  }
+
+  /// 存盤的餓度 —— 這是**懸浮那隻**的餓度（直接讀 DB），舆上方預覽塊的沙箱餓度是兩回事。
+  /// 故意分雨處看，DEVICE_TEST A-5 才能歸因：這一欄跟上 → overlay 寫得進去；
+  /// 懸浮選單那條跟上 → overlay 讀得回來。
+  Widget _hungerRow(AppLocalizations l10n) {
+    final hunger = _savedHunger;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(l10n.hungerLabel),
+        const SizedBox(height: 4),
+        if (hunger == null)
+          Text(
+            l10n.hungerNeverSaved,
+            style: TextStyle(color: Theme.of(context).colorScheme.outline),
+          )
+        else
+          Row(
+            children: [
+              Expanded(child: HungerBar(hunger: hunger)),
+              const SizedBox(width: 8),
+              Text(l10n.hungerSavedAt(_clockOf(_savedHungerAt))),
+            ],
+          ),
+      ],
+    );
+  }
+
+  /// HH:mm —— 只為一個時間拉 intl 不划算
+  static String _clockOf(DateTime? at) {
+    if (at == null) return '--:--';
+    final h = at.hour.toString().padLeft(2, '0');
+    final m = at.minute.toString().padLeft(2, '0');
+    return '$h:$m';
   }
 
   Widget _toggleCard(AppLocalizations l10n) {

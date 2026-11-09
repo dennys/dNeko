@@ -41,5 +41,8 @@
   "animalCat": "猫",
   "animalDog": "犬",
   "animalPenguin": "ペンギン",
-  "animalFox": "キツネ"
+  "animalFox": "キツネ",
+  "hungerLabel": "空腹度",
+  "hungerNeverSaved": "まだ保存されていません。",
+  "hungerSavedAt": "{time} に保存"
 }

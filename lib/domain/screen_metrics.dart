@@ -71,3 +71,14 @@ Rect zoneBounds(Rect roam, double petSize, PetZone zone) {
     _ => roam,
   };
 }
+
+/// 主頁預覽塊的可漫遊範圍（**精靈左上角**可達的位置，與 `PetController` 的 `bounds` 同義）。
+///
+/// 不共用 [zoneBounds]：預覽塊就在 app 畫面裡，沒有狀態列/導航列那套實測校正的問題，
+/// 也沒有「全螢幕／僅下方／四角」的語意。[petSize] 比區塊大時夾成零大小（精靈卡在左上角、
+/// 不會跑出去），而不是讓它跳到負座標。
+Rect previewBounds(Size block, double petSize) {
+  final w = (block.width - petSize).clamp(0.0, block.width).toDouble();
+  final h = (block.height - petSize).clamp(0.0, block.height).toDouble();
+  return Rect.fromLTWH(0, 0, w, h);
+}

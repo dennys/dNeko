@@ -41,5 +41,8 @@
   "animalCat": "Cat",
   "animalDog": "Dog",
   "animalPenguin": "Penguin",
-  "animalFox": "Fox"
+  "animalFox": "Fox",
+  "hungerLabel": "Hunger",
+  "hungerNeverSaved": "Not saved yet.",
+  "hungerSavedAt": "Saved at {time}"
 }

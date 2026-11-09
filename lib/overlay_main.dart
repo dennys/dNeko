@@ -20,6 +20,8 @@ import 'presentation/controllers/pet_controller_factory.dart';
 import 'presentation/controllers/overlay_pet_driver.dart';
 import 'presentation/widgets/animal_animator.dart';
 import 'presentation/widgets/feeding_menu.dart';
+import 'presentation/widgets/hunger_bar.dart';
+import 'utils/log.dart';
 
 void runOverlayApp() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -41,8 +43,11 @@ class _OverlayAppState extends State<_OverlayApp> {
   /// 選單寬度至少要裝得下選單列，否則跟寵物同寬
   double get _menuWidth => math.max(_petSize, FeedingMenu.contentWidth);
 
-  /// 寵物 + 間距 + 選單 + 底部留白
-  double get _menuHeight => _petSize + 8 + FeedingMenu.contentHeight + 8;
+  /// 寵物 + 間距 + 餓度列 + 選單 + 底部留白
+  static const double _hungerBarBlock = 20 + 8;
+
+  double get _menuHeight =>
+      _petSize + 8 + _hungerBarBlock + FeedingMenu.contentHeight + 8;
 
   /// 餵食時食物擲在牠旁邊多遠
   static const double _feedDropDistance = 120;
@@ -66,6 +71,9 @@ class _OverlayAppState extends State<_OverlayApp> {
   /// 只有最後進入的那次載入可以寫入狀態。
   int _loadSeq = 0;
   AnimalResource? _resource;
+
+  /// 已經完整套過一次的 payload（去重用，見 `_onData`）
+  String? _lastAppliedPayload;
   AnimalAnimationDefinition? _definition;
   PetSettings _settings = const PetSettings();
   ScreenMetrics _metrics = const ScreenMetrics(
@@ -179,7 +187,10 @@ class _OverlayAppState extends State<_OverlayApp> {
   Future<T> _readOr<T>(Future<T> Function() read, T fallback) async {
     try {
       return await read();
-    } catch (_) {
+    } catch (e, st) {
+      // 吞掉異常是對的（不能讓寵物因為讀不到設定就消失），但不能吞到無跡可尋：
+      // 「DB 異常」與「真的沒存過」在外面的表現一模一樣，餓度會不會被憑空餵飽就靠這行分。
+      appError('overlay 讀取失敗，改用預設值', e, st);
       return fallback;
     }
   }
@@ -195,6 +206,11 @@ class _OverlayAppState extends State<_OverlayApp> {
 
     final animalId = map['animalId'] as String?;
     if (animalId == null) return;
+
+    // 同一份 payload 重複送是 `_shareStartupData` 的延遲重送（視窗可能還沒訂閱），
+    // 不是設定改了：每收一次就跑一趟 `_applySettings`（含 resize、必要時重校準），
+    // 寵物剛出現時會看得見地抖一下。套過的就直接丟。
+    if (data == _lastAppliedPayload) return;
 
     final rawSettings = map['settings'];
     if (rawSettings is Map) {
@@ -221,9 +237,11 @@ class _OverlayAppState extends State<_OverlayApp> {
     final controller = _controller;
     if (controller != null && animalId == _resource?.animalId) {
       await _applySettings();
+      _lastAppliedPayload = data;
       return;
     }
     await _loadAnimal(animalId);
+    _lastAppliedPayload = data;
   }
 
   /// 設定頁改動後即時生效：速度、可漫遊範圍、視窗尺寸
@@ -284,7 +302,7 @@ class _OverlayAppState extends State<_OverlayApp> {
     bool stale() => seq != _loadSeq;
 
     try {
-      final resource = await _resolveResource(animalId);
+      final resource = await _repository.resolveResource(animalId);
       if (stale()) return;
       if (resource == null) {
         if (mounted) setState(() => _loadFailed = true);
@@ -375,17 +393,10 @@ class _OverlayAppState extends State<_OverlayApp> {
   Future<void> _writeHungerQuietly(double hunger) async {
     try {
       await _settingsRepository.saveHunger(hunger);
-    } catch (_) {
-      // 同上：存不進去只是下次重開餓度回到舊值，不能影響執行期。
+    } catch (e, st) {
+      // 存不進去只是下次重開餓度回到舊值，不能影響執行期。
+      appError('overlay 餓度存盤失敗（下次重開會回到舊值）', e, st);
     }
-  }
-
-  Future<AnimalResource?> _resolveResource(String animalId) async {
-    // 順序很重要：先問 DB，讓「下載過/改過」的那份資料贏過過時的內建定義
-    // （之前是內建優先，等於 cat/dog 永遠無視 DB 裡的記錄）。DB 沒有這一列（使用者刪掉了）
-    // 才退回內建 —— 素材是隨 app 打包的，不該因為一列被刪就整個變成佔位圓。
-    final stored = await _repository.getById(animalId);
-    return stored ?? AnimalRepository.builtIn(animalId);
   }
 
   /// 開選單：動物不動，選單往空間比較多的方向長。
@@ -616,11 +627,22 @@ class _OverlayAppState extends State<_OverlayApp> {
       onQuit: () => unawaited(_quitApp()),
     );
     const gap = SizedBox(height: 8);
+    // 餓度列紧跟選單上方：開選單就是來看牠狀態的，还要另外開主頁就白做這個選單了
+    // （而且在此之前 HungerBar 全專案零個使用者，餓度根本无处可看）。
+    final hunger = SizedBox(
+      height: 20,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: HungerBar(hunger: controller.stats.hunger),
+      ),
+    );
     // 錨定而不是置中：選單開在下面→動物貼視窗頂；開在上面→動物貼視窗底。
     // 開/關選單時動物都穩穩待在同一个位置。
     return Column(
       mainAxisAlignment: _menuAbove ? MainAxisAlignment.end : MainAxisAlignment.start,
-      children: _menuAbove ? [menu, gap, petView] : [petView, gap, menu],
+      children: _menuAbove
+          ? [hunger, gap, menu, gap, petView]
+          : [petView, gap, hunger, gap, menu],
     );
   }
 

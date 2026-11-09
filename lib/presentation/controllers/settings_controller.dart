@@ -20,6 +20,11 @@ class SettingsController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 主頁顯示「存盤的那個餓度」用。走**主 app 自己的** DB 連線、不經過 overlay 的
+  /// `_readOr`，所以「overlay 寫不寫得進去」與「overlay 讀不讀得回來」能分開判讀
+  /// （DEVICE_TEST.md A-5）。回 null = 還不曾存過盤，不是 0。
+  Future<HungerRecord?> loadPersistedHunger() => _repository.loadHunger();
+
   Future<void> update(PetSettings next) async {
     preview(next);
     await _repository.save(next);

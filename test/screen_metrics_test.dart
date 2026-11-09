@@ -70,4 +70,18 @@ void main() {
       }
     });
   });
+
+  group('previewBounds（主頁預覽塊）', () {
+    test('回的是「精靈左上角可達範圍」，所以要扣掉寵物大小', () {
+      expect(previewBounds(const Size(400, 196), 120), const Rect.fromLTWH(0, 0, 280, 76));
+    });
+
+    test('寵物比區塊還大時夾成零大小，不要給負寬高（會把精靈丟到負座標）', () {
+      expect(previewBounds(const Size(100, 100), 180), const Rect.fromLTWH(0, 0, 0, 0));
+    });
+
+    test('高度 0 的區塊不會炸', () {
+      expect(previewBounds(const Size(400, 0), 80), const Rect.fromLTWH(0, 0, 320, 0));
+    });
+  });
 }
