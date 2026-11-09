@@ -110,3 +110,14 @@ flutter test
 - [ ] 新字串已加入所有 ARB 並重新產生。
 - [ ] domain 層未 import Flutter material。
 - [ ] 遵循命名規範與 SOLID。
+
+## 本機建置（dgx1 = aarch64）
+
+- 只出 **debug**：`flutter build apk --debug --target-platform android-arm64`（實測 82.6 MiB）。
+  release/profile 需要 AOT 的 `gen_snapshot`，Google 沒發 linux-arm64 host 版 → release 交 CI 或別台 x86-64 機器。
+  需要的環境：`JAVA_HOME=~/jdk21`、`ANDROID_HOME=~/android-sdk`。
+- `android/gradlew` 與 `gradle/wrapper/gradle-wrapper.jar` 被 `.gitignore` 排除是**正常**的：flutter 會從
+  `bin/cache/artifacts/gradle_wrapper` 注入；真正決定 Gradle 版的是有追蹤的 `gradle-wrapper.properties`（pin 9.3.1）。
+- `pubspec.yaml` 的 `dependency_overrides: path_provider_android 2.2.23` 是為躲 `jni` 的 CMake+NDK 原生編譯
+  （本機 cmake/NDK 只有 x86-64 版）。它是全域生效的（CI 也跟著釘），理想位置是本機 `pubspec_overrides.yaml`
+  （dHealth 就是這樣），要動之前先想清楚 CI／正式版的影響。
