@@ -166,6 +166,10 @@ CI 的 `Restore signing key` 會先清洗 secret 被判貼帶入的空白/`\r`�
 語系檔位於 `lib/l10n/`（`app_en.arb` / `app_zh.arb` / `app_zh_TW.arb` / `app_ja.arb`）。
 新增語言：複製一份 ARB 改 `@@locale`，補 `l10n.yaml`／支援清單，再執行 `flutter gen-l10n`。
 
+## 📋 紀錄
+
+進行中的待辦在 [TODO.md](TODO.md)，已完成的歸檔在 [CHANGELOG.md](CHANGELOG.md)。
+
 ## 📄 授權
 
 MIT
