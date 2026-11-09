@@ -323,6 +323,6 @@ of Flutter`（guide：docs.flutter.dev/release/breaking-changes/migrate-to-built
 現在靠 `android/gradle.properties` 的 `android.builtInKotlin=false`／`android.newDsl=false`
 （Flutter migrator 自動加的）壓住，還跑得動；等它變成 error 就會被卡死在不能升 Flutter 版，到時是被動改。
 
-細節與步驟方向写在 **`../d2048/TODO.md`**（同一時間寫的同一件事）。先在最單純的 d2048 試通再複製過來——
+細節與步驟方向写在 **`../d2048/TODO.md`**（同一時間寫的同一件事）。**d2048 已於 2026-11-09 試通**（AGP 9.1.0；用 init script 實測 `:app` 的 `pluginManager.hasPlugin("org.jetbrains.kotlin.android")` 由 true 變 false，就真的生效了），可以照抄——
 本案有本地 fork 的原生插件／drift／health 等原生依賴，直接動風險高得多。驗收要含一次 release build
 （AOT 只能在 x86-64 機器或 CI 驗）。
