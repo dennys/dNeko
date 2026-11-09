@@ -111,13 +111,20 @@ flutter test
 - [ ] domain 層未 import Flutter material。
 - [ ] 遵循命名規範與 SOLID。
 
-## 本機建置（dgx1 = aarch64）
+## 建置與機器（debug / release 谁能做）
 
-- 只出 **debug**：`flutter build apk --debug --target-platform android-arm64`（實測 82.6 MiB）。
-  release/profile 需要 AOT 的 `gen_snapshot`，Google 沒發 linux-arm64 host 版 → release 交 CI 或別台 x86-64 機器。
-  需要的環境：`JAVA_HOME=~/jdk21`、`ANDROID_HOME=~/android-sdk`。
+| 機器 | debug | release | 說明 |
+|---|---|---|---|
+| Windows（x86-64） | ✅ | ✅ | release 已實測裝機；需要 `android/app/{dneko.keystore,key.properties}`（見 README 簽名節） |
+| CI（ubuntu-latest，x86-64） | ✅ | ✅ | 金鑰來自 secrets，產物在 artifacts |
+| dgx1（Linux / aarch64） | ✅ 實測 82.6 MiB | ❌ | 只卡這一台：AOT 的 `gen_snapshot` Google 沒有 linux-arm64 host 版（qemu 模擬那條已證可行不了，見 `~/.pi` 紀錄） |
+
+**dgx1 的限制是「這台主機」的，不是本專案的**——別把它寫成「本專案不能出 release」，
+也別為了它去動依賴版本（release 該在 Windows 或 CI 出）。dgx1 上需要的環境：
+`JAVA_HOME=~/jdk21`、`ANDROID_HOME=~/android-sdk`。
+
 - `android/gradlew` 與 `gradle/wrapper/gradle-wrapper.jar` 被 `.gitignore` 排除是**正常**的：flutter 會從
   `bin/cache/artifacts/gradle_wrapper` 注入；真正決定 Gradle 版的是有追蹤的 `gradle-wrapper.properties`（pin 9.3.1）。
 - `pubspec.yaml` 的 `dependency_overrides: path_provider_android 2.2.23` 是為躲 `jni` 的 CMake+NDK 原生編譯
-  （本機 cmake/NDK 只有 x86-64 版）。它是全域生效的（CI 也跟著釘），理想位置是本機 `pubspec_overrides.yaml`
-  （dHealth 就是這樣），要動之前先想清楚 CI／正式版的影響。
+  （dgx1 的 cmake/NDK 只有 x86-64 版）。它是全域生效的（CI／Windows 也跟著釘，代價是兩台都用舊版 plugin）；
+  理想位置是本機 `pubspec_overrides.yaml`（dHealth 就是這樣），要動之前先想清楚 CI／正式版的影響。
