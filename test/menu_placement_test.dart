@@ -2,6 +2,7 @@ import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:dneko/domain/menu_placement.dart';
+import 'package:dneko/domain/pet_settings.dart';
 import 'package:dneko/domain/screen_metrics.dart';
 
 void main() {
@@ -80,6 +81,27 @@ void main() {
     test('螢幕比動物還小時夾成 0，不會得到負值', () {
       const tiny = ScreenMetrics(logicalSize: Size(100, 100), devicePixelRatio: 2);
       expect(tiny.clampPetPosition(const Offset(50, 50), petSize), Offset.zero);
+    });
+  });
+
+  group('ScreenMetrics.fallbackRoam（A-4b topInset）', () {
+    const metrics = ScreenMetrics(logicalSize: Size(400, 800), devicePixelRatio: 2);
+
+    test('頂端偏移狀態列高度（不是 0）', () {
+      final roam = metrics.fallbackRoam(petSize);
+      expect(roam.top, 25, reason: 'fallbackRoam 頂端要偏移狀態列高度（A-4b）');
+    });
+
+    test('zoneBounds(topLeft) 在 fallbackRoam 頂端以下', () {
+      final roam = metrics.fallbackRoam(petSize);
+      final bounds = zoneBounds(roam, petSize, PetZone.topLeft);
+      expect(bounds.top, roam.top, reason: 'topLeft 區頂端要等於 roam 頂端（已含狀態列偏移）');
+      expect(bounds.top, greaterThan(0), reason: '不能貼物理螢幕頂（A-4b）');
+    });
+
+    test('高度扣掉狀態列，不超出螢幕', () {
+      final roam = metrics.fallbackRoam(petSize);
+      expect(roam.bottom, lessThanOrEqualTo(800), reason: 'fallbackRoam 不能超出螢幕底部');
     });
   });
 }

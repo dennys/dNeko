@@ -36,7 +36,7 @@ class AnimalDownloadService {
     await localFolder.create(recursive: true);
 
     for (var i = 0; i < fileNames.length; i++) {
-      final fileName = _safeName(fileNames[i], 'fileNames[$i]');
+      final fileName = safeName(fileNames[i], 'fileNames[$i]');
       await _dio.download(
         '$remoteBaseUrl/$fileName',
         p.join(localFolder.path, fileName),
@@ -84,13 +84,14 @@ class AnimalDownloadService {
 
   Future<Directory> _resolveLocalFolder(String animalId) async {
     final base = await getApplicationDocumentsDirectory();
-    return Directory(p.join(base.path, 'animals', _safeName(animalId, 'animalId')));
+    return Directory(p.join(base.path, 'animals', safeName(animalId, 'animalId')));
   }
 }
 
 /// animalId 與檔名未來會來自遠端 catalogue，先擋掉 `..`、絕對路徑與路徑分隔字元，
 /// 免得 p.join 把檔案寫到 animals/ 以外（目前 catalog 寫死在靜態檔，這是預防措施）。
-String _safeName(String value, String field) {
+/// 公開成 top-level 純函式好讓單元測試直接打（path traversal 守門員不能沒有測試）。
+String safeName(String value, String field) {
   if (value.isEmpty ||
       value == '.' ||
       value == '..' ||

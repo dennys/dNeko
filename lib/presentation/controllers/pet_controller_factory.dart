@@ -17,13 +17,20 @@ class PetControllerFactory {
     required AnimalAnimationDefinition definition,
     double? speedPerTick,
     PetStats? stats,
+    Offset? position,
+    bool frozen = false,
   }) {
     final edge = _edgeFactory.create(definition.edgeBehavior);
-    return PetController(
+    final controller = PetController(
       bounds: bounds,
       edge: edge,
       speedPerTick: speedPerTick,
       stats: stats,
+      position: position,
     );
+    // 換動物時保留定格狀態（A-9a）：setFrozen 在 _frozen 相同時 early-return，
+    // 所以只在需要時呼叫。
+    if (frozen) controller.setFrozen(true);
+    return controller;
   }
 }

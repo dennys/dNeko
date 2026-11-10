@@ -14,6 +14,11 @@ class PetStats extends ChangeNotifier {
   /// 這隻寵物再也沒睡過覺。
   static const double defaultHungerPerSecond = 1 / 60;
 
+  /// 「多久變餓」（分鐘）換成門檻點數。預設速率 1 點/分鐘下兩者數值相等；
+  /// 帶 perSecond 參數是為了速率若改動時換算不會悄悄錯掉。
+  static double hungryThresholdForMinutes(num minutes, {double perSecond = defaultHungerPerSecond}) =>
+      minutes * 60 * perSecond;
+
   /// 會通知 UI 的最小變化量。
   ///
   /// 主迴圈是 16ms 一跳，每跳只加約 0.016 點；每個跳動都 notifyListeners() 的話，
@@ -28,7 +33,17 @@ class PetStats extends ChangeNotifier {
 
   /// 是否餓到想找食物
   bool get isHungry => _hunger >= hungryThreshold;
-  final double hungryThreshold;
+
+  /// 餓的門檻（點數）。改動要走 [setHungryThreshold]（要通知 isHungry 翻轉）
+  double hungryThreshold;
+
+  /// 改門檻（設定頁即時生效）；只有 isHungry 狀態翻轉才通知（PetBrain 與進度條顏色都看它）
+  void setHungryThreshold(double value) {
+    if (value == hungryThreshold) return;
+    final wasHungry = _hunger >= hungryThreshold;
+    hungryThreshold = value;
+    if ((_hunger >= value) != wasHungry) notifyListeners();
+  }
 
   /// 每秒增加的飢餓值
   final double hungerPerSecond;

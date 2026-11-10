@@ -21,12 +21,15 @@ class ScreenMetrics {
     required this.devicePixelRatio,
   });
 
-  /// 實測失敗時的回退範圍：螢幕尺寸扣掉自身邊長
+  /// 實測失敗時的回退範圍：螢幕尺寸扣掉自身邊長，頂端偏移狀態列高度
+  /// （原生 overlay 視窗頂端被 WindowManager 夾在狀態列下方，A-4b）。
   Rect fallbackRoam(double petSize) => Rect.fromLTWH(
         0,
-        0,
+        defaultStatusBarHeightDp,
         (logicalSize.width - petSize).clamp(0.0, double.infinity).toDouble(),
-        (logicalSize.height - petSize).clamp(0.0, double.infinity).toDouble(),
+        (logicalSize.height - petSize - defaultStatusBarHeightDp)
+            .clamp(0.0, double.infinity)
+            .toDouble(),
       );
 
   /// 把上次存的寵物左上角夾回目前螢幕內（螢幕轉向或換機後可能已在畫面外）

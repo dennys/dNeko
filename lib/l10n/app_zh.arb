@@ -24,6 +24,7 @@
   "settingsTitle": "寵物設定",
   "settingsSpeed": "移動速度",
   "settingsSize": "大小",
+  "settingsHunger": "餓的門檻",
   "settingsZone": "活動範圍",
   "settingsAnimal": "寵物",
   "zoneFullScreen": "全螢幕",
@@ -48,5 +49,8 @@
   "animalMonkey": "猴子",
   "hungerLabel": "餓度",
   "hungerNeverSaved": "還沒有存過盤（開懸浮餵牠一次就會出現）。",
-  "hungerSavedAt": "存於 {time}"
+  "hungerSavedAt": "更新 {time}",
+  "hungerLive": "即時",
+  "animalListFailed": "無法載入動物清單。",
+  "settingsSaveFailed": "設定存檔失敗。"
 }

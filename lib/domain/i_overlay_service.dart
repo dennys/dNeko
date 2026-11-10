@@ -22,7 +22,10 @@ abstract interface class IOverlayService {
     required String languageCode,
   });
 
-  Future<void> close();
+  /// 關閉懸浮視窗。
+  /// [rememberPosition] = false 給「選單按結束」那條路（overlay 自己已存了寵物位置，
+  /// 選單開著時視窗位置不是寵物位置，不能再寫一次）。
+  Future<void> close({bool rememberPosition = true});
   Future<bool> isActive();
 
   /// overlay → 主 app 的事件流（如選單按「結束」送來的 quit 指令）

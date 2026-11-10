@@ -1,11 +1,13 @@
 import 'dart:ui';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:dneko/data/models/animation_action.dart';
+import 'package:dneko/data/models/animation_definition.dart';
 import 'package:dneko/domain/i_pet_brain.dart';
 import 'package:dneko/domain/pet_behavior.dart';
 import 'package:dneko/domain/pet_decision.dart';
 import 'package:dneko/domain/pet_stats.dart';
 import 'package:dneko/presentation/controllers/pet_controller.dart';
+import 'package:dneko/presentation/controllers/pet_controller_factory.dart';
 
 /// 用 testWidgets 的假時鐘推動 PetController 的 16ms 主迴圈（不必多拉依賴）
 void main() {
@@ -77,6 +79,47 @@ void main() {
 
       expect(c.bounds, const Rect.fromLTWH(300, 700, 100, 100));
       expect(c.position, const Offset(300, 700));
+      c.dispose();
+    });
+
+    testWidgets('updateBounds 把留在舊區外的位置夾回新區（zone 切換不瞬移）', (tester) async {
+      final c = make(bounds: const Rect.fromLTWH(0, 0, 1000, 1000));
+      c.beginDrag();
+      c.dragTo(const Offset(900, 900)); // 先拖到右下角（舊區內）
+      expect(c.position, const Offset(900, 900));
+
+      // fullScreen → bottomLeft：舊位置 x 在新區外
+      c.updateBounds(const Rect.fromLTWH(0, 700, 300, 300));
+      expect(c.position, const Offset(300, 900)); // x 夾到新區右邊（y 本來就在區內）
+      c.dispose();
+    });
+
+    testWidgets('endDrag 把拖出 zone 的位置夾回邊界（A-2/A-7）', (tester) async {
+      final c = make(bounds: const Rect.fromLTWH(0, 0, 100, 100));
+      c.beginDrag();
+      c.syncFromWindow(const Offset(500, 500)); // 拖出 zone（拖曳中不 clamp）
+      expect(c.position, const Offset(500, 500));
+      c.endDrag();
+      expect(c.position, const Offset(100, 100)); // 放開時夾回邊界
+      c.dispose();
+    });
+
+    testWidgets('constructor 帶入舊位置會 clamp 到新 bounds（A-9a）', (tester) async {
+      final c = PetController(
+        bounds: const Rect.fromLTWH(0, 0, 100, 100),
+        position: const Offset(500, 500), // 超出新 bounds
+        stats: PetStats(initialHunger: 50),
+      );
+      expect(c.position, const Offset(100, 100)); // clamp 到新 bounds
+      c.dispose();
+    });
+
+    testWidgets('constructor 不帶位置時預設 bounds.center', (tester) async {
+      final c = PetController(
+        bounds: const Rect.fromLTWH(0, 0, 100, 100),
+        stats: PetStats(initialHunger: 50),
+      );
+      expect(c.position, const Offset(50, 50)); // bounds.center
       c.dispose();
     });
   });
@@ -153,6 +196,50 @@ void main() {
       c.setPaused(false);
       await pumpTicks(tester, 5);
       expect(c.position, isNot(before));
+      c.dispose();
+    });
+  });
+
+  group('PetControllerFactory 換動物保留狀態（A-9a）', () {
+    const factory = PetControllerFactory();
+    const def = AnimalAnimationDefinition(
+      animalId: 'cat',
+      displayName: 'Cat',
+      frameWidth: 64,
+      frameHeight: 64,
+      actions: {},
+      edgeBehavior: 'walk',
+    );
+
+    test('frozen: true 時新 controller 是定格狀態', () {
+      final c = factory.create(
+        bounds: const Rect.fromLTWH(0, 0, 100, 100),
+        definition: def,
+        stats: PetStats(initialHunger: 50),
+        frozen: true,
+      );
+      expect(c.frozen, isTrue);
+      c.dispose();
+    });
+
+    test('frozen: false（預設）時新 controller 不是定格', () {
+      final c = factory.create(
+        bounds: const Rect.fromLTWH(0, 0, 100, 100),
+        definition: def,
+        stats: PetStats(initialHunger: 50),
+      );
+      expect(c.frozen, isFalse);
+      c.dispose();
+    });
+
+    test('position 帶入舊位置（clamp 到新 bounds）', () {
+      final c = factory.create(
+        bounds: const Rect.fromLTWH(0, 0, 100, 100),
+        definition: def,
+        stats: PetStats(initialHunger: 50),
+        position: const Offset(500, 500),
+      );
+      expect(c.position, const Offset(100, 100));
       c.dispose();
     });
   });

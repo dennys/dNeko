@@ -3,6 +3,59 @@
 慣例：一個待辦一段，寫清「檔案:行」與「為什麼现在是這樣」。
 **做完就搬到 `CHANGELOG.md`**（`git log` 才是權威），別堆在這裡吃 token。
 
+## 2026-11-11 review（REVIEW.md）仍開著的
+
+REVIEW.md（2026-11-10，15 條 + 4 條 not-listed）已處理完：完成的都進 CHANGELOG（2026-11-11 entry），
+檔案已刪。剩下三條：
+
+1. **REVIEW #8 剩餘：`_onData` decode 分支抽出測試**
+   `overlay_main.dart`（755 行）的 payload dedup、`_loadSeq` staleness gate、`_readOr` fallback、
+   `_roamFor` 校準仍無測試。純邏輯三塊已補（`safeName` / `localeOfCode` / `decodeHunger`，2026-11-11）。
+   抽出 `_onData` 的 decode 分支是 755 行入口的大重構，本機沒有真機可驗，風險大於收益，擱置。
+   做的那天：decode 抽成純函式 + 表列測試，`placeMenu` 的抽出模式可參考。
+2. **REVIEW #10 剩餘：SQLITEBUSY 真機驗證**
+   `_writeHungerQuietly` 已加一次重試（2026-11-11），但「overlay isolate 能不能用 sqflite」
+   仍未在真機驗證（見下面 2026-11-06 的 B.3：餵飽 → 殺 app → 重開，看餓度是否還在）。
+3. **已知殘留 edge case：主頁按「關閉」時若 overlay 選單開著，存的是選單位置**
+   quit 路徑（選單按「結束」）已完全修好（overlay 先存寵物位置、主 app 不寫位置，2026-11-11）。
+   但使用者開著 overlay 選單、切回主頁按「關閉」時，`_rememberPosition` 仍存視窗左上角
+   （選單位置，比寵物高約 200px）→ 下次啟動寵物偏高被夾到螢幕頂。罕見路徑；根治要 overlay
+   把寵物位置或選單狀態 push 給主 app（新 channel 訊息），目前不划算。
+
+## 2026-11-10 真機測試後：6 項修復（bug + feature）
+
+### ✅ 已完成（code + test）
+
+1. **主頁餓度即時化**（feature）：overlay 餓度變化時經 `shareData({'cmd':'hunger','value':X})`
+   push 給主 app（`overlay_main.dart` `_pushHunger`），主 app `_onOverlayEvent` 加 `cmd=='hunger'`
+   分支 → `setState` 更新 `_liveHunger`（獨立欄位，不蓋 DB 讀的 `_savedHunger`；2026-11-11 修正）。
+   DB 存盤維持 60s 節流。label 語義已定：live 值顯示「即時」，「更新 HH:mm」只跟 DB 那份走。
+2. **Size bug（close→restart）**：engine cached，dedup `data==_lastAppliedPayload` 跳過
+   `_applySettings`（含 `_resizePetWindow`）→ 動物停在舊尺寸。修法：dedup 跳過時仍補跑
+   `_resizePetWindow`（`overlay_main.dart` `_onData`）。
+3. **A-2/A-7 拖曳不夾 zone**：`syncFromWindow` 拖曳中不 clamp（視窗跟手），`endDrag` 放開時
+   才 `_clampToBounds` 夾回 zone 邊界（`pet_controller.dart` `endDrag`）。
+4. **A-9a 換動物丟定格＋位置**：`_loadAnimal` dispose 舊 controller 前抓 `_frozen`＋`_position`，
+   掛到新 controller（`PetController` constructor 加 `position` 參數、`PetControllerFactory.create`
+   加 `position`＋`frozen` 參數）。position clamp 到新 bounds。
+
+### ⬜ 待做
+
+5. **A-6a 餓度列沒出現**（本輪回歸）：sub-agent 診斷——Dart code 乾淨（HungerBar 無條件在
+   `_buildMenu`），最可能是**裝置上 APK 過舊**（build 早於 `0f56ce9` 加 HungerBar 的 commit）。
+   需確認裝置 About 頁版本字串 / `git describe`；若舊於 `0f56ce9`，rebuild 重測即可。
+   次要可能：native height clamp + `_menuAbove==true` 時 Column `mainAxisAlignment: end`
+   把 20dp 餓度列推出頂端（需 `_petSize + 281 > usableDp`，只在短螢幕/橫向觸發）。
+6. **A-4b topInset**（差半個動物到頂）：✅ 已修（code + test）。
+   根因：`fallbackRoam` 用 (0,0) 起點（MediaQuery logicalSize），但 overlay 視窗頂端被
+   WindowManager 夾在狀態列下方（25dp）→ 回退時頂端差一個狀態列。修法：
+   - `fallbackRoam` 頂端偏移 `defaultStatusBarHeightDp`（25dp，`pet_settings.dart`）。
+   - `_closeMenu` 清 `_roam`/`_roamPetSize`（選單開著時 `_applySettings` 可能設成 fallback，
+     關選單後下次 `_openMenu` 重新量真實 roam 範圍）。
+     （2026-11-11 修正：改成只清**未校準**的 —— 加 `_roamCalibrated` 旗標；無條件清會讓
+     每次開選單都重新量、寵物瞬移兩個角落，REVIEW #2。）
+   注意：calibrated path（`_roamFor` 實測）已含狀態列偏移，不需再加 topInset（會 double-count）。
+
 ## 待辦：多寵物（2026-11-07 評估完，人類決定暫緩，只留記錄）
 
 現況 `flutter_overlay_window` 只有**一個** overlay 視窗，所以同時只能有一隻寵物。
@@ -36,11 +89,11 @@
 |---|---|
 | AppBar 加一顆商店按鈕 → 開 `StorePage` | ✅ 已實作：現在在 `lib/presentation/pages/home_page.dart` 的 AppBar（由 `kStoreEnabled=false` 關著） |
 | 用 `PetControllerFactory` 建立 pet controller | ✅ 已實作：`lib/overlay_main.dart:37`（`static const _controllerFactory`）與 `:105`（`_controllerFactory.create(...)`）—— 片段檔放在 `widgets/pet_stage.dart`，位置本身也是錯的 |
-| **從商店返回後重新載入動物清單**（可能有新下載的動物） | ⬜ **仍待做**：`home_page.dart` 的商店 `onPressed` 只有 `push(...)`，沒有 `await` 之後的回載動作 |
+| **從商店返回後重新載入動物清單**（可能有新下載的動物） | ✅ 已做（2026-11-11，REVIEW #6）：商店 `onPressed` 改 `await push(...)` 後 `_pickerRefresh++`（key 變 → picker 重建 → `late final` 重新建 future 重查） |
 
-### 待做那條的線索
-`HomePage` 已在 `lib/presentation/pages/home_page.dart`（2026-11-07 與設定頁合併）。要實作
-「返回後重新載入」：`await push(...)` 之後請 `widget.animalRepository` 重刷 + `setState` 即可。
+### 待做那條的線索（2026-11-11 已做，留檔）
+`HomePage` 已在 `lib/presentation/pages/home_page.dart`（2026-11-07 與設定頁合併）。實作方式：
+`await push(...)` 之後 `_pickerRefresh++` + `setState`（key 帶上計數，picker 重建即重查）。
 
 ---
 
@@ -99,14 +152,14 @@
 
 ### 1. `dependency_overrides` 是**全域** pin，不是本機 pin
 `pubspec.yaml` 把 `path_provider_android` 釘在 2.2.23，而且它在 git 裡 → **CI 與 Windows
-也跟著用 2.2.23**。這是刻意的決定（pubspec 的註解已寫清楚），不是漏搬：要讓它只影響 dgx1，
+也跟著用 2.2.23**。這是刻意的決定（pubspec 的註解已寫清楚），不是漏搬：要讓它只影響 Linux/aarch64 主機，
 就照 dHealth 的作法搬到本機 `pubspec_overrides.yaml`（已被 .gitignore 擋掉）。
 代價記在這裡，別哪天 CI 版號對不上時才發現是這條。
 
-### 2. 從商店返回後不重載動物清單
-`home_page.dart` 的商店 `onPressed` 只有 `push(...)`，沒有 `await` 之後重刷 ——
-下載完回主頁，`_AnimalPicker` 的 `late final _animals` 還是舊清單。
-（開放商店時才有意義，見上面「擱置中的兩件事 #1」；`kStoreEnabled` 現在是 false。）
+### 2. ~~從商店返回後不重載動物清單~~ —— 2026-11-11 已做（REVIEW #6，見 CHANGELOG）：
+商店 `onPressed` 改 `await push(...)` 後 `_pickerRefresh++`（key 變 → picker 重建重查）；
+`_AnimalPicker` 也補了 `snap.error` 渲染（DB 讀不到不再空白）與 `_apply` 的 try/catch + SnackBar。
+（開放商店時才有意義；`kStoreEnabled` 現在是 false。）
 
 ### 3. 預覽塊（`PetPreview`）的兩條已知限制
 - app 進背景時 tick 仍舊在跑（`PetController` 只有 dispose、沒有 pause）。真機 P-8

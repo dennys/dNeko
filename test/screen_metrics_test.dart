@@ -16,8 +16,9 @@ void main() {
       expect(restored.devicePixelRatio, metrics.devicePixelRatio);
     });
 
-    test('fallbackRoam 扣掉寵物大小', () {
-      expect(metrics.fallbackRoam(80), const Rect.fromLTWH(0, 0, 320, 720));
+    test('fallbackRoam 扣掉寵物大小＋頂端偏移狀態列（A-4b）', () {
+      // top=25（狀態列），height=800-80-25=695
+      expect(metrics.fallbackRoam(80), const Rect.fromLTWH(0, 25, 320, 695));
     });
   });
 

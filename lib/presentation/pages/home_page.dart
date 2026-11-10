@@ -9,6 +9,7 @@ import '../../data/models/animal_resource.dart';
 import '../../data/repositories/animal_repository.dart';
 import '../../data/services/overlay_service.dart';
 import '../../domain/pet_settings.dart';
+import '../../domain/pet_stats.dart';
 import '../../domain/screen_metrics.dart';
 import '../../l10n/animal_names.dart';
 import '../../l10n/app_localizations.dart';
@@ -57,9 +58,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   bool _isToggling = false;
   StreamSubscription<dynamic>? _quitSub;
 
+  /// 商店回來後讓動物清單重查（key 變 → picker 重建 → late final 重新建 future）
+  int _pickerRefresh = 0;
+
   /// 存盤的餓度（DEVICE_TEST A-5 的 (a) 那條證據）；null = 還不曾存過，與 0（吃飽）不同
   double? _savedHunger;
   DateTime? _savedHungerAt;
+
+  /// overlay 即時 push 的 live 餓度（還沒落盤）：顯示優先用它，
+  /// 「存於 HH:mm」標籤只跟 DB 讀的那份走（push 的值沒有存盤時間點，蓋上去標籤就變假）
+  double? _liveHunger;
 
   /// 餓度落盤本身被節流成 60 秒，主頁不必追得比它更緊（一次只讀一行 KV）
   static const _hungerRefresh = Duration(seconds: 20);
@@ -128,11 +136,30 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     if (data is! String) return;
     try {
       final map = jsonDecode(data);
-      if (map is Map && map['cmd'] == 'quit') {
-        _overlayService.close();
-        SystemNavigator.pop();
+      if (map is! Map) return;
+      switch (map['cmd']) {
+        case 'quit':
+          // overlay 已存好寵物位置並自己關懸浮；主 app 只關服務（不寫位置 ——
+          // 選單開著時視窗左上角是選單的位置，不是寵物的）再退出自己
+          unawaited(_quitAll());
+        case 'hunger':
+          // overlay 即時 push 的 live 餓度：主頁那行不用等 60s 落盤＋20s 輪詢
+          final value = (map['value'] as num?)?.toDouble();
+          if (value == null || !mounted) return;
+          setState(() => _liveHunger = value);
+        default:
+          break;
       }
     } catch (_) {}
+  }
+
+  /// 選單按「結束」：等 overlay 服務關掉再退出（不等的話 pop 可能先殺掉 process，
+  /// 把還在飛的存盤/關閉動作中斷）
+  Future<void> _quitAll() async {
+    try {
+      await _overlayService.close(rememberPosition: false).timeout(const Duration(seconds: 2));
+    } catch (_) {}
+    if (mounted) SystemNavigator.pop();
   }
 
   Future<void> _runPendingShortcut() async {
@@ -156,7 +183,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Future<void> _checkStatus() async {
     final active = await _overlayService.isActive();
-    if (mounted) setState(() => _isActive = active);
+    if (mounted) {
+      setState(() {
+        _isActive = active;
+        // overlay 不在了，live 值不再 live：清掉，回退到 DB 讀的那份
+        if (!active) _liveHunger = null;
+      });
+    }
   }
 
   void _fail(BuildContext context, String message) {
@@ -205,8 +238,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   /// 設定改動：存檔，懸浮在跑就即時推過去
   Future<void> _apply(PetSettings next) async {
-    await widget.settingsController.update(next);
-    await _pushCurrentSettings();
+    try {
+      await widget.settingsController.update(next);
+      await _pushCurrentSettings();
+    } catch (e, st) {
+      // 設定寫入失敗（DB）不能只進 logcat：UI 已經顯示新值、盤上卻是舊值
+      appError('設定存檔失敗', e, st);
+      if (mounted) _fail(context, AppLocalizations.of(context)!.settingsSaveFailed);
+    }
   }
 
   /// 把「目前的設定 + 目前的螢幕尺寸」推給跑著的 overlay（設定改動舆轉屏共用一條路）
@@ -253,9 +292,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 IconButton(
                   tooltip: l10n.storeTitle,
                   icon: const Icon(Icons.store),
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => StorePage(controller: widget.storeController)),
-                  ),
+                  onPressed: () async {
+                    await Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => StorePage(controller: widget.storeController)),
+                    );
+                    // 商店裡可能下載了新動物：回來讓清單重查
+                    if (mounted) setState(() => _pickerRefresh++);
+                  },
                 ),
             ],
           ),
@@ -271,7 +314,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               Text(l10n.settingsAnimal),
               const SizedBox(height: 4),
               _AnimalPicker(
-                key: ValueKey('animal-${settings.animalId}'),
+                key: ValueKey('animal-${settings.animalId}-$_pickerRefresh'),
                 repository: widget.animalRepository,
                 selected: settings.animalId,
                 onSelected: (id) => _apply(settings.copyWith(animalId: id)),
@@ -297,6 +340,17 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 label: '${settings.petSize.round()} dp',
                 onChanged: (v) => controller.preview(settings.copyWith(petSize: v)),
                 onChangeEnd: (v) => _apply(settings.copyWith(petSize: v)),
+              ),
+              const SizedBox(height: 8),
+              Text(l10n.settingsHunger),
+              Slider(
+                value: settings.hungerMinutesUntilHungry.toDouble(),
+                min: PetSettings.minHungerMinutes.toDouble(),
+                max: PetSettings.maxHungerMinutes.toDouble(),
+                divisions: PetSettings.maxHungerMinutes - PetSettings.minHungerMinutes,
+                label: '${settings.hungerMinutesUntilHungry} min',
+                onChanged: (v) => controller.preview(settings.copyWith(hungerMinutesUntilHungry: v.round())),
+                onChangeEnd: (v) => _apply(settings.copyWith(hungerMinutesUntilHungry: v.round())),
               ),
               const SizedBox(height: 8),
               Text(l10n.settingsZone),
@@ -365,11 +419,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     );
   }
 
-  /// 存盤的餓度 —— 這是**懸浮那隻**的餓度（直接讀 DB），舆上方預覽塊的沙箱餓度是兩回事。
-  /// 故意分雨處看，DEVICE_TEST A-5 才能歸因：這一欄跟上 → overlay 寫得進去；
-  /// 懸浮選單那條跟上 → overlay 讀得回來。
+  /// 餓度 —— 顯示的是**懸浮那隻**的餓度：live push 優先（overlay 跑著時即時跟上），
+  /// 沒有 live 值才回退到 DB 讀的那份（DEVICE_TEST A-5 的 (a) 證據）；
+  /// 舆上方預覽塊的沙箱餓度是兩回事。
   Widget _hungerRow(AppLocalizations l10n) {
-    final hunger = _savedHunger;
+    final threshold =
+        PetStats.hungryThresholdForMinutes(widget.settingsController.settings.hungerMinutesUntilHungry);
+    final hunger = _liveHunger ?? _savedHunger;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -383,9 +439,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         else
           Row(
             children: [
-              Expanded(child: HungerBar(hunger: hunger)),
+              Expanded(child: HungerBar(hunger: hunger, threshold: threshold)),
               const SizedBox(width: 8),
-              Text(l10n.hungerSavedAt(_clockOf(_savedHungerAt))),
+              Text(_liveHunger != null
+                  ? l10n.hungerLive
+                  : l10n.hungerSavedAt(_clockOf(_savedHungerAt))),
             ],
           ),
       ],
@@ -468,6 +526,13 @@ class _AnimalPickerState extends State<_AnimalPicker> {
     return FutureBuilder<List<AnimalResource>>(
       future: _animals,
       builder: (context, snap) {
+        if (snap.hasError) {
+          // DB 讀不到時不能只留一個空白：使用者會以為「沒有動物」
+          return Text(
+            AppLocalizations.of(context)!.animalListFailed,
+            style: TextStyle(color: Theme.of(context).colorScheme.error),
+          );
+        }
         final animals = snap.data;
         if (animals == null) return const SizedBox(height: 38);
         return Wrap(

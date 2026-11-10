@@ -7,6 +7,7 @@ import 'data/repositories/animal_repository.dart';
 import 'data/repositories/settings_repository.dart';
 import 'data/services/animal_download_service.dart';
 import 'data/services/static_store_catalog.dart';
+import 'domain/locale_code.dart';
 import 'domain/pet_settings.dart';
 import 'presentation/controllers/settings_controller.dart';
 import 'presentation/controllers/store_controller.dart';
@@ -45,6 +46,9 @@ Future<void> main() async {
   );
   // 本案没有後端、也没有 crash 回報，logcat 是唯一的支持管道：
   // 未捕获的 async 例外在 release 會静悄悄消失，至少要把它们留在 logcat 裡。
+  // runZonedGuarded 抓 async 例外；FlutterError.onError 抓 framework/render 例外
+  // （它們走 reportError，不會 rethrow 進 zone，只靠 zone 抓不到）。
+  FlutterError.onError = (details) => appError('framework 例外', details.exception, details.stack);
   runZonedGuarded(
     () => runApp(MyApp(
       storeController: storeController,
@@ -79,9 +83,10 @@ class MyApp extends StatelessWidget {
       animation: settingsController,
       builder: (context, _) {
         final settings = settingsController.settings;
+        final languageCode = settings.languageCode;
         return MaterialApp(
           title: 'dNeko',
-          locale: _localeOf(settings.languageCode), // null = 跟隨系統
+          locale: languageCode == null ? null : localeOfCode(languageCode), // null = 跟隨系統
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           // 與 dHealth 同一顆 seed（兩案用同一個 ColorScheme.fromSeed 做法），看起來才是一家人
@@ -102,12 +107,5 @@ class MyApp extends StatelessWidget {
         );
       },
     );
-  }
-
-  /// 'zh-TW' 這種帶地区碼的要拆成 Locale('zh','TW')；當單一語言碼塞進去會比對不到 arb
-  static Locale? _localeOf(String? code) {
-    if (code == null) return null;
-    final parts = code.split(RegExp('[-_]'));
-    return parts.length > 1 ? Locale(parts[0], parts[1]) : Locale(parts[0]);
   }
 }

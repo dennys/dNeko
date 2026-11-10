@@ -85,6 +85,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsSize => '大小';
 
   @override
+  String get settingsHunger => '餓的門檻';
+
+  @override
   String get settingsZone => '活動範圍';
 
   @override
@@ -160,8 +163,17 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String hungerSavedAt(Object time) {
-    return '存於 $time';
+    return '更新 $time';
   }
+
+  @override
+  String get hungerLive => '即時';
+
+  @override
+  String get animalListFailed => '無法載入動物清單。';
+
+  @override
+  String get settingsSaveFailed => '設定存檔失敗。';
 }
 
 /// The translations for Chinese, as used in Taiwan (`zh_TW`).
@@ -244,6 +256,9 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String get settingsSize => '大小';
 
   @override
+  String get settingsHunger => '餓的門檻';
+
+  @override
   String get settingsZone => '活動範圍';
 
   @override
@@ -319,6 +334,15 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String hungerSavedAt(Object time) {
-    return '存於 $time';
+    return '更新 $time';
   }
+
+  @override
+  String get hungerLive => '即時';
+
+  @override
+  String get animalListFailed => '無法載入動物清單。';
+
+  @override
+  String get settingsSaveFailed => '設定存檔失敗。';
 }

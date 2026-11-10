@@ -86,6 +86,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsSize => 'Size';
 
   @override
+  String get settingsHunger => 'Hungry after';
+
+  @override
   String get settingsZone => 'Roaming area';
 
   @override
@@ -161,6 +164,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String hungerSavedAt(Object time) {
-    return 'Saved at $time';
+    return 'Updated $time';
   }
+
+  @override
+  String get hungerLive => 'Live';
+
+  @override
+  String get animalListFailed => 'Couldn\'t load the animal list.';
+
+  @override
+  String get settingsSaveFailed => 'Failed to save settings.';
 }

@@ -54,8 +54,6 @@ class _FakeRepo implements IAnimalRepository {
   @override
   Future<List<AnimalResource>> getAll() async => [];
   @override
-  Future<List<AnimalResource>> getDownloaded() async => [];
-  @override
   Future<void> upsert(AnimalResource resource) async {}
   @override
   Future<void> delete(String animalId) async {}
