@@ -251,6 +251,12 @@ abstract class AppLocalizations {
   /// **'Size'**
   String get settingsSize;
 
+  /// No description provided for @settingsHunger.
+  ///
+  /// In en, this message translates to:
+  /// **'Hungry after'**
+  String get settingsHunger;
+
   /// No description provided for @settingsZone.
   ///
   /// In en, this message translates to:
@@ -398,8 +404,26 @@ abstract class AppLocalizations {
   /// No description provided for @hungerSavedAt.
   ///
   /// In en, this message translates to:
-  /// **'Saved at {time}'**
+  /// **'Updated {time}'**
   String hungerSavedAt(Object time);
+
+  /// No description provided for @hungerLive.
+  ///
+  /// In en, this message translates to:
+  /// **'Live'**
+  String get hungerLive;
+
+  /// No description provided for @animalListFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t load the animal list.'**
+  String get animalListFailed;
+
+  /// No description provided for @settingsSaveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to save settings.'**
+  String get settingsSaveFailed;
 }
 
 class _AppLocalizationsDelegate

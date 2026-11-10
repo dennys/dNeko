@@ -24,6 +24,7 @@
   "settingsTitle": "Pet Settings",
   "settingsSpeed": "Speed",
   "settingsSize": "Size",
+  "settingsHunger": "Hungry after",
   "settingsZone": "Roaming area",
   "settingsAnimal": "Pet",
   "zoneFullScreen": "Full screen",
@@ -48,5 +49,8 @@
   "animalMonkey": "Monkey",
   "hungerLabel": "Hunger",
   "hungerNeverSaved": "Not saved yet.",
-  "hungerSavedAt": "Saved at {time}"
+  "hungerSavedAt": "Updated {time}",
+  "hungerLive": "Live",
+  "animalListFailed": "Couldn't load the animal list.",
+  "settingsSaveFailed": "Failed to save settings."
 }

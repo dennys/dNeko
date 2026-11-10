@@ -25,8 +25,6 @@ class _FakeRepository implements IAnimalRepository {
   @override
   Future<List<AnimalResource>> getAll() async => store;
   @override
-  Future<List<AnimalResource>> getDownloaded() async => store;
-  @override
   Future<AnimalResource?> getById(String animalId) async =>
       store.where((e) => e.animalId == animalId).cast<AnimalResource?>().firstOrNull;
   @override

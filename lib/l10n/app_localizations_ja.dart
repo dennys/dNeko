@@ -85,6 +85,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get settingsSize => 'サイズ';
 
   @override
+  String get settingsHunger => '空腹のしきい値';
+
+  @override
   String get settingsZone => '移動エリア';
 
   @override
@@ -160,6 +163,15 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String hungerSavedAt(Object time) {
-    return '$time に保存';
+    return '$time に更新';
   }
+
+  @override
+  String get hungerLive => 'リアルタイム';
+
+  @override
+  String get animalListFailed => '動物リストを読み込めませんでした。';
+
+  @override
+  String get settingsSaveFailed => '設定を保存できませんでした。';
 }

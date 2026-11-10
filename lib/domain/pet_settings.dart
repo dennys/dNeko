@@ -14,6 +14,13 @@ enum PetZone {
   bottomRight,
 }
 
+/// 原生 overlay 視窗頂端被 WindowManager 夾在狀態列下方（dp）；
+/// fallbackRoam 用同一個值，避免回退時頂端差一個狀態列（A-4b）。
+const double defaultStatusBarHeightDp = 25;
+
+/// 餵食時食物擲在牠旁邊多遠（預覽塊與 overlay 共用同一個距離，兩邊手感才一致）
+const double feedDropDistance = 120;
+
 /// 使用者可調的寵物設定（純資料 + 換算；I/O 在 SettingsRepository）
 class PetSettings {
   static const double minSpeedPerSecond = 10;
@@ -23,6 +30,13 @@ class PetSettings {
   static const double minPetSize = 80;
   static const double maxPetSize = 180; // 素材 212~256px，再放大会糊
   static const double defaultPetSize = 120;
+
+  /// 餓的門檻（分鐘）：不餵的話多久後 isHungry 翻 true。
+  /// 衰減速率固定 1 點/分鐘（PetStats.defaultHungerPerSecond），所以分鐘數＝門檻點數；
+  /// 上限 100 = maxHunger，再大就永遠餓不到。
+  static const int minHungerMinutes = 1;
+  static const int maxHungerMinutes = 100;
+  static const int defaultHungerMinutes = 60;
 
   /// 帶狀／角落區的邊長 = petSize × 此倍數
   static const double zoneSizeFactor = 2;
@@ -42,6 +56,9 @@ class PetSettings {
   /// 外觀模式：'system' / 'light' / 'dark'
   final String themeMode;
 
+  /// 餓的門檻（分鐘），見 [minHungerMinutes] / [maxHungerMinutes]
+  final int hungerMinutesUntilHungry;
+
   const PetSettings({
     this.speedPxPerSecond = defaultSpeedPerSecond,
     this.petSize = defaultPetSize,
@@ -49,6 +66,7 @@ class PetSettings {
     this.animalId = defaultAnimalId,
     this.languageCode,
     this.themeMode = 'system',
+    this.hungerMinutesUntilHungry = defaultHungerMinutes,
   });
 
   /// languageCode 要能被明確設回 null（跟隨系統），所以用 sentinel 而不是 null 当「不變」
@@ -61,6 +79,7 @@ class PetSettings {
     String? animalId,
     Object? languageCode = _unchanged,
     String? themeMode,
+    int? hungerMinutesUntilHungry,
   }) =>
       PetSettings(
         speedPxPerSecond: speedPxPerSecond ?? this.speedPxPerSecond,
@@ -71,6 +90,7 @@ class PetSettings {
             ? this.languageCode
             : languageCode as String?,
         themeMode: themeMode ?? this.themeMode,
+        hungerMinutesUntilHungry: hungerMinutesUntilHungry ?? this.hungerMinutesUntilHungry,
       );
 
   /// 每幀該走幾像素（速度存 px/s，才不會被 tick 長度綁死）
@@ -83,6 +103,7 @@ class PetSettings {
         'animalId': animalId,
         'languageCode': languageCode,
         'themeMode': themeMode,
+        'hungerMinutesUntilHungry': hungerMinutesUntilHungry,
       };
 
   /// 容忍髒資料：缺欄位/型別不對/zone 不認識，一律回到預設值而不是丟例外
@@ -106,8 +127,11 @@ class PetSettings {
         themeMode: const ['system', 'light', 'dark'].contains(json['themeMode'])
             ? json['themeMode'] as String
             : 'system',
+        hungerMinutesUntilHungry: _number(json['hungerMinutesUntilHungry'], defaultHungerMinutes)
+            .clamp(minHungerMinutes, maxHungerMinutes)
+            .round(),
       );
 
-  static double _number(Object? value, double fallback) =>
-      value is num ? value.toDouble() : fallback;
+  static num _number(Object? value, num fallback) =>
+      value is num ? value : fallback;
 }

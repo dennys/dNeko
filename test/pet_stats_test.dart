@@ -103,5 +103,52 @@ void main() {
         expect(notifications, 1);
       });
     });
+
+    group('餓的門檻（分鐘設定）', () {
+      test('hungryThresholdForMinutes：預設速率下分鐘數＝點數', () {
+        expect(PetStats.hungryThresholdForMinutes(60), 60);
+        expect(PetStats.hungryThresholdForMinutes(1), 1);
+        expect(PetStats.hungryThresholdForMinutes(100), PetStats.maxHunger);
+      });
+
+      test('hungryThresholdForMinutes：自訂速率照換算', () {
+        // 10 分鐘 × 60 秒 × 2 點/秒 = 1200 點（超過 maxHunger，代表永遠餓不到）
+        expect(PetStats.hungryThresholdForMinutes(10, perSecond: 2), 1200);
+      });
+
+      test('setHungryThreshold 翻轉 isHungry 才通知', () {
+        final stats = PetStats(initialHunger: 50);
+        var notifications = 0;
+        stats.addListener(() => notifications++);
+
+        // 50 → 門檻降到 40：isHungry false→true，要通知
+        stats.setHungryThreshold(40);
+        expect(stats.isHungry, isTrue);
+        expect(notifications, 1);
+
+        // 門檻升到 80：isHungry true→false，要通知
+        stats.setHungryThreshold(80);
+        expect(stats.isHungry, isFalse);
+        expect(notifications, 2);
+
+        // 門檻 80→90：isHungry 仍是 false，不通知
+        stats.setHungryThreshold(90);
+        expect(notifications, 2);
+
+        // 同一值：不通知
+        stats.setHungryThreshold(90);
+        expect(notifications, 2);
+      });
+
+      test('餵食跨過新門檻也會通知（門檻改完後 tick 路徑不受影響）', () {
+        final stats = PetStats(initialHunger: 70, hungryThreshold: 80);
+        var notifications = 0;
+        stats.addListener(() => notifications++);
+
+        stats.feed(amount: 15); // 70 → 55，跨過門檻 80 往下
+        expect(stats.isHungry, isFalse);
+        expect(notifications, 1);
+      });
+    });
   });
 }

@@ -80,9 +80,9 @@ flutter build apk --release --target-platform android-arm64 --no-tree-shake-icon
 |---|---|---|
 | Windows（x86-64） | ✅ | ✅ 實測可裝機（需 keystore + key.properties，見下節） |
 | GitHub Actions（ubuntu-latest，x86-64） | ✅ | ✅ 產在 artifacts |
-| dgx1（Linux / aarch64） | ✅ 實測 82.6 MiB | ❌ 沒有 linux-arm64 的 `gen_snapshot`（qemu 模擬那條已證可行不了） |
+| Linux/aarch64 | ✅ | ❌ 沒有 linux-arm64 的 `gen_snapshot` |
 
-所以在 dgx1 上日常只跑 `--debug`；**要 release 就在 Windows 出，或 push 後取 CI 的 artifact。**
+所以 Linux/aarch64 主機上日常只跑 `--debug`；**要 release 就在 x86-64 機器（Windows）出，或 push 後取 CI 的 artifact。**
 
 ## 🔑 簽名（升級免重裝）
 
@@ -92,7 +92,7 @@ repo 是 public，金鑰與密碼**不進版控**，放在三個地方：
 | 位置 | 放什麼 |
 |---|---|
 | Windows 開發機 | `android\app\dneko.keystore` + `android\app\key.properties` |
-| dgx1（Linux/aarch64） | `android/app/dneko.keystore` + `android/app/key.properties` |
+| Linux/aarch64 開發機 | `android/app/dneko.keystore` + `android/app/key.properties` |
 | GitHub Actions | secrets `KEYSTORE_B64`（keystore 檔的 base64）、`KEY_PROPERTIES`（key.properties 全文） |
 
 三處必須是**同一把**。`key.properties` 四行（`storeFile` 是**相對 `android/app/` 的路徑**，別寫成 `app/dneko.keystore`）：
@@ -110,11 +110,11 @@ keyPassword=<同上那個密碼>
 > 而 Gradle 簽名走的正是 `getKey()`（`build.gradle.kts` 直接把這四行餵給 signingConfig）。
 
 ⚠️ **不要在新機器上 `keytool -genkeypair` 另生一把** —— 簽名不同就等於換鑰，舊安裝收不到覆蓋更新。
-新機器請從既有機器複製（dgx1 上的備份份在 `~/backups/dneko-signing-20261109/`）：
+新機器請從既有機器複製（備份位置見 `~/dennys/AGENTS.md` 的「dNeko signing key backup」節）：
 
 ```bash
-scp dgx1:~/backups/dNeko-signing-20261109/dneko.keystore   <win>:<repo>/android/app/
-scp dgx1:~/backups/dNeko-signing-20261109/key.properties    <win>:<repo>/android/app/
+scp <existing-machine>:<repo>/android/app/dneko.keystore   <new-machine>:<repo>/android/app/
+scp <existing-machine>:<repo>/android/app/key.properties    <new-machine>:<repo>/android/app/
 ```
 （只有第一次建立、或鑰真的遺失／作廢時，才重新生成 keystore 並**同時**更新兩個 secrets。）
 
@@ -158,7 +158,8 @@ CI 的 `Restore signing key` 會先清洗 secret 被判貼帶入的空白/`\r`�
 ```
 
 - **內建動物**：放在 `assets/animals/<id>/`，並在 `pubspec.yaml` 註冊。`animation.json` 的 frame 名稱需對應同資料夾 PNG 檔名，例如 `walk_u1` 對應 `walk_u1.png`。建議使用透明背景 PNG，尺寸以 `frameWidth` / `frameHeight` 為準。
-- **下載動物**：透過商店下載到本機，寫入 SQLite。
+- **下載動物**：透過商店下載到本機，寫入 SQLite。**商店目前停用**（`home_page.dart` 的 `kStoreEnabled = false`，
+  入口隱藏；原因與開放條件見該常數的註解與 TODO.md），所以現行版本只有內建動物。
 
 ## 🖥️ Overlay 注意事項
 

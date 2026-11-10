@@ -16,11 +16,12 @@ void main() {
     });
 
     test('JSON 往返保持一致', () {
-      const s = PetSettings(speedPxPerSecond: 150, petSize: 160, zone: PetZone.bottomLeft);
+      const s = PetSettings(speedPxPerSecond: 150, petSize: 160, zone: PetZone.bottomLeft, hungerMinutesUntilHungry: 30);
       final restored = PetSettings.fromJson(s.toJson());
       expect(restored.speedPxPerSecond, 150);
       expect(restored.petSize, 160);
       expect(restored.zone, PetZone.bottomLeft);
+      expect(restored.hungerMinutesUntilHungry, 30);
     });
 
     test('髒資料：缺欄位/型別不對/不認識的 zone 都回到預設', () {
@@ -47,6 +48,29 @@ void main() {
       expect(s.speedPxPerSecond, PetSettings.maxSpeedPerSecond);
       expect(s.petSize, PetSettings.minPetSize);
       expect(s.zone, PetZone.bottomBand);
+    });
+
+    test('餓的門檻：預設 60 分鐘，範圍 1~100', () {
+      const s = PetSettings();
+      expect(s.hungerMinutesUntilHungry, PetSettings.defaultHungerMinutes);
+      expect(PetSettings.defaultHungerMinutes, 60);
+    });
+
+    test('餓的門檻：髒資料與超範圍都回到合法值', () {
+      expect(PetSettings.fromJson(const {}).hungerMinutesUntilHungry, PetSettings.defaultHungerMinutes);
+      expect(PetSettings.fromJson(const {'hungerMinutesUntilHungry': 'fast'}).hungerMinutesUntilHungry,
+          PetSettings.defaultHungerMinutes);
+      expect(PetSettings.fromJson(const {'hungerMinutesUntilHungry': 9999}).hungerMinutesUntilHungry,
+          PetSettings.maxHungerMinutes);
+      expect(PetSettings.fromJson(const {'hungerMinutesUntilHungry': 0}).hungerMinutesUntilHungry,
+          PetSettings.minHungerMinutes);
+    });
+
+    test('餓的門檻：copyWith 只改它時其他欄位不動', () {
+      const s = PetSettings(speedPxPerSecond: 150);
+      final next = s.copyWith(hungerMinutesUntilHungry: 15);
+      expect(next.hungerMinutesUntilHungry, 15);
+      expect(next.speedPxPerSecond, 150);
     });
   });
 }

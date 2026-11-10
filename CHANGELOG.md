@@ -5,6 +5,53 @@
 新的完成紀錄加在最上面。
 
 ---
+## 2026-11-11 review 修復 + 餓的門檻改成設定（分鐘）
+
+`flutter analyze` 0 issue、`flutter test` 132 全過（115 → 132，+17：safeName / locale / 門檻 / updateBounds）。
+
+- **餓的門檻改成設定**（`PetSettings.hungerMinutesUntilHungry`，單位分鐘，1~100，預設 60）：
+  主頁加 slider、存進 settings JSON、push 給 overlay 即時生效（`PetStats.setHungryThreshold`，
+  只在 isHungry 翻轉時通知）；預覽塊沙箱也跟著走。`HungerBar` 改收 `threshold` 參數，
+  變紅的顏色跟 isHungry 同一個來源。衰減速率仍固定 1 點/分鐘（`PetStats.defaultHungerPerSecond`）。
+- **REVIEW #1（Must）**：換動物時 `_loadAnimal` 先 `_stopDragWatch` 再 dispose 舊 controller；
+  `_pollDrag` 在 await 後加 `mounted + identical` 閘（controller 被換掉/ dispose 時不再碰它）。
+- **REVIEW #2（Must）**：`_closeMenu` 不再無條件清 roam 快取 —— 加 `_roamCalibrated` 旗標，
+  只有 fallback（未校準）才清；實測值保留，開選單不再瞬移兩個角落。`_roamFor` 的 catch
+  也標 calibrated=false（校準失敗不再被當真實值快取）。
+- **REVIEW #3（Must）**：quit 競態 —— overlay `_quitApp` 改存**寵物**位置（`controller.position`；
+  選單開著時視窗左上角是選單的位置，比寵物高約 200px）且**先存再送 quit**（主 app 一收到就關服務，
+  存盤還在飛會被中斷）；主 app 的 quit 分支改 `close(rememberPosition: false)` + 2s timeout 再 pop。
+- **REVIEW #4**：live 餓度 push 改寫獨立的 `_liveHunger`，不再蓋 DB 讀的 `_savedHunger`；
+  「更新 HH:mm」標籤只跟 DB 那份走，live 值顯示「即時」；overlay 關閉時清 live 值回退到 DB。
+- **REVIEW #5**：把 2026-11-09/11-10 兩條 entry 宣稱已刪、實際還在 git 的死碼**真的刪掉**：
+  `android/.../OverlayService.kt`（177 行）、`assets/dneko.png`（255 KB）、`lib/domain/pet_display_mode.dart`、
+  `OverlayService.collapsedSize`。README 補一句商店目前停用（`kStoreEnabled = false`）。
+- **REVIEW #6**：`_AnimalPicker` 渲染 `snap.error`（DB 讀不到不再空白）；商店回來後 key 變讓清單重查；
+  `_apply` 加 try/catch + SnackBar（設定寫入失敗不再只進 logcat）。
+- **REVIEW #7**：`PetController.updateBounds` 把 `_position`／`_target` 夾回新 bounds（zone 切換不瞬移）。
+- **REVIEW #8**：`_safeName` 公開成 top-level `safeName` 並補測試（`..`、絕對路徑、分隔字元）；
+  新增 `localeOfCode` 測試。（`decodeHunger` 的格式測試原本就有，在 pet_state_persistence_test。）
+- **REVIEW #9**：`main` 與 `runOverlayApp` 都補 `FlutterError.onError`（framework/render 例外走
+  reportError、不會 rethrow 進 zone，只靠 runZonedGuarded 抓不到）；overlay 入口也包 runZonedGuarded。
+- **REVIEW #10**：`_writeHungerQuietly` 加一次重試（兩條連線寫同一個 DB 檔可能撞 SQLITE_BUSY）。
+- **REVIEW #11**：刪 `AnimalRepository.getDownloaded`（介面＋實作＋兩個 test fake）、
+  `AnimalAnimator.onComplete`（連同只為它存在的 `_onStatus`）。`AnimalResource.copyWith` **保留**
+  （review 說 0 引用，但 pet_state_persistence_test 有用）；`IOverlayService` 也保留（AGENTS.md
+  列名的架構縫，不是死碼）。
+- **REVIEW #12**：pubspec 的 cat/、dog/ assets 重複列刪掉。
+- **REVIEW #13**：`_feedDropDistance = 120` 兩處重複收進 `domain/pet_settings.dart` 的 `feedDropDistance`。
+- **REVIEW #14**：`'zh-TW' → Locale` 的拆開從 main.dart / overlay_main.dart 兩處收進
+  `domain/locale_code.dart` 的 `localeOfCode`。
+- **REVIEW #15**：`asset_frames_test.dart` 的亂碼測試名與 reason 重打（原字元是 U+FFFD，已不可恢復，
+  依測試邏輯重寫）。
+- **REVIEW not-listed 三條**：`HungerBar` 改收 `threshold`（見上餓度設定條）；`_roamFor` catch 標
+  calibrated=false（見上 #2 條）；`animation_loader.dart` 尾註更新（pushSettings → `_onData` 的換動物
+  路徑其實是通的，只是 store 關著用不到）。
+
+**未做**：REVIEW #8 的「抽出 `_onData` 的 decode 分支」——那是 755 行 overlay 入口的大重構，
+本機沒有真機可驗，風險大於收益；safeName / locale / decodeHunger 三塊純邏輯已有測試。
+
+---
 ## 2026-11-10 four user-visible fixes (device checks still zero)
 
 - `animal_animator.dart`: `didUpdateWidget` also watches `definition`/`resource`. Switching
@@ -16,7 +63,8 @@
   built-in animal survives the next launch (shortcut: a newly added built-in will not appear
   for existing installs). `static_store_catalog.dart` no longer lists built-in `penguin`.
 - `home_page.dart`: the 20 s hunger poll is skipped unless the app is resumed.
-- `pet_display_mode.dart` deleted (0 references); stale "only one built-in animal" comment fixed.
+- ~~`pet_display_mode.dart` deleted (0 references)~~ —— 當時**沒有真的刪**（檔案還在 git），
+  2026-11-11 才刪；stale "only one built-in animal" comment fixed。
 
 ---
 ## 2026-11-09 本輪：把審查報告的缺口做掉（代碼面，commit `0f56ce9`）
@@ -154,8 +202,9 @@
 - **`AnimationLoader.getFrameImage` 加了 provider 快取**：之前 `build()` 每次重繪都 new 一個
   `AssetImage`/`FileImage`，Flutter 用 provider 的 `==` 做快取，所以等於**每幀把解好碼的圖攞掉重解**。
   ~~shortcut: 同一 animalId 重新下載後會繼續顯示舊圖~~ —— 收尾輪已修（見上：來源指紋 + 兩邊趕快取）。
-- **删死碼**：`android/.../OverlayService.kt`（177 行，含 `NekoView`）、`MainActivity` 的
-  `com.dneko/native` MethodChannel（Dart 端沒有一處呼叫）、`assets/dneko.png`（255 KB，
+- **删死碼**（~~2026-11-09 宣稱已刪，實際還在 git，2026-11-11 才真的刪~~）：`android/.../OverlayService.kt`
+  （177 行，含 `NekoView`）、`MainActivity` 的 `com.dneko/native` MethodChannel（Dart 端沒有一處呼叫，
+  這條當時是真的刪了，現行 channel 是 `com.dneko/app`）、`assets/dneko.png`（255 KB，
   根沒進 pubspec 的 assets 清單，本來就讀不到）、`OverlayService.collapsedSize`。
   懸浮視窗一律走 `flutter_overlay_window`，權限走 `permission_handler`。
 - **l10n**：主頁啟動/關閉桌寵按鈕的四個字串（全 app 唯一跳過 l10n 的地方）補进 4 個 arb。
@@ -202,7 +251,8 @@
 **根因**：`overlay_main.dart` 的 `onPanUpdate` 用的是視窗內局部座標的 delta。Dart 每次移動視窗，局部座標就反向偏移，形成回授。
 
 **相關事實**：
-- `android/.../OverlayService.kt` 是死代碼（NekoView 測試實作，MainActivity 註解已說明移除），改它無效。
+- ~~`android/.../OverlayService.kt` 是死代碼（NekoView 測試實作，MainActivity 註解已說明移除），改它無效。~~
+  （2026-11-11 已刪；當時宣稱已刪但檔案還在 git。）
 - 真正的懸浮窗由 `flutter_overlay_window` 1.0.2 原生層處理，`OverlayService.java` 的 `onTouch` 已用 `rawX/rawY` 拖曳，由 `enableDrag` 開關控制（目前 `overlay_service.dart` 與 `overlay_window.dart` 的 resize 都寫死 false）。
 - 插件提供 `getOverlayPosition()`（回傳 dp，x/y），但原生拖曳結束時沒有回調給 Dart。
 

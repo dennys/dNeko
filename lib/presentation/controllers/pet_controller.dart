@@ -31,6 +31,7 @@ class PetController extends ChangeNotifier {
     double? speedPerTick,
     IEdgeBehavior? edge, // 新增（預設沿邊走）
     this._direction = const DirectionResolver(),
+    Offset? position,
   })  : _bounds = bounds,
         _ownsStats = stats == null,
         _stats = stats ?? PetStats(),
@@ -38,7 +39,10 @@ class PetController extends ChangeNotifier {
         // 速度預設只有 MovementEngine 一處定義（這裡不再抄一份 1.5）
         _movement = movement ?? (speedPerTick == null ? const MovementEngine() : MovementEngine(speedPerTick: speedPerTick)),
         _edge = edge ?? EdgeWalkBehavior(),
-        _position = bounds.center;
+        _position = bounds.center {
+    // 換動物時帶入舊位置（A-9a）：舊 controller 的位置可能在新 bounds 外，夾回邊界。
+    if (position != null) _position = _clampToBounds(position);
+  }
 
   Offset _position;
   Offset get position => _position;
@@ -69,7 +73,15 @@ class PetController extends ChangeNotifier {
 
   void start() => _timer ??= Timer.periodic(_tick, (_) => _onTick());
 
-  void updateBounds(Rect bounds) => _bounds = bounds;
+  /// 換 zone／螢幕後換 bounds：位置與目標都要夾回新範圍，
+  /// 否則寵物會留在舊區外，直到下一次 wander 決定才「瞬移」回來。
+  void updateBounds(Rect bounds) {
+    _bounds = bounds;
+    _position = _clampToBounds(_position);
+    final target = _target;
+    if (target != null) _target = _clampToBounds(target);
+    _notifyIfChanged();
+  }
 
   /// 設定頁改速度時即時生效（不必重開 overlay）
   void setSpeedPerTick(double speedPerTick) =>
@@ -107,6 +119,9 @@ class PetController extends ChangeNotifier {
 
   void endDrag() {
     _isDragging = false;
+    // 拖曳中 syncFromWindow 不 clamp（視窗跟手），放開時才夾回 zone 邊界（A-2/A-7）。
+    // 不夾的話拖出選區就留在外面，brain 的下一個決定雖在 bounds 內、位置卻在區外。
+    _position = _clampToBounds(_position);
     _applyDecision(_brain.decideNext(_bounds, isHungry: _stats.isHungry));
     _notifyIfChanged();
   }

@@ -8,7 +8,6 @@ import '../../domain/pet_settings.dart';
 import '../repositories/settings_repository.dart';
 
 class OverlayService implements IOverlayService {
-  static const double collapsedSize = PetSettings.defaultPetSize;
   static const _firstRunPosition = OverlayPosition(48, 96);
 
   OverlayService({SettingsRepository? positions})
@@ -105,10 +104,14 @@ class OverlayService implements IOverlayService {
     }
   }
 
-  /// 關閉前先記下視窗位置（夾在螢幕內的值由 show 負責），下次開啟時還原
+  /// 關閉前先記下視窗位置（夾在螢幕內的值由 show 負責），下次開啟時還原。
+  ///
+  /// [rememberPosition] = false 給「選單按結束」那條路：選單開著時視窗左上角是選單的
+  /// 位置（比寵物高約 200px），而 overlay 的 `_quitApp` 已經存了正確的寵物位置，
+  /// 這裡再寫一次只會把正確值蓋掉。
   @override
-  Future<void> close() async {
-    await _rememberPosition();
+  Future<void> close({bool rememberPosition = true}) async {
+    if (rememberPosition) await _rememberPosition();
     await FlutterOverlayWindow.closeOverlay();
   }
 

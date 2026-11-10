@@ -84,7 +84,7 @@ Dart 端（原版檔案、未改）：`lib/overlay_main.dart` 自己對 `MethodC
 → 解壓覆蓋 `packages/flutter_overlay_window/`（保留例：刪除 example/ 與 test/）
 → 重打上面兩處補丁 → 手測：開選單 → 點桌面其他地方 → 選單應收起。
 
-另外 `dependency_overrides` 把 `path_provider_android` 鎖在 2.2.23（dgx1 ARM64 的 NDK/CMake
+另外 `dependency_overrides` 把 `path_provider_android` 鎖在 2.2.23（Linux/aarch64 主機的 NDK/CMake
 問題），升它之前先讀 pubspec 裡那段註解。
 
 ## 多國語言
@@ -114,12 +114,12 @@ flutter test
 ## 建置與機器（debug / release 谁能做）
 
 機器矩陣與 build 指令在 **README 的「建置 APK」節**（Windows 與 CI 都出得了 release；只有
-Linux/aarch64 那台出不了，因為缺 AOT 的 `gen_snapshot`——是**主機**限制，不是本專案的）。
-**別為了那台主機動依賴版本**，release 該在 Windows 或 CI 出。
-dgx1 上需要的環境：`JAVA_HOME=~/jdk21`、`ANDROID_HOME=~/android-sdk`。
+Linux/aarch64 主機出不了，因為缺 AOT 的 `gen_snapshot`——是**主機**限制，不是本專案的）。
+**別為了那台主機動依賴版本**，release 該在 x86-64 機器或 CI 出。
+各機器環境設定見 `~/dennys/AGENTS.md`。
 
 - `android/gradlew` 與 `gradle/wrapper/gradle-wrapper.jar` 被 `.gitignore` 排除是**正常**的：flutter 會從
   `bin/cache/artifacts/gradle_wrapper` 自動注入；真正 pin Gradle 版的是有被追蹤的 `gradle-wrapper.properties`。
   這不是 bug，別去「修」它。
-- `pubspec.yaml` 的 `dependency_overrides: path_provider_android 2.2.23` 只為 dgx1 存在（理由寫在 pubspec 的註解裡）；
+- `pubspec.yaml` 的 `dependency_overrides: path_provider_android 2.2.23` 只為 Linux/aarch64 主機存在（理由寫在 pubspec 的註解裡）；
   別隨手拿掉，也別以為 x86-64 機器也需要它。

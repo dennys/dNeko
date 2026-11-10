@@ -18,17 +18,6 @@ class AnimalRepository implements IAnimalRepository {
   }
 
   @override
-  Future<List<AnimalResource>> getDownloaded() async {
-    final db = await _database;
-    final rows = await db.query(
-      _tableName,
-      where: 'is_downloaded = 1',
-      orderBy: 'display_name ASC',
-    );
-    return rows.map(AnimalResource.fromMap).toList();
-  }
-
-  @override
   Future<AnimalResource?> getById(String animalId) async {
     final db = await _database;
     final rows = await db.query(

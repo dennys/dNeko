@@ -24,6 +24,7 @@
   "settingsTitle": "ペット設定",
   "settingsSpeed": "移動スピード",
   "settingsSize": "サイズ",
+  "settingsHunger": "空腹のしきい値",
   "settingsZone": "移動エリア",
   "settingsAnimal": "ペット",
   "zoneFullScreen": "全画面",
@@ -48,5 +49,8 @@
   "animalMonkey": "サル",
   "hungerLabel": "空腹度",
   "hungerNeverSaved": "まだ保存されていません。",
-  "hungerSavedAt": "{time} に保存"
+  "hungerSavedAt": "{time} に更新",
+  "hungerLive": "リアルタイム",
+  "animalListFailed": "動物リストを読み込めませんでした。",
+  "settingsSaveFailed": "設定を保存できませんでした。"
 }

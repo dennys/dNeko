@@ -46,9 +46,6 @@ class PetPreview extends StatefulWidget {
 class _PetPreviewState extends State<PetPreview> {
   static const _factory = PetControllerFactory();
 
-  /// 食物擲在牠旁邊多遠（與 overlay 同一個距離，兩邊手感才一致）
-  static const double _feedDropDistance = 120;
-
   PetController? _controller;
   AnimalResource? _resource;
   AnimalAnimationDefinition? _definition;
@@ -89,6 +86,11 @@ class _PetPreviewState extends State<PetPreview> {
     if (next.petSize != prev.petSize) {
       controller.updateBounds(previewBounds(_block, next.petSize));
     }
+    if (next.hungerMinutesUntilHungry != prev.hungerMinutesUntilHungry) {
+      controller.stats.setHungryThreshold(
+        PetStats.hungryThresholdForMinutes(next.hungerMinutesUntilHungry),
+      );
+    }
   }
 
   @override
@@ -124,7 +126,10 @@ class _PetPreviewState extends State<PetPreview> {
       bounds: previewBounds(_block, widget.settings.petSize),
       definition: definition,
       speedPerTick: widget.settings.speedPerTick,
-      stats: PetStats(),
+      stats: PetStats(
+        hungryThreshold:
+            PetStats.hungryThresholdForMinutes(widget.settings.hungerMinutesUntilHungry),
+      ),
     )..start();
 
     if (!mounted) {
@@ -145,7 +150,7 @@ class _PetPreviewState extends State<PetPreview> {
     final controller = _controller;
     if (controller == null) return;
     controller.feedAt(
-      Offset(controller.position.dx + _feedDropDistance, controller.position.dy),
+      Offset(controller.position.dx + feedDropDistance, controller.position.dy),
     );
   }
 

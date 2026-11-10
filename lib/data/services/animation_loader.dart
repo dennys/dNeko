@@ -78,5 +78,6 @@ class AnimationLoader {
 
   // 只有 overlay isolate 會畫動物（AnimalAnimator 只在那邊用），而它用的就是這個 loader
   // 實例，所以「同 isolate 內換圖」在這裡就處理完了。真要做即時換圖給已經開著的懸浮，
-  // 得在主 app 下載完成時推 payload 叫 overlay 重載 —— store 入口目前是關的，用不到。
+  // 主 app 下載完成時推 payload（pushSettings → _onData 看到 animalId 變了會 _loadAnimal）
+  // 就能做到 —— 路徑是通的，只是 store 入口目前是關的（kStoreEnabled），用不到。
 }

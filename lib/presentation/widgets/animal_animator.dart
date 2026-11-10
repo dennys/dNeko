@@ -11,7 +11,6 @@ class AnimalAnimator extends StatefulWidget {
   final AnimationLoader loader;
   final double? displayWidth;
   final double? displayHeight;
-  final VoidCallback? onComplete; // 非 loop 動畫播完通知
 
   const AnimalAnimator({
     super.key,
@@ -21,7 +20,6 @@ class AnimalAnimator extends StatefulWidget {
     required this.loader,
     this.displayWidth,
     this.displayHeight,
-    this.onComplete,
   });
 
   @override
@@ -73,7 +71,6 @@ class _AnimalAnimatorState extends State<AnimalAnimator> with TickerProviderStat
     if (_frameAnim.loop) {
       _controller.repeat();
     } else {
-      _controller.addStatusListener(_onStatus);
       _controller.forward();
     }
   }
@@ -85,12 +82,6 @@ class _AnimalAnimatorState extends State<AnimalAnimator> with TickerProviderStat
 
     if (newFrame != _currentFrame) {
       setState(() => _currentFrame = newFrame);
-    }
-  }
-
-  void _onStatus(AnimationStatus status) {
-    if (status == AnimationStatus.completed) {
-      widget.onComplete?.call();
     }
   }
 

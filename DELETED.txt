@@ -1,0 +1,8 @@
+# 在另一台機器（已有 dNeko clone，位於 b05e3d4 或更早）套用：
+# 1) 解壓覆蓋 clone（PNG 未包含，保留原來的）
+# 2) 刪除以下檔案：
+REVIEW.md
+android/app/src/main/kotlin/com/dneko/app/OverlayService.kt
+assets/dneko.png
+lib/domain/pet_display_mode.dart
+# 3) git add -A && git commit（訊息見 dNeko-20261111.bundle 的 7648c91）&& git push
