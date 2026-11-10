@@ -159,3 +159,9 @@ jobs:
           name: apks
           path: build/app/outputs/flutter-apk/*.apk
           retention-days: 14
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: dennys/dNeko
