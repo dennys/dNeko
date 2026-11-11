@@ -167,11 +167,12 @@ class _OverlayAppState extends State<_OverlayApp> {
   }
 
   void _stopDragWatch(PetController controller) {
-    final wasDragging = _dragWatch?.dragging ?? false;
     _dragTimer?.cancel();
     _dragTimer = null;
     _dragWatch = null;
-    if (wasDragging) {
+    // 以 controller 的實際狀態為準：DragWatch 回 stop 時已先把自己的 dragging 清掉，
+    // 若用它判斷，拖曳結束就不會 endDrag，_isDragging 卡住 → 寵物永久定住、餵食失效
+    if (controller.isDragging) {
       _driver?.setEnabled(true);
       controller.endDrag();
     }
@@ -181,7 +182,7 @@ class _OverlayAppState extends State<_OverlayApp> {
   /// 若 onPanDown 留下的監看還在，會被誤判成拖曳而蓋掉 goToFood 目標。
   /// 真的在拖曳中就不動它。
   void _cancelIdleDragWatch(PetController controller) {
-    if (_dragWatch?.dragging ?? false) return;
+    if (controller.isDragging) return;
     _stopDragWatch(controller);
   }
 

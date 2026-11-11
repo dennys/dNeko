@@ -118,6 +118,8 @@ class PetController extends ChangeNotifier {
     _enter(PetBehavior.goToFood, target: _clampToBounds(foodPosition));
   }
 
+  bool get isDragging => _isDragging;
+
   void beginDrag() {
     _isDragging = true;
     // 用 sit 不用 affectionate：以前拖曳也播撒嬌，外觀上分不出「被摸」與「被拖」
