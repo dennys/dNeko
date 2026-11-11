@@ -138,6 +138,62 @@ void main() {
       c.dispose();
     });
 
+    group('拖曳後餵食回歸（走動中雙擊餵食只能成功一次）', () {
+      testWidgets('沒有 endDrag 時 isDragging 卡住，餵食不會走過去', (tester) async {
+        final c = make(
+          bounds: const Rect.fromLTWH(0, 0, 100, 100),
+          speedPerTick: 10,
+        );
+        c.beginDrag(); // 走動中被誤判成拖曳，之後沒有 endDrag
+        expect(c.isDragging, isTrue);
+
+        c.feedAt(const Offset(500, 50));
+        await pumpTicks(tester, 8);
+        expect(c.action, isNot(AnimationAction.eat), reason: '卡在拖曳中 _onTick 直接早退');
+        c.dispose();
+      });
+
+      testWidgets('endDrag 後 isDragging 清掉，餵食照常走到並吃', (tester) async {
+        final c = make(
+          bounds: const Rect.fromLTWH(0, 0, 100, 100),
+          speedPerTick: 10,
+        );
+        var fed = 0;
+        c.onFed = () => fed++;
+
+        c.beginDrag();
+        c.syncFromWindow(const Offset(50, 50));
+        c.endDrag();
+        expect(c.isDragging, isFalse);
+
+        c.feedAt(const Offset(500, 50));
+        await pumpTicks(tester, 8);
+        expect(c.action, AnimationAction.eat);
+        expect(fed, 1);
+        c.dispose();
+      });
+
+      testWidgets('同一隻動物連續餵食多次都會成功（第二次沒反應的回歸）', (tester) async {
+        final c = make(
+          bounds: const Rect.fromLTWH(0, 0, 100, 100),
+          speedPerTick: 10,
+        );
+        var fed = 0;
+        c.onFed = () => fed++;
+
+        c.feedAt(const Offset(500, 50));
+        await pumpTicks(tester, 8);
+        expect(fed, 1);
+
+        // 等吃完 hold（900 ms）回到自主行為，再餵第二次
+        await pumpTicks(tester, 80);
+        c.feedAt(const Offset(0, 50));
+        await pumpTicks(tester, 15);
+        expect(fed, 2, reason: '第二次餵食也必須走到並吃掉');
+        c.dispose();
+      });
+    });
+
     testWidgets('constructor 帶入舊位置會 clamp 到新 bounds（A-9a）', (tester) async {
       final c = PetController(
         bounds: const Rect.fromLTWH(0, 0, 100, 100),
