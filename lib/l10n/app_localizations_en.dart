@@ -92,6 +92,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsZone => 'Roaming area';
 
   @override
+  String get settingsSound => 'Sound when touched';
+
+  @override
   String get settingsAnimal => 'Pet';
 
   @override

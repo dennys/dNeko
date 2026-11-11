@@ -178,8 +178,10 @@ class PetController extends ChangeNotifier {
     _position = result.position;
 
     // 漫遊途中貼到邊緣 → 交給邊緣策略決定新目標（餵食途中不打斷）
+    // 目標已在邊上時不重抽：沿邊走時每幀重抽會讓左右方向來回跳
     if (_behavior == PetBehavior.wander &&
-        _edge.isAtEdge(_position, _bounds)) {
+        _edge.isAtEdge(_position, _bounds) &&
+        !_edge.isAtEdge(_target!, _bounds)) {
       _target = _edge.nextTargetOnEdge(_position, _bounds);
     }
 

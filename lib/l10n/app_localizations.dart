@@ -263,6 +263,12 @@ abstract class AppLocalizations {
   /// **'Roaming area'**
   String get settingsZone;
 
+  /// No description provided for @settingsSound.
+  ///
+  /// In en, this message translates to:
+  /// **'Sound when touched'**
+  String get settingsSound;
+
   /// No description provided for @settingsAnimal.
   ///
   /// In en, this message translates to:

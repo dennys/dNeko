@@ -86,6 +86,30 @@ void main() {
     });
   });
 
+  group('DragWatch —— 傳入 expected（app 目前放視窗的位置）', () {
+    // overlay 的實際用法：driver 每 tick 都在搬視窗，視窗會比 controller 慢一拍。
+    test('寵物走動、視窗跟著走（落後一拍）→ 不準判成拖曳', () {
+      final w = DragWatch(moveThresholdPx: 16);
+      var appPos = still;
+      var windowPos = still;
+      final steps = <DragStep>[];
+      for (var i = 0; i < 20; i++) {
+        windowPos = appPos; // 上一拍的座標
+        appPos = appPos + const Offset(5, 0); // 每 50ms 走 5px
+        steps.add(w.step(windowPos, expected: appPos));
+      }
+
+      expect(steps, isNot(contains(DragStep.startDrag)));
+    });
+
+    test('視窗被手拖走、app 座標沒動 → 超過門檻就 startDrag', () {
+      final w = DragWatch(moveThresholdPx: 16);
+
+      expect(w.step(const Offset(130, 340), expected: still), DragStep.keepWaiting);
+      expect(w.step(const Offset(150, 340), expected: still), DragStep.startDrag);
+    });
+  });
+
   group('DragWatch —— 門檻可調', () {
     test('moveThresholdPx 放大後，同樣的位移就不算拖曳', () {
       final w = DragWatch(moveThresholdPx: 20);
