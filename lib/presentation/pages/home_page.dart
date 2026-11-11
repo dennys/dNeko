@@ -8,6 +8,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import '../../data/models/animal_resource.dart';
 import '../../data/repositories/animal_repository.dart';
 import '../../data/services/overlay_service.dart';
+import '../../domain/i_overlay_service.dart';
 import '../../domain/pet_settings.dart';
 import '../../domain/pet_stats.dart';
 import '../../domain/screen_metrics.dart';
@@ -39,11 +40,15 @@ class HomePage extends StatefulWidget {
   final AnimalRepository animalRepository;
   final StoreController storeController;
 
+  /// 懸浮服務（可注入，預設 [OverlayService]）
+  final IOverlayService? overlayService;
+
   const HomePage({
     super.key,
     required this.settingsController,
     required this.animalRepository,
     required this.storeController,
+    this.overlayService,
   });
 
   @override
@@ -53,7 +58,9 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   static const _appChannel = MethodChannel('com.dneko/app');
 
-  final _overlayService = OverlayService();
+  /// 介面而不是實作：HomePage 只依賴 [IOverlayService]，具體實作由外部注入
+  /// （測試塞 fake 才測得到「開／關懸浮」這條路）。未注入時用真的。
+  late final IOverlayService _overlayService = widget.overlayService ?? OverlayService();
   bool _isActive = false;
   bool _isToggling = false;
   StreamSubscription<dynamic>? _quitSub;
@@ -157,7 +164,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   /// 把還在飛的存盤/關閉動作中斷）
   Future<void> _quitAll() async {
     try {
-      await _overlayService.close(rememberPosition: false).timeout(const Duration(seconds: 2));
+      await _overlayService.close().timeout(const Duration(seconds: 2));
     } catch (_) {}
     if (mounted) SystemNavigator.pop();
   }

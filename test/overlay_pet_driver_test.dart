@@ -24,7 +24,7 @@ class _FakeWindow implements IOverlayWindow {
   }
 
   @override
-  Future<void> resize({required double width, required double height, bool enableDrag = true}) async {}
+  Future<void> resize({required double width, required double height}) async {}
   @override
   Future<Offset> currentPosition() async => moves.isEmpty ? Offset.zero : moves.last;
   @override
@@ -40,8 +40,7 @@ void main() {
       final window = _FakeWindow();
       OverlayPetDriver(controller, window);
 
-      controller.beginDrag();
-      controller.dragTo(const Offset(50, 60)); // 觸發 notifyListeners
+      controller.syncFromWindow(const Offset(50, 60)); // 觸發 notifyListeners
       await pumpEventQueue();
 
       expect(window.moves, isNotEmpty);
@@ -54,7 +53,7 @@ void main() {
       final driver = OverlayPetDriver(controller, window);
 
       driver.setEnabled(false);
-      controller.dragTo(const Offset(30, 30));
+      controller.syncFromWindow(const Offset(30, 30));
       await pumpEventQueue();
 
       expect(window.moves, isEmpty);
@@ -67,13 +66,13 @@ void main() {
       final window = _FakeWindow()..gate = Completer<void>();
       OverlayPetDriver(controller, window);
 
-      controller.beginDrag(); // (100,100)
+      controller.syncFromWindow(const Offset(100, 100)); // (100,100)
       await pumpEventQueue();
       expect(window.moves, [const Offset(100, 100)]);
 
       // 第一個呼叫還卡在 gate 上，這段時間連續拖 10 次
       for (var i = 1; i <= 10; i++) {
-        controller.dragTo(Offset(100.0 + i, 100.0 + i));
+        controller.syncFromWindow(Offset(100.0 + i, 100.0 + i));
       }
       await pumpEventQueue();
       expect(window.inFlight, 1, reason: '同一時間只能有一個 moveTo 在飛');
@@ -90,11 +89,11 @@ void main() {
       final window = _ThrowingWindow();
       OverlayPetDriver(controller, window);
 
-      controller.beginDrag();
+      controller.syncFromWindow(const Offset(100, 100));
       await pumpEventQueue();
       expect(window.attempts, 1);
 
-      controller.dragTo(const Offset(120, 130));
+      controller.syncFromWindow(const Offset(120, 130));
       await pumpEventQueue();
       expect(window.attempts, greaterThan(1), reason: '失敗後不能永久卡在舊位置');
     });
@@ -111,7 +110,7 @@ class _ThrowingWindow implements IOverlayWindow {
   }
 
   @override
-  Future<void> resize({required double width, required double height, bool enableDrag = true}) async {}
+  Future<void> resize({required double width, required double height}) async {}
   @override
   Future<Offset> currentPosition() async => Offset.zero;
   @override

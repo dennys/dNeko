@@ -4,13 +4,17 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import '../models/animal_resource.dart';
 import '../repositories/i_animal_repository.dart';
+import '../repositories/settings_repository.dart';
 
 class AnimalDownloadService {
   final IAnimalRepository _repository;
+
+  /// 刪動物時要連它的親密度列一起清（那不在 animals 表裡，而在 settings KV）
+  final SettingsRepository _settings;
   final Dio _dio;
 
   // 沒設 timeout 的話，對端吊住就會讓下載永遠卡著（UI 的進度條也不會動）
-  AnimalDownloadService(this._repository)
+  AnimalDownloadService(this._repository, this._settings)
       : _dio = Dio(BaseOptions(
           connectTimeout: const Duration(seconds: 15),
           receiveTimeout: const Duration(seconds: 60),
@@ -70,6 +74,8 @@ class AnimalDownloadService {
       await folder.delete(recursive: true);
     }
     await _repository.delete(animalId);
+    // 親密度是「每隻動物一列 KV」（pet_bond_<id>），不在這條唯一的刪除路徑上清掉就沒人清了
+    await _settings.deleteBond(animalId);
   }
 
   /// 確認所有檔案都已下載完成，避免半套素材

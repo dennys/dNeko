@@ -1,8 +1,6 @@
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
-import 'animal_repository.dart';
-
 /// 全域唯一的 DB 開檔點。
 ///
 /// 兩張表的 DDL 一定要放在這裡：sqflite 依 path 快取已開啟的 DB，
@@ -13,7 +11,8 @@ const String animalTable = 'animal_resources';
 const String settingsTable = 'settings';
 
 /// 2 = 新增 settings 表（既有 v1 安裝由 onUpgrade 補建，資料不動）
-/// 3 = 補上新增的內建動物（既有安裝不會再走 seedBuiltIns）
+/// 3 = 最後一次需要補資料（內建動物）；現在內建由 `AnimalRepository.getAll()` 現拼，
+///     加新動物不用再動這裡 —— 也就不用再記得 bump（漏 bump 測試不會紅，舊安裝卻選不到）
 const int petDbVersion = 3;
 
 const String _animalDdl = '''
@@ -47,7 +46,6 @@ Future<Database> openPetDatabase() async {
     },
     onUpgrade: (db, oldVersion, newVersion) async {
       if (oldVersion < 2) await db.execute(_settingsDdl);
-      if (oldVersion < 3) await AnimalRepository.insertBuiltIns(db);
     },
   );
 }

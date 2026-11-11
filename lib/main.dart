@@ -22,11 +22,6 @@ Future<void> main() async {
   // 兩者都在 runApp() 之前、都要碰 DB：以前一個 try 都沒有，DB 損毀或是首次開檔失敗
   // 就是白屏崩潰（app 連開都開不起來，連重裝的按钮都看不到）。overlay 那側早就有
   // `_readOr` 防呆，主 app 卻沒有 —— 防護不對稱。記 log 後用內建素材 + 預設設定開起來。
-  try {
-    await repository.seedBuiltIns();
-  } catch (e, st) {
-    appError('內建動物寫入失敗（選單可能少了幾隻）', e, st);
-  }
   PetSettings? initial;
   try {
     initial = await settingsRepository.load();
@@ -34,7 +29,7 @@ Future<void> main() async {
     appError('讀設定失敗，改用預設值', e, st);
   }
 
-  final downloadService = AnimalDownloadService(repository);
+  final downloadService = AnimalDownloadService(repository, settingsRepository);
   final storeController = StoreController(
     catalog: StaticStoreCatalog(),
     downloadService: downloadService,

@@ -5,6 +5,130 @@
 新的完成紀錄加在最上面。
 
 ---
+## 2026-11-11 第三輪：親密度（摸牠終於有意義了）
+
+先回答 18 個問題再寫程式（人類的條件：B 組「能換到什麼」與 D 組「每隻各一份／不遷移舊檔」）。
+規格：**0~100、只漲不跌、不衰減、無等級**；唯一的**後果**是 `PetBrain` 更高機率主動撒嬌
+（滿值 20%，`bond=0` 時機率與舊版逐位元組相同 —— 有測試鎖）；**不影響餓度**（判準仍只有
+`PetStats.isHungryAt`，不塞第二個影響餓度的機制）；**每隻動物各一份**（KV `pet_bond_<id>`）；
+舊安裝不做遷移，從 0 算。
+
+| 動作 | 加分 | 一天額度 |
+| ---- | ---- | ---- |
+| 短按摸牠（`pet()` 真的觸發才算；定格時無效 → 不加分） | +2 | 3 次 |
+| **真的吃下一口**（抵達食物那一刻，不是丟食物那一刻） | +5 | 2 次 |
+
+額度是防刷用的：沒有它，連點 100 次就能把親密度刷滿，整個機制三天報廢。一天最多 +16 → 滿分約 7 天。
+
+**計分只發生在懸浮那側**（餓度與位置的同一教訓：只有 overlay 知道寵物在做什麼）——
+`PetController.onFed` 回調只有 overlay 會掛，主頁預覽塊是沙箱、在 app 裡餵食不會養親密度。
+顯示：選單那條餓度列右邊一顆愛心 + 數字（不另開區塊、不新增字串 → 不必動 4 個 ARB）。
+
+**同日的 code review 補丁**（四條全修）：`onFed` 之前完全沒測試覆蓋（餵食計分整條路徑掛在它身上），
+補一題鎖住「只能在**抵達食物**那一刻觸發、一餐一次、自主行為永不會自己吃到」；`pet()` 的回傳值現在是
+「這一下加不加親密度」的契約，就在「定格摸牠無效」那題一起斷言 `isFalse`/`isTrue`（之前只鎖動畫，
+回傳值壞掉會變成「定格被摸一摸、隔天憑空 +6」）；`_petNow` 拿動物 id 的備援分支是死路（`_controller`
+與 `_resource` 同一個 setState 一起換）→ 改成 guard 把不變式寫進碼；刪掉下載的動物現在會連
+`pet_bond_<id>` 那列 KV 一起清（`AnimalDownloadService.remove` 是唯一的刪除路徑，靠它才清得乾淨）。
+兩個回歸都用「故意把程式改壞」驗證過會紅。
+
+新增 `lib/domain/pet_bond.dart`（純計分 + encode/decode）與 `test/pet_bond_test.dart` 12 題
+（額度、跨天歸零、封頂、encode/decode 守住額度、壞資料回 null、bond=0 回退舊機率、
+滿值 20%、餓時親密度無效、亂傳負值/超大不搞壞機率）。`flutter test` 155 → **167** 全過、
+analyze 0、debug APK ✅。**真機未測**：A-12 清單在 `~/dennys/DEVICE_TEST.md`（尤其 A-12c：
+用 adb 把 bond 灌成 100，看牠會不會自己撒嬌 —— 這才是「有沒有後果」的驗證）。
+
+---
+## 2026-11-11 repo 衛生：版控裡不寫機器名
+
+本案 repo 是 public，文件裡直接寫了那台 Linux/aarch64 開發機的主機名，屬基礎設施資訊。
+README 3 處、REVIEW 2 處、CHANGELOG 1 處改寫成「Linux/aarch64 開發機」；中性詞對上哪台機器的
+對照表搬到 `~/dennys/AGENTS.md` 新增的「文件用詞」節（那支檔不在版控裡）。
+新增 `test/repo_hygiene_test.dart`：掃 `git ls-files` 的文字檔，命中機器名/IP/帳號/金鑰檔名就紅
+（禁詞用串接寫，測試不會掃到自己；附「掃太少也算失敗」的防呆，與自我驗證：塞一個進去的確會紅）。
+其他 token（IP、帳號、proxy、私鑰）實掃 0 命中。
+
+⚠️ **清的是工作樹與之後的 commit，公開歷史改不掉**：`origin/main` 與 7 條已 push 的 commit
+（含 `36fea6d` 的 commit message）裡還有那台機器的主機名。要徹底根除得 rebase/`git filter-repo` + force push，
+那是另一件事；這條測試的價值是「以後不會再新增」。
+
+---
+## 2026-11-11 第二輪：互動與餓度的手感（①③④＋②B）
+
+`flutter analyze` 0 issue、`flutter test` 154 全過（151 → 154）、debug APK 編過。
+討論過程與被否決的選項全記在 `TODO.md`「互動與餓度」那一節；真機驗收單 = `../DEVICE_TEST.md` A-11。
+
+- **②B 餓的判定 `>=` → `>`，並收成單一來源**：`PetStats.isHungryAt(hunger, threshold)` 是現在
+  唯一的判準，`PetStats.isHungry`、`_setHunger` 的跨門檻通知、`setHungryThreshold`、以及
+  `HungerBar` 自己重算的那份全部改走它（以前 PetStats 與 HungerBar 各寫一份 `>=`，改一邊必漏
+  另一邊 → 會變成進度條紅著、寵物卻在睡覺）。
+  **解的是**：餵食量是常數 40，餓透（100）餵一次剛好落在門檻 60 上，`>=` 判成「仍然餓」→
+  要餵兩次才脫餓，而餓的時候 PetBrain 絕不睡覺 → 使用者餵完看到牠照常只走不睡，像餵了沒反應。
+  現在餵一次就恢復正常。
+- **① 定格時摸牠改為完全無視**：`PetController.pet()` 開頭 `if (_frozen) return;`。
+  舊行為是照樣把 action 改成撒嬌，而 `_onTick` 在定格時不倒 hold → 卡在撒嬌最後一幀直到解凍，
+  「定格＝動作固定不動」被破掉。放在 controller（不是 overlay 的 guard）是因為預覽塊與選單的
+  「撫摸」列也都走 `pet()`，根因修一次。
+- **③ hold 貼著動畫長度**：撒嬌 2s→1.2s（動畫 3 幀×300ms=0.9s）、進食 3s→**0.9s**（動畫 0.6s）。
+  `loop: false` 的動作播完就停在最後一幀，多出來的 hold 就是肉眼可見的「乾等」—— 舊的 1.1s／
+  **2.4s** 看起來像卡畫面。兩個數字變成 `_affectionateHold`／`_eatingHold` 常數並在註解寫明
+  「改 animation.json 的幀數/速度要連這裡一起改」。
+- **④ 拖曳不再播撒嬌**：`beginDrag()` 的 action 改 `sit`（坐著被拎）。以前拖曳與撫摸播同一支
+  動畫，從外觀分不出來。沒有測試鎖住舊行為，所以 0 題測試需改。
+
+**當場決定不動的**（理由都寫進 TODO 了，別再從零討論）：單擊 300ms 雙擊辨認期（保留乾淨手勢語意）、
+睡覺只有 4~7 秒（等真機玩過）、「餓了絕不睡」（人類決定保留的產品定義，由 `pet_brain_test:16` 鎖住）、
+餵食會偷偷解凍、餵食量與門檻的耦合、`hungerMinutesUntilHungry` 下限 1 分鐘。
+
+---
+## 2026-11-11 REVIEW 修復（第 3 份報告）：記位置、拖曳誤判、選單位置污染
+
+`flutter analyze` 0 issue、`flutter test` 151 全過（132 → 151，+19：DragWatch 8、位置節流 8、getAll 合併 3）、
+`flutter build apk --debug --target-platform android-arm64` ✅。**真機仍然零次** —— 這批改的正好是
+只能上機驗的東西，驗收步驟已寫進 `../DEVICE_TEST.md` 的 A-10（含 A-9c 期待反轉那條）。
+
+- **#1（Must）「記位置」整個是假的**：`PetController` 從來沒讀過原生的 `startPosition`，第一次 tick
+  就把視窗抓回 `bounds.center`；加上首次載入必然要校準 `_roamFor`（此刻 `_controller` 還是 null，
+  搬不回來）→ 每次開懸浮看得見「舊位置 → 左上角 → 右下角 → 中央」。現在 `_loadAnimal` 在 `_roamFor`
+  **之前**讀一次 `currentPosition()` 當初始位置（讀不到才退回中央），`_roamFor` 加收 `anchor:`
+  量完搬回同一個錨點，掛上 controller 後再 `_moveWindowQuietly` 以夾進 zone 的實際位置對齊一次。
+- **#2（Must）走動時摸牠被誤判成拖曳**：判定基準從 `controller.position`（每 16ms 就在動，
+  200 px/s 時一跳 3.2px > 2px 門檻，還疊著方法通道延遲）換成「視窗自己第一次的讀值」。整個狀態機
+  抽出成 `domain/drag_watch.dart`（純邏輯），`test/drag_watch_test.dart` 8 題鎖住「寵物在走、
+  視窗不動 → 一次 drag 都不能有」—— 換了基準之後這個 bug 在結構上就回不來。已知代價不變
+  （DEVICE_TEST A-8：拖曳中停頓 >400ms 算放手）。
+- **#3（Must）存下來的是選單的位置**：主 app 的 `OverlayService._rememberPosition()` 整個刪掉
+  （`close()` 不再有 `rememberPosition` 參數）—— 主 app 只看得見視窗左上角，選單開著時那個座標是
+  選單的、比寵物高約 156px。位置一律由 overlay 這個唯一知情者存：走動時節流（5 秒／50px，靜止完全不寫）、
+  收選單與按結束 `force` 必寫。節流判定抽成 `domain/position_throttle.dart`（純邏輯 + 8 題測試：靜止不寫、
+  慢走要累積距離、時間與基準要一起重設），餓度與位置的 DB 寫入則收進同一個 `_writeWithRetry`（SQLITE_BUSY 重試）。
+- **#4**：CI 改 `flutter test --coverage`。之前沒加 → `coverage/lcov.info` 根本不存在，Codecov 那步
+  綠燈上傳空資料，等於裝了個假儀表板。
+- **#5**：`DELETED.txt` 那四支檔案是**第三次**被宣稱已刪（上兩條 CHANGELOG 都寫了「真的刪掉」）而實際
+  還在版控裡。這次由 `git rm` 落地：`android/.../com/dneko/app/OverlayService.kt`(177 行)、
+  `assets/dneko.png`、`lib/domain/pet_display_mode.dart`、以及 `DELETED.txt` 自己。同一個 repo 有兩支
+  `OverlayService` 的情況結束。
+- **#6**：`getAll()` = DB 列 ∪ `builtIns`（同 id 以 DB 為準；純函式 `mergeBuiltIns` + 3 題測試）。
+  `seedBuiltIns()`／`insertBuiltIns()`／onUpgrade 的 `oldVersion < 3` 分支，連「加新動物要記得 bump
+  `petDbVersion`」那個永遠不會紅的坑一起消失（約 −25 行）。⚠️ 代價：**刪掉 DB 裡的內建列不會再讓牠
+  消失**（DEVICE_TEST A-9c 的期待已反轉）；目前 UI 沒有刪內建的路徑，要做之前得先加一欄「使用者隱藏」。
+- **#8**：`_applySettings` 的 cascade 跨 `await` 打在同一個（可能已被 `_loadAnimal` 換掉並 dispose 的）
+  controller 上 → 改成先存區域變數、`await` 後 `identical` 才准套設定（本檔其他處早就在防這類競態）。
+- **#11 / #12**：`_loadAnimal` 補 `_menuTimer?.cancel()`（否則 6 秒後會醒過來對新 controller 多搬一趟）；
+  `overlay_main` 那句「showOverlay 的 enableDrag 已關」改對（其實是 true，拖曳由原生做，Dart 只輪詢
+  跟讀）—— 那句註解正好壓在全案最容易搞錯的那段上面。
+- **#13**：刪掉零呼叫者的死 API：`PetController.dragTo()`（測試改用真正的拖曳路徑 `syncFromWindow`
+  ＋ `endDrag`，比原本測得準）、`appLog()`、`OverlayWindow.resize()` 的 `enableDrag` 參數（連介面宣告）。
+  ⚠️ 報告點名的 `AnimalResource.copyWith()` **沒刪** —— 它不是零呼叫者，`pet_state_persistence_test`
+  靠它驗「換版重下載後 AnimationLoader 快取要失效」，而且那個被批「無條件設成 now()」的 `updatedAt`
+  正是該測試成立的條件。報告那一條是錯的。
+- **#14**：`HomePage` 改依賴 `IOverlayService` 並在構造子開放注入（未注入時仍用真的 `OverlayService`）。
+  留介面、補注入點，而不是照報告把介面刪掉 —— AGENTS.md 的 D 條寫的就是這件事。
+
+**沒做**：#10（`petTick` 16→33ms）—— 為一個沒有測量的收益去動全域 tick（`speedPerTick`／`_hold`／
+`PetStats` 全吊在它上面），先量到再說。#9（keystore 離線副本）**做不了**：那台 Linux/aarch64 開發機上根本沒有金鑰，
+詳見 README「Release signing」的遺失風險那段（文件原本宣稱有，已改）。
+
 ## 2026-11-11 review 修復 + 餓的門檻改成設定（分鐘）
 
 `flutter analyze` 0 issue、`flutter test` 132 全過（115 → 132，+17：safeName / locale / 門檻 / updateBounds）。

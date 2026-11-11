@@ -47,7 +47,8 @@ class OverlayService implements IOverlayService {
     unawaited(_shareStartupData(payload));
   }
 
-  /// 上次關閉時的位置，夾回目前螢幕內（螢幕轉向或換機後可能已經在畫面外）
+  /// 上次關閉時的位置，夾回目前螢幕內（螢幕轉向或換機後可能已經在畫面外）。
+  /// 位置只能由 overlay 寫：主 app 只看得見視窗左上角，選單開著時那是選單的位置。
   Future<OverlayPosition> _startPosition(ScreenMetrics metrics, double petSize) async {
     final Offset? saved;
     try {
@@ -104,26 +105,11 @@ class OverlayService implements IOverlayService {
     }
   }
 
-  /// 關閉前先記下視窗位置（夾在螢幕內的值由 show 負責），下次開啟時還原。
-  ///
-  /// [rememberPosition] = false 給「選單按結束」那條路：選單開著時視窗左上角是選單的
-  /// 位置（比寵物高約 200px），而 overlay 的 `_quitApp` 已經存了正確的寵物位置，
-  /// 這裡再寫一次只會把正確值蓋掉。
+  /// 關閉懸浮。位置**不在這裡存**：主 app 只看得見視窗左上角，選單開著時那是選單的位置
+  /// （比寵物高一大截），存下來下次開懸浮會偏高被系統夾到螢幕頂。位置由 overlay 自己存
+  /// （`overlay_main._rememberPosition`）—— 只有它知道寵物在哪。
   @override
-  Future<void> close({bool rememberPosition = true}) async {
-    if (rememberPosition) await _rememberPosition();
-    await FlutterOverlayWindow.closeOverlay();
-  }
-
-  Future<void> _rememberPosition() async {
-    try {
-      if (!await FlutterOverlayWindow.isActive()) return;
-      final p = await FlutterOverlayWindow.getOverlayPosition();
-      await _positions.savePosition(Offset(p.x, p.y));
-    } catch (_) {
-      // 記不住位置不能擋住關閉：下次開啟退回上一次存的值
-    }
-  }
+  Future<void> close() => FlutterOverlayWindow.closeOverlay();
 
   @override
   Stream<dynamic> get events => FlutterOverlayWindow.overlayListener;

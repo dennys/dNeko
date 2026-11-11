@@ -3,6 +3,7 @@ import 'dart:ui';
 
 import 'package:sqflite/sqflite.dart';
 
+import '../../domain/pet_bond.dart';
 import '../../domain/pet_settings.dart';
 import 'pet_database.dart';
 
@@ -14,6 +15,8 @@ class SettingsRepository {
   static const _settingsKey = 'pet_settings';
   static const _hungerKey = 'pet_hunger';
   static const _positionKey = 'pet_position';
+  /// 親密度**每隻動物各一份**（人類的決定：「這隻是我養的」與「我對貓好」語意不同）
+  static String _bondKey(String animalId) => 'pet_bond_$animalId';
 
   Database? _db;
 
@@ -60,6 +63,20 @@ class SettingsRepository {
         _positionKey,
         jsonEncode({'x': position.dx, 'y': position.dy}),
       );
+
+  /// 親密度：沒存過或格式壞掉回 null（呼叫端決定預設 —— 目前預設是「從 0 開始算」）
+  Future<PetBond?> loadBond(String animalId) async =>
+      PetBond.decode(await _row(_bondKey(animalId)));
+
+  Future<void> saveBond(String animalId, PetBond bond) =>
+      _put(_bondKey(animalId), bond.encode());
+
+  /// 動物被刪掉時清掉它那列親密度（不清就永久留垃圾；id 之後被別隻下載動物重用時
+  /// 還會憑空繼承前一個主人的分數）
+  Future<void> deleteBond(String animalId) async {
+    final db = await _database;
+    await db.delete(settingsTable, where: 'key = ?', whereArgs: [_bondKey(animalId)]);
+  }
 
   /// 餓度要連「什麼時候存的」一起存：懸浮沒開時沒有 tick，重開時得依缺席時間補算餓度。
   ///

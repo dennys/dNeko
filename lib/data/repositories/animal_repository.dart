@@ -10,11 +10,32 @@ class AnimalRepository implements IAnimalRepository {
 
   Future<Database> get _database async => _db ??= await openPetDatabase();
 
+  /// 選單與商店看的的清單 = DB 列 ∪ [builtIns]（同 id 以 DB 為準）。
+  ///
+  /// 內建動物不靠「seed 進 DB」才選得到：那套要求「註冊 builtIns ＋ pubspec assets ＋
+  /// bump petDbVersion」三件事一起做，而 bump 那件沒有任何測試擋 —— 漏掉時 analyze 綠、
+  /// 測試全過，舊安裝的選單卻永遠看不到新動物（c616eab 加四隻就踩過）。
+  /// 副作用：「把內建從 DB 刪掉就不會再長回來」這個語意沒了。目前 UI 沒有刪內建的路徑
+  /// （`remove()` 只給商店下載的動物用）；真要做，得另記一列「使用者隱藏」標記。
   @override
   Future<List<AnimalResource>> getAll() async {
     final db = await _database;
-    final rows = await db.query(_tableName, orderBy: 'display_name ASC');
-    return rows.map(AnimalResource.fromMap).toList();
+    final rows = await db.query(_tableName);
+    return mergeBuiltIns(rows.map(AnimalResource.fromMap).toList(), builtIns);
+  }
+
+  /// DB 列與內建定義的合併（純函式，[getAll] 與測試共用）：同 id 時 DB 那份贏
+  /// （下載過/改過的資料比較新），依 display_name 排序。
+  static List<AnimalResource> mergeBuiltIns(
+    List<AnimalResource> dbRows,
+    List<AnimalResource> builtIns,
+  ) {
+    final byId = <String, AnimalResource>{for (final a in builtIns) a.animalId: a};
+    for (final a in dbRows) {
+      byId[a.animalId] = a;
+    }
+    return byId.values.toList()
+      ..sort((a, b) => a.displayName.compareTo(b.displayName));
   }
 
   @override
@@ -94,24 +115,4 @@ class AnimalRepository implements IAnimalRepository {
     return null;
   }
 
-  /// 把内建动物塞进 DB，让主页选菜单看得到它们 —— but only on a fresh install.
-  ///
-  /// Seeding on every start used to resurrect built-ins the user had deleted
-  /// from the store, so the delete silently came back at the next launch.
-  /// 既有安裝補上新增的內建動物由 pet_database 的 onUpgrade（petDbVersion）處理。
-  Future<void> seedBuiltIns() async {
-    final db = await _database;
-    if ((await db.query(_tableName, limit: 1)).isNotEmpty) return; // user deletes must stick
-    await insertBuiltIns(db);
-  }
-
-  /// 逐筆寫入內建動物；animal_id 已存在就略過（不覆蓋使用者的列）。
-  static Future<void> insertBuiltIns(DatabaseExecutor db) async {
-    for (final animal in builtIns) {
-      final row = animal.toMap()
-        ..remove('id') // 交給 AUTOINCREMENT
-        ..['updated_at'] = DateTime.now().toIso8601String();
-      await db.insert(_tableName, row, conflictAlgorithm: ConflictAlgorithm.ignore);
-    }
-  }
 }

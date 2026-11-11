@@ -16,10 +16,12 @@ void main() {
   PetController make({
     required Rect bounds,
     double? speedPerTick,
+    IPetBrain? brain,
   }) {
     final controller = PetController(
       bounds: bounds,
       speedPerTick: speedPerTick,
+      brain: brain,
       stats: PetStats(initialHunger: 50),
     )..start();
     return controller;
@@ -71,11 +73,44 @@ void main() {
       c.dispose();
     });
 
+    testWidgets('onFed 只在「真的走到並吃掉」那一刻觸發一次（餵食的親密度計分掛它）', (tester) async {
+      final c = make(
+        bounds: const Rect.fromLTWH(0, 0, 100, 100),
+        speedPerTick: 10,
+      );
+      var fed = 0;
+      c.onFed = () => fed++;
+
+      c.feedAt(const Offset(500, 50)); // 超出右邊界 → 夾到 (100,50)，要走幾格才到
+      await pumpTicks(tester, 2);
+      expect(fed, 0, reason: '食物剛丟下去、還沒走到就不算吃過');
+      await pumpTicks(tester, 6);
+      expect(c.action, AnimationAction.eat);
+      // 若在「丟出食物」那一刻就計分，連點兩下就能刷滿一天的額度 —— 只能遲到抵達之後
+      expect(fed, 1);
+
+      await pumpTicks(tester, 30); // 吃完 → 吃的 hold → 下一次決定
+      expect(fed, 1, reason: '一餐只計一次');
+      c.dispose();
+
+      // 自主行為永遠不會自己「吃到東西」：brain 只給 idle，跑 30 跳不該計到分
+      final idle = make(
+        bounds: const Rect.fromLTWH(0, 0, 100, 100),
+        brain: _AlwaysIdleBrain(),
+      );
+      var idleFed = 0;
+      idle.onFed = () => idleFed++;
+      await pumpTicks(tester, 30);
+      expect(idleFed, 0);
+      idle.dispose();
+    });
+
     testWidgets('updateBounds 之後拖曳會被夾在新範圍內', (tester) async {
       final c = make(bounds: const Rect.fromLTWH(0, 0, 1000, 1000));
       c.updateBounds(const Rect.fromLTWH(300, 700, 100, 100));
       c.beginDrag();
-      c.dragTo(const Offset(-500, -500));
+      c.syncFromWindow(const Offset(-500, -500)); // 拖曳中不 clamp（視窗跟手）
+      c.endDrag(); // 放開才夾回 zone
 
       expect(c.bounds, const Rect.fromLTWH(300, 700, 100, 100));
       expect(c.position, const Offset(300, 700));
@@ -84,8 +119,7 @@ void main() {
 
     testWidgets('updateBounds 把留在舊區外的位置夾回新區（zone 切換不瞬移）', (tester) async {
       final c = make(bounds: const Rect.fromLTWH(0, 0, 1000, 1000));
-      c.beginDrag();
-      c.dragTo(const Offset(900, 900)); // 先拖到右下角（舊區內）
+      c.syncFromWindow(const Offset(900, 900)); // 先拖到右下角（舊區內）
       expect(c.position, const Offset(900, 900));
 
       // fullScreen → bottomLeft：舊位置 x 在新區外
@@ -147,8 +181,8 @@ void main() {
     });
 
     testWidgets('按撫摸會立刻通知（否則撒嬌動畫根本播不出來）', (tester) async {
-      // pet() 只換動作、不動位置，而 hold=2s 讓接下來的 125 幀都提前 return；
-      // 少了 _enter 的通知，按下去之後兩秒內畫面完全不會重繪。
+      // pet() 只換動作、不動位置，而 hold=_affectionateHold 讓接下來的 75 幀都提前 return；
+      // 少了 _enter 的通知，按下之後撒嬌動畫根本不會出現。
       final c = PetController(
         bounds: const Rect.fromLTWH(0, 0, 1000, 1000),
         brain: _AlwaysIdleBrain(),
@@ -160,6 +194,42 @@ void main() {
       c.pet();
       expect(c.action, AnimationAction.affectionate);
       expect(notifications, 1);
+      c.dispose();
+    });
+
+    testWidgets('定格時摸牠無效（否則會卡在撒嬌最後一幀直到解凍）', (tester) async {
+      final c = PetController(
+        bounds: const Rect.fromLTWH(0, 0, 1000, 1000),
+        brain: _AlwaysIdleBrain(),
+        stats: PetStats(initialHunger: 50),
+      )..start();
+
+      c.setFrozen(true);
+      final before = c.action;
+      // 回傳值要一起鎖：overlay 用它決定「這一下加不加親密度」。只鎖動畫的話，
+      // 「回傳 true 但不播動畫」那種 regression 會變成「定格被摸一摸，隔天親密度憑空 +6」
+      expect(c.pet(), isFalse);
+      expect(c.action, before, reason: '定格就是動作固定不動（DEVICE_TEST 對 A-9a 的期待）');
+      expect(c.action, isNot(AnimationAction.affectionate));
+
+      // 解凍後摸牠照常撒嬌
+      c.setFrozen(false);
+      expect(c.pet(), isTrue);
+      expect(c.action, AnimationAction.affectionate);
+      c.dispose();
+    });
+
+    testWidgets('拖曳播 sit、不播撒嬌（外觀要分得出「被摸」與「被拖」）', (tester) async {
+      final c = PetController(
+        bounds: const Rect.fromLTWH(0, 0, 1000, 1000),
+        brain: _AlwaysIdleBrain(),
+        stats: PetStats(initialHunger: 50),
+      );
+
+      c.pet();
+      expect(c.action, AnimationAction.affectionate);
+      c.beginDrag();
+      expect(c.action, AnimationAction.sit);
       c.dispose();
     });
 
@@ -247,6 +317,6 @@ void main() {
 
 class _AlwaysIdleBrain implements IPetBrain {
   @override
-  PetDecision decideNext(Rect bounds, {bool isHungry = false}) =>
+  PetDecision decideNext(Rect bounds, {bool isHungry = false, double bond = 0}) =>
       const PetDecision(PetBehavior.idle, holdTime: Duration(seconds: 30));
 }
