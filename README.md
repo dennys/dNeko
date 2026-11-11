@@ -1,5 +1,9 @@
 # dNeko 🐾
 
+[![GitHub Actions](https://github.com/dennys/dNeko/actions/workflows/github_action.yaml/badge.svg)](https://github.com/dennys/dNeko/actions/workflows/github_action.yaml)
+[![codecov](https://codecov.io/gh/dennys/dNeko/graph/badge.svg?token=NRQ565J1WO)](https://codecov.io/gh/dennys/dNeko)
+
+
 一個 ANeko 風格的桌面寵物 App（Flutter / Android）。主頁有一塊可以摸、可以餵的**預覽塊**；
 打開懸浮後，牠會以系統懸浮視窗（overlay）跑遍整個螢幕。
 

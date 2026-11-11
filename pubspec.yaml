@@ -44,6 +44,7 @@ dev_dependencies:
 
 flutter:
   generate: true # 啟用 ARB → AppLocalizations 產生
+  uses-material-design: true # 打包 MaterialIcons 字型；缺了 Icons.* 全部變成缺字方框
   assets:
     - assets/animals/cat/
     - assets/animals/dog/
