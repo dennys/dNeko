@@ -59,6 +59,9 @@ class PetSettings {
   /// 餓的門檻（分鐘），見 [minHungerMinutes] / [maxHungerMinutes]
   final int hungerMinutesUntilHungry;
 
+  /// 摸一下時是否發出叫聲（只對有提供音效的動物生效，見 animal_sound_catalog）
+  final bool soundEnabled;
+
   const PetSettings({
     this.speedPxPerSecond = defaultSpeedPerSecond,
     this.petSize = defaultPetSize,
@@ -67,6 +70,7 @@ class PetSettings {
     this.languageCode,
     this.themeMode = 'system',
     this.hungerMinutesUntilHungry = defaultHungerMinutes,
+    this.soundEnabled = false,
   });
 
   /// languageCode 要能被明確設回 null（跟隨系統），所以用 sentinel 而不是 null 当「不變」
@@ -80,6 +84,7 @@ class PetSettings {
     Object? languageCode = _unchanged,
     String? themeMode,
     int? hungerMinutesUntilHungry,
+    bool? soundEnabled,
   }) =>
       PetSettings(
         speedPxPerSecond: speedPxPerSecond ?? this.speedPxPerSecond,
@@ -91,6 +96,7 @@ class PetSettings {
             : languageCode as String?,
         themeMode: themeMode ?? this.themeMode,
         hungerMinutesUntilHungry: hungerMinutesUntilHungry ?? this.hungerMinutesUntilHungry,
+        soundEnabled: soundEnabled ?? this.soundEnabled,
       );
 
   /// 每幀該走幾像素（速度存 px/s，才不會被 tick 長度綁死）
@@ -104,6 +110,7 @@ class PetSettings {
         'languageCode': languageCode,
         'themeMode': themeMode,
         'hungerMinutesUntilHungry': hungerMinutesUntilHungry,
+        'soundEnabled': soundEnabled,
       };
 
   /// 容忍髒資料：缺欄位/型別不對/zone 不認識，一律回到預設值而不是丟例外
@@ -130,6 +137,7 @@ class PetSettings {
         hungerMinutesUntilHungry: _number(json['hungerMinutesUntilHungry'], defaultHungerMinutes)
             .clamp(minHungerMinutes, maxHungerMinutes)
             .round(),
+        soundEnabled: json['soundEnabled'] is bool ? json['soundEnabled'] as bool : false,
       );
 
   static num _number(Object? value, num fallback) =>

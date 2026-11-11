@@ -24,6 +24,7 @@ dependencies:
   flutter_overlay_window:
     path: packages/flutter_overlay_window
   package_info_plus: ^10.2.2
+  audioplayers: ^6.8.1
 
 dependency_overrides:
   # Linux/aarch64 主機：Google 不發 linux-arm64 主機的 cmake/NDK（x86-64 版執行會報
@@ -47,6 +48,7 @@ flutter:
   uses-material-design: true # 打包 MaterialIcons 字型；缺了 Icons.* 全部變成缺字方框
   assets:
     - assets/animals/cat/
+    - assets/animals/cat2/
     - assets/animals/dog/
     - assets/animals/penguin/
     - assets/animals/heart_dog/

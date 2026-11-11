@@ -17,10 +17,10 @@ enum DragStep {
 
 /// 「視窗有沒有在被拖」的狀態機（純邏輯，不碰平台，方便測）。
 ///
-/// 判定基準是**視窗自己第一次的讀值**，不是寵物的位置。這一點是 #2 的根因所在：
-/// 寵物每 16ms 就在走，拿 `PetController.position` 當基準的話，走動的寵物被摸一下
-/// 就會差超過門檻（90 px/s 時一跳 1.44 px、200 px/s 時 3.2 px，還疊著方法通道的
-/// 往返延遲）→ 撫摸被誤判成拖曳。視窗在沒有人拖的時候是不動的，拿它跟自己比才乾淨。
+/// 判定基準有兩種：
+/// - 傳入 `expected`（app 目前放視窗的座標）：視窗與它的距離超過門檻才算拖曳。
+///   寵物走動時 driver 會跟著搬視窗，單看視窗位置會把走動誤判成拖曳（吃不到食物的根因）。
+/// - 沒傳 `expected`：拿視窗第一次的讀值當錨點（視窗自己不動時才適用）。
 ///
 /// 已知代價（與改動前相同，DEVICE_TEST A-8）：拖曳中停頓超過 [maxIdlePolls] ×
 /// 輪詢間隔會被當成放手。根治要靠本地 fork 把 `ACTION_UP` 回傳給 overlay 的 Dart 側。
@@ -48,10 +48,10 @@ class DragWatch {
   bool get dragging => _dragging;
 
   /// 餵進一次輪詢讀到的視窗左上角（邏輯像素），回報這一步該做什麼。
-  DragStep step(Offset window) {
+  DragStep step(Offset window, {Offset? expected}) {
     if (!_dragging) {
-      _anchor ??= window;
-      if ((window - _anchor!).distance < _moveThresholdPx) {
+      final baseline = expected ?? (_anchor ??= window);
+      if ((window - baseline).distance < _moveThresholdPx) {
         _polls++;
         return _polls >= _maxPreDragPolls ? DragStep.stop : DragStep.keepWaiting;
       }

@@ -91,6 +91,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsZone => '活動範圍';
 
   @override
+  String get settingsSound => '摸一下会叫';
+
+  @override
   String get settingsAnimal => '寵物';
 
   @override
@@ -260,6 +263,9 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get settingsZone => '活動範圍';
+
+  @override
+  String get settingsSound => '摸一下會叫';
 
   @override
   String get settingsAnimal => '寵物';

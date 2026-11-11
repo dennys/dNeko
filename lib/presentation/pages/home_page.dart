@@ -317,6 +317,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               _toggleCard(l10n),
               const SizedBox(height: 8),
               _hungerRow(l10n),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(l10n.settingsSound),
+                value: settings.soundEnabled,
+                onChanged: (v) => _apply(settings.copyWith(soundEnabled: v)),
+              ),
               const SizedBox(height: 24),
               Text(l10n.settingsAnimal),
               const SizedBox(height: 4),

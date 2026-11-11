@@ -91,6 +91,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get settingsZone => '移動エリア';
 
   @override
+  String get settingsSound => 'なでたときに鳴き声';
+
+  @override
   String get settingsAnimal => 'ペット';
 
   @override

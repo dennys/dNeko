@@ -1,0 +1,16 @@
+{
+  "animalId": "cat2",
+  "displayName": "阿咪",
+  "frameWidth": 256,
+  "frameHeight": 256,
+  "edgeBehavior": "walk",
+  "actions": {
+    "WalkUp":   { "frames": ["walk_u1","walk_u2"], "frameDurationMs": 250, "loop": true },
+    "WalkDown": { "frames": ["walk_d1","walk_d2"], "frameDurationMs": 250, "loop": true },
+    "WalkSide": { "frames": ["walk_s1","walk_s2"], "frameDurationMs": 250, "loop": true },
+    "Sit":      { "frames": ["sit1","sit2"],       "frameDurationMs": 500, "loop": true },
+    "Sleep":    { "frames": ["sleep1","sleep2"],   "frameDurationMs": 1000,"loop": true },
+    "Eat":      { "frames": ["eat1","eat2"],       "frameDurationMs": 300, "loop": false },
+    "Affectionate": { "frames": ["afct1","afct2","afct3"], "frameDurationMs": 300, "loop": false }
+  }
+}

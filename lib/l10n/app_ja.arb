@@ -26,6 +26,7 @@
   "settingsSize": "サイズ",
   "settingsHunger": "空腹のしきい値",
   "settingsZone": "移動エリア",
+  "settingsSound": "なでたときに鳴き声",
   "settingsAnimal": "ペット",
   "zoneFullScreen": "全画面",
   "zoneBottomBand": "下部のみ",

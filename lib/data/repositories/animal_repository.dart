@@ -89,6 +89,7 @@ class AnimalRepository implements IAnimalRepository {
   static List<AnimalResource> get builtIns => [
         for (final (id, name) in const [
           ('cat', '小花貓'),
+          ('cat2', '阿咪'),
           ('dog', '小狗'),
           ('penguin', '小企鵝'),
           ('heart_dog', '愛心狗'),

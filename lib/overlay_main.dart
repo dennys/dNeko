@@ -8,6 +8,7 @@ import 'l10n/app_localizations.dart';
 import 'data/repositories/animal_repository.dart';
 import 'data/repositories/settings_repository.dart';
 import 'data/services/animation_loader.dart';
+import 'data/services/animal_sound.dart';
 import 'data/services/overlay_window.dart';
 import 'data/models/animal_resource.dart';
 import 'data/models/animation_definition.dart';
@@ -123,11 +124,17 @@ class _OverlayAppState extends State<_OverlayApp> {
   DragWatch? _dragWatch;
   bool _polling = false;
 
+  final ISoundPlayer _sound = AudioPlayerSoundPlayer();
+
   static const _pollInterval = Duration(milliseconds: 50);
+
+  /// 走動的寵物會被 driver 搬著視窗跑，視窗與 controller 位置之間還有通道延遲，
+  /// 門檻要蓋得過這段落差，真拖曳則很快就會超過。
+  static const _dragThresholdPx = 16.0;
 
   void _startDragWatch(PetController controller) {
     if (_dragTimer != null) return;
-    _dragWatch = DragWatch();
+    _dragWatch = DragWatch(moveThresholdPx: _dragThresholdPx);
     _dragTimer = Timer.periodic(_pollInterval, (_) => unawaited(_pollDrag(controller)));
   }
 
@@ -140,7 +147,7 @@ class _OverlayAppState extends State<_OverlayApp> {
       // 碰已 dispose 的 ChangeNotifier 會觸發 debug 斷言
       final watch = _dragWatch;
       if (!mounted || watch == null || !identical(controller, _controller)) return;
-      switch (watch.step(p)) {
+      switch (watch.step(p, expected: controller.position)) {
         case DragStep.keepWaiting:
           break;
         case DragStep.startDrag:
@@ -168,6 +175,14 @@ class _OverlayAppState extends State<_OverlayApp> {
       _driver?.setEnabled(true);
       controller.endDrag();
     }
+  }
+
+  /// 點擊 / 餵食 / 開選單會由 app 自己搬視窗；那段移動不是使用者拖曳，
+  /// 若 onPanDown 留下的監看還在，會被誤判成拖曳而蓋掉 goToFood 目標。
+  /// 真的在拖曳中就不動它。
+  void _cancelIdleDragWatch(PetController controller) {
+    if (_dragWatch?.dragging ?? false) return;
+    _stopDragWatch(controller);
   }
 
   /// 本地 fork（packages/flutter_overlay_window）在視窗被點到外面時從原生打進來的 channel
@@ -543,6 +558,8 @@ class _OverlayAppState extends State<_OverlayApp> {
   /// 被推上去，動物就「跳上去」讓位。現在自己算視窗左上角：下方夠就朝下長；
   /// 不夠就往上長（動物固定在視窗底部）；變寬的視窗也置中回動物原本的位置。
   Future<void> _openMenu() async {
+    final controller = _controller;
+    if (controller != null) _cancelIdleDragWatch(controller);
     _driver?.setEnabled(false);
     _controller?.setPaused(true);
     const window = OverlayWindow();
@@ -609,6 +626,7 @@ class _OverlayAppState extends State<_OverlayApp> {
   void _feedNow() {
     final controller = _controller;
     if (controller == null) return;
+    _cancelIdleDragWatch(controller);
     controller.feedAt(
       Offset(controller.position.dx + feedDropDistance, controller.position.dy),
     );
@@ -636,8 +654,10 @@ class _OverlayAppState extends State<_OverlayApp> {
   void _petNow() {
     final controller = _controller;
     if (controller == null) return;
+    _cancelIdleDragWatch(controller);
     // 定格時 pet() 回 false（那一下根本沒反應）→ 不該計分，否則又是「做了沒反應卻偷偷漲」
     if (!controller.pet()) return;
+    _playTouchSound();
     if (controller.stats.awardPet(DateTime.now())) {
       // _controller 與 _resource 在同一個 setState 裡一起換（見 _loadAnimal 尾端），
       // 所以這裡的 id 必然就是這個 controller 所屬那隻動物的 id。
@@ -645,6 +665,15 @@ class _OverlayAppState extends State<_OverlayApp> {
       if (id != null) unawaited(_saveBond(id, controller));
     }
     _flushHunger(controller);
+  }
+
+  /// 撫摸叫聲：設定開著且這隻動物有音效才播
+  void _playTouchSound() {
+    if (!_settings.soundEnabled) return;
+    final animalId = _resource?.animalId;
+    final asset = animalId == null ? null : touchSoundFor(animalId);
+    if (asset == null) return;
+    unawaited(_sound.play(asset));
   }
 
   /// 親密度落盤。一天最多 +16 分（PetBond 的額度），寫盤頻率天生就低，不必節流。
@@ -851,6 +880,7 @@ class _OverlayAppState extends State<_OverlayApp> {
     _controller?.dispose();
     _stats?.dispose();
     _stats = null;
+    unawaited(_sound.dispose());
     super.dispose();
   }
 }
