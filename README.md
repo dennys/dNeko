@@ -110,7 +110,8 @@ keyPassword=<同上那個密碼>
 > 而 Gradle 簽名走的正是 `getKey()`（`build.gradle.kts` 直接把這四行餵給 signingConfig）。
 
 ⚠️ **不要在新機器上 `keytool -genkeypair` 另生一把** —— 簽名不同就等於換鑰，舊安裝收不到覆蓋更新。
-新機器請從既有機器複製（備份位置見 `~/dennys/AGENTS.md` 的「dNeko signing key backup」節）：
+新機器請從既有機器複製（**目前只有 Windows 開發機有**；`~/dennys/AGENTS.md` 那節講的 Linux/aarch64 開發機備份
+> 2026-11-11 實查不存在）：
 
 ```bash
 scp <existing-machine>:<repo>/android/app/dneko.keystore   <new-machine>:<repo>/android/app/
@@ -130,8 +131,14 @@ CI 的 `Restore signing key` 會先清洗 secret 被判貼帶入的空白/`\r`�
 > CI 有防呆：貼回那把作廢的鑰（`storePassword` 等於歷史洩漏值）會被預檢直接擋下。
 > 日後再洩：重生成 keystore → 更新兩個 secrets → 到這裡補一筆（同 dHealth README 的處理原則）。
 >
-> 📌 遺失風險：目前新鑰只有 `android/app/` 與 `~/backups/` 兩份，**同一台機器同一顆硬碟**。
-> 建議再拷一份到另一台機器或密碼管理器（`keystore` 遺失＝使用者必須砍掉重裝）。
+> 📌 遺失風險（2026-11-11 實查更正）：**那台 Linux/aarch64 開發機上一把新鑰都沒有** —— `android/app/dneko.keystore`
+> 與 `~/backups/dNeko-signing-20261109/` 兩處都不存在（這兩支檔名本來就在 `.gitignore` 裡，版控也追不到）。
+> 本節與 `~/dennys/AGENTS.md` 之前寫的「備份在那台開發機的 `~/backups/`」是錯的，照那段 `scp` 只會複製失敗。
+> 目前查得到的持有處只剩：**Windows 開發機的 `android\app\`** 與 **GitHub secrets `KEYSTORE_B64`**
+> —— 而 secrets 寫進去就讀不出來，實質上等於只有一份。
+> `keystore` 遺失＝所有已安裝的使用者永遠收不到更新，只能逐一通知他們砍掉重裝；這是全案唯一不可逆的風險點。
+> **待辦（人手的事，不是代碼）**：從 Windows 機取 `dneko.keystore` + `key.properties`，分存三處
+> （開發機／第二台機器或 NAS／密碼管理器），`sha256sum` 核對一致後把實際路徑補回這一段。
 
 ## 📦 本地 fork 插件
 

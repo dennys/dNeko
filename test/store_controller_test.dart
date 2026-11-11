@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:dneko/domain/i_store_catalog.dart';
 import 'package:dneko/domain/store_item.dart';
 import 'package:dneko/data/repositories/i_animal_repository.dart';
+import 'package:dneko/data/repositories/settings_repository.dart';
 import 'package:dneko/data/models/animal_resource.dart';
 import 'package:dneko/data/services/animal_download_service.dart';
 import 'package:dneko/presentation/controllers/store_controller.dart';
@@ -52,7 +53,7 @@ void main() {
 
       final controller = StoreController(
         catalog: _FakeCatalog(),
-        downloadService: AnimalDownloadService(repo),
+        downloadService: AnimalDownloadService(repo, SettingsRepository()),
         repository: repo,
       );
 
@@ -66,7 +67,7 @@ void main() {
       final repo = _FakeRepository();
       final controller = StoreController(
         catalog: _FakeCatalog(),
-        downloadService: AnimalDownloadService(repo),
+        downloadService: AnimalDownloadService(repo, SettingsRepository()),
         repository: repo,
       );
 

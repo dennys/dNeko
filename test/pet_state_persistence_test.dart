@@ -42,6 +42,56 @@ void main() {
     });
   });
 
+  group('getAll 的合併（內建不再依賴 seed）', () {
+    // REVIEW #6：之前內建動物要「註冊 builtIns ＋ pubspec assets ＋ bump petDbVersion」
+    // 三件一起做才選得到，而 bump 那件沒有任何測試擋 —— 漏掉時 analyze 綠、測試全過，
+    // 舊安裝的選單卻永遠看不到新動物。現在 getAll = DB 列 ∪ builtIns，這裡鎖住合併規則。
+    AnimalResource a(String id, {String name = '', bool downloaded = false, String version = '1.0.0'}) =>
+        AnimalResource(
+          animalId: id,
+          displayName: name.isEmpty ? id : name,
+          localFolderPath: downloaded ? '/data/$id' : '',
+          version: version,
+          isDownloaded: downloaded,
+          isBuiltIn: !downloaded,
+          updatedAt: DateTime.fromMillisecondsSinceEpoch(0),
+        );
+
+    test('DB 是空的（舊安裝、還沒 seed）也要看得到全部內建', () {
+      final merged = AnimalRepository.mergeBuiltIns([], AnimalRepository.builtIns);
+
+      expect(merged.map((e) => e.animalId),
+          containsAll(AnimalRepository.builtIns.map((e) => e.animalId)));
+      expect(merged.any((e) => e.animalId == 'sloth'), isTrue,
+          reason: '最後加進來的內建 —— 舊安裝 DB 裡沒有它，靠的就是這條');
+    });
+
+    test('同 id 時 DB 那份贏（下載/改過的資料不被內建定義蓋掉）', () {
+      final merged = AnimalRepository.mergeBuiltIns(
+        [a('cat', name: '我的貓', downloaded: true, version: '2.1.0')],
+        AnimalRepository.builtIns,
+      );
+
+      final cat = merged.singleWhere((e) => e.animalId == 'cat');
+      expect(cat.displayName, '我的貓');
+      expect(cat.version, '2.1.0');
+      expect(cat.isDownloaded, isTrue);
+      expect(merged.length, AnimalRepository.builtIns.length, reason: '同一隻不能出現兩次');
+    });
+
+    test('商店下載的動物（內建清單外）保留，且整份按名字排序', () {
+      final merged = AnimalRepository.mergeBuiltIns(
+        [a('zzz_bird', name: 'ㄚ鳥', downloaded: true), a('cat', name: '小花貓')],
+        AnimalRepository.builtIns,
+      );
+
+      expect(merged.any((e) => e.animalId == 'zzz_bird'), isTrue);
+      expect(merged.any((e) => e.animalId == 'cat'), isTrue);
+      final names = merged.map((e) => e.displayName).toList();
+      expect(names, [...names]..sort());
+    });
+  });
+
   group('缺席補算（app 關著的時候時間也要在走）', () {
     test('沒缺席就完全不變', () {
       expect(PetStats.hungerAfterAbsence(30, Duration.zero), 30);

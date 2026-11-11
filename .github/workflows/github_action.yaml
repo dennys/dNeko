@@ -67,8 +67,10 @@ jobs:
           sudo apt-get update -q -y
           sudo apt-get install -q -y --no-install-recommends libsqlite3-dev
 
+      # --coverage 是必要的：不加就不會產 coverage/lcov.info，下面的 Codecov 步驟
+      # 會綠燈上傳一個根本不存在的檔 —— 覆蓋率永遠不動，看起來像「都沒變」其實沒在量。
       - name: Run tests
-        run: flutter test
+        run: flutter test --coverage
 
       # 固定簽名金鑰（repo secrets：KEYSTORE_B64 = dneko.keystore 的 base64、
       # KEY_PROPERTIES = key.properties 內容）；沒金鑰每版簽名都不同，覆蓋安裝會被系統擋掉。

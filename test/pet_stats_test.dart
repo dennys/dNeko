@@ -9,9 +9,22 @@ void main() {
       expect(stats.hunger, closeTo(20, 0.0001));
     });
 
-    test('超過門檻時 isHungry 為 true', () {
-      final stats = PetStats(initialHunger: 60, hungryThreshold: 60);
+    // ②B：判準是 `>` 不是 `>=`，而且 PetStats 與 HungerBar 共用 PetStats.isHungryAt 這一份。
+    test('超過門檻才算餓，剛好等於門檻不算餓', () {
+      expect(PetStats(initialHunger: 61, hungryThreshold: 60).isHungry, isTrue);
+      expect(PetStats(initialHunger: 60, hungryThreshold: 60).isHungry, isFalse);
+      expect(PetStats.isHungryAt(60, 60), isFalse);
+      expect(PetStats.isHungryAt(60.01, 60), isTrue);
+    });
+
+    test('餓透餵一次就要能脫餓（>= 的年代要餵兩次，看起來像餵了沒反應）', () {
+      final stats = PetStats(initialHunger: PetStats.maxHunger); // 餓透 100
       expect(stats.isHungry, isTrue);
+
+      stats.feed(); // 餵食量 40 → 60，剛好落在預設門檻上
+      expect(stats.hunger, 60);
+      expect(stats.isHungry, isFalse,
+          reason: '60 >= 60 的年代這裡仍判餓 → PetBrain 絕不睡覺 → 必須再餵一次');
     });
 
     test('進食後降低飢餓值', () {

@@ -5,7 +5,7 @@ abstract interface class IOverlayService {
   Future<bool> hasPermission();
   Future<bool> requestPermission();
 
-  /// 顯示 overlay 寵物
+  /// 顯示 overlay 寵物（起點用 DB 裡上次存的位置）
   /// [languageCode] 目前 app 語系（如 "zh" / "en" / "ja"）
   Future<void> show({
     required String animalId,
@@ -22,10 +22,10 @@ abstract interface class IOverlayService {
     required String languageCode,
   });
 
-  /// 關閉懸浮視窗。
-  /// [rememberPosition] = false 給「選單按結束」那條路（overlay 自己已存了寵物位置，
-  /// 選單開著時視窗位置不是寵物位置，不能再寫一次）。
-  Future<void> close({bool rememberPosition = true});
+  /// 關閉懸浮視窗。位置**不在這裡存**：主 app 只看得見視窗左上角，選單開著時那是選單的
+  /// 位置（比寵物高一大截）。位置由 overlay 自己寫進 DB，[show] 讀它當 startPosition。
+  Future<void> close();
+
   Future<bool> isActive();
 
   /// overlay → 主 app 的事件流（如選單按「結束」送來的 quit 指令）

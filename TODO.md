@@ -3,24 +3,84 @@
 慣例：一個待辦一段，寫清「檔案:行」與「為什麼现在是這樣」。
 **做完就搬到 `CHANGELOG.md`**（`git log` 才是權威），別堆在這裡吃 token。
 
+## 2026-11-11 互動與餓度：本輪決定與留下的待辦
+
+本輪做了 ①定格時摸牠無效、③撒嬌/進食的 hold 貼著動畫長度、④拖曳改播 sit、②B 餓的判定 `>=`→`>`
+（細節見 CHANGELOG 同一日那條）。以下這些是**看過、量過、當場決定不做**的，寫下來是為了別每次
+重讀代碼時又從零討論一遍。
+
+### 1. 親密度（**已實作，只剩 A-12 機測**）
+2026-11-11 拍板的規格：0~100、**只漲不跌**、不隨時間衰減、無等級；每隻動物各一份
+（KV `pet_bond_<animalId>`）；舊安裝不遷移、從 0 算。計分只在懸浮那側（預覽塊是沙箱）：
+摸 +2（一天最多計 3 次）、真的吃下一口 +5（一天 2 次）—— 額度是**防連點刷分**，一天最多 +16。
+唯一的**後果**是 `PetBrain` 主動撒嬌的機率（滿值 20%）；**不進餓度那條路**（判準仍只有
+`PetStats.isHungryAt`）。機測清單在 `~/dennys/DEVICE_TEST.md` 的 **A-12**。
+
+仍待／明確不做（等 A-12 證明那 20% 撒嬌看得出差異再說，現在做都沒有資料可調）：
+等級與文案、解鎖新動作／新幀（要產圖，最貴）、扣分與時間衰減、跨動物共享、
+愛心的文字標籤（要補 4 語系 l10n key）、選單那行改成即時刷新（目前是開選單那一刻的快照，
+餓度條本來就這樣）。
+
+### 2. 行為機率寫進每隻動物（`PetBrain` 現在全案共用一組 45/30/25）
+`lib/domain/pet_brain.dart:25-39` 是寫死的三個數字，所以七隻動物個性完全相同。
+`AnimalAnimationDefinition` 已經有 `edgeBehavior` 這種「個性」欄位，加一組權重是順理成章的擴充：
+`animation.json` 加 `behaviourWeights: {wander, idle, sleep}`（缺欄位就用現在的預設），
+`IPetBrain.decideNext` 收一個權重參數。**現在只有一組數，做了也沒資料可調**，等真要做出
+「那隻比較愛睡」的差異時再動。
+
+### 3. 餵食量與「多久變餓」的耦合（今天算出來的，未修）
+`PetStats.feed()` 的預設餵食量是**常數 40**，而衰減速率固定 1 點/分鐘 ⇒ **不管門檻設幾，
+都是每 40 分鐘要餵一次**（餵完落在 `門檻−40`，走 40 分鐘又回到門檻）。
+後果：主頁那個 `hungerMinutesUntilHungry` slider（1~100 分鐘）只改變「多快開始不睡／一直走」，
+**對「多久要餵一次」完全無效** —— 使用者拖它時以為在調餵食負擔，其實沒有。
+候選改法（未拍板）：`feed()` 的預設改成 `amount: hungryThreshold`，讓門檻多大就餵多少、
+餵完能安靜的分鐘數＝門檻值（約 2 行，`pet_stats_test` 那幾題要跟著調）。
+
+### 4. `hungerMinutesUntilHungry` 下限 1 分鐘 = 「永不睡」開關
+門檻設 1 分鐘 → 幾乎恆為餓 → 餓的時候 `PetBrain` 0% 睡覺（見下面第 5 條）→ 牠永遠只走不睡。
+候選改法：`PetSettings.minHungerMinutes`（`lib/domain/pet_settings.dart`）從 1 抬到 5~10。
+本輪決定不動（使用者自己選的，且改下限會影響既有存盤的設定值）。
+
+### 5. 「餓了絕不睡」是人類決定保留的（2026-11-11）
+`lib/domain/pet_brain.dart:16-23`：`isHungry` 時 70% wander / 30% idle、**0% sleep**，
+由 `test/pet_brain_test.dart:16`（`expect(decision.behavior, isNot(PetBehavior.sleep))`）鎖住。
+提議過的「餓時也留 10% 睡覺」被**否決** —— 現行的產品定義是「餓到死也要找食物」。
+⚠️ 連帶要知道的：本案**沒有自動食物**（`goToFood` 只能由使用者雙擊觸發），所以餓透又不餵的
+宠物是一個「只走不睡」的終端狀態，不會自己recover。②B（`>=`→`>`）已經把「餵一次就脫餓」補起來了，
+這條留着是因為它是行為定義、不是 bug。要反轉就先改那題測試，別讓它無聲漂移。
+
+### 6. 定格裡餵食會偷偷解凍（現況保留）
+`PetController.feedAt()` 明確寫了 `_frozen = false`（餵食是明確動作，否則走不過去吃）。
+所以按了選單「暫停」之後雙擊餵食，會讓定格默默失效、牠自己走起來 —— 與 ①「定格時摸牠無效」
+是同一個問題的兩面。本輪選擇保留（理由：餵食是明確互動），**要改的兩個方向**：
+(a) 在選單「暫停」那列的文案標明「餵食會解除暫停」（純 l10n 字串，最便宜）；
+(b) 餵食不解凍、吃飽後繼續定格（要處理「定格裡走不過去食物」→ 得先解凍吃完再凍回去，複雜）。
+
+### 7. 單擊 300ms 辨認期、睡覺只有 4~7 秒（人類決定：不動）
+- 300ms：同一個 `GestureDetector` 掛了 `onDoubleTap`，單擊要等 `kDoubleTapTimeout` 才觸發
+  （`test/pet_preview_test.dart:116` 就特意 `pump(350ms)` 才收得到）。改 `onTapDown` 可以立刻反應，
+  代價是雙擊的第一下也會先撒嬌 —— **決定不動**，保留乾淨的手勢語意。
+- 睡覺 4~7 秒（`pet_brain.dart:38`）：醒來就重抽，所以盯著看 30 秒可能一次都沒看到。
+  **決定不動**，等真機玩過（DEVICE_TEST A-11）再決定要不要拉長。
+
 ## 2026-11-11 review（REVIEW.md）仍開著的
 
 REVIEW.md（2026-11-10，15 條 + 4 條 not-listed）已處理完：完成的都進 CHANGELOG（2026-11-11 entry），
 檔案已刪。剩下三條：
 
 1. **REVIEW #8 剩餘：`_onData` decode 分支抽出測試**
-   `overlay_main.dart`（755 行）的 payload dedup、`_loadSeq` staleness gate、`_readOr` fallback、
+   `overlay_main.dart`（858 行）的 payload dedup、`_loadSeq` staleness gate、`_readOr` fallback、
    `_roamFor` 校準仍無測試。純邏輯三塊已補（`safeName` / `localeOfCode` / `decodeHunger`，2026-11-11）。
-   抽出 `_onData` 的 decode 分支是 755 行入口的大重構，本機沒有真機可驗，風險大於收益，擱置。
+   抽出 `_onData` 的 decode 分支是 858 行入口的大重構，本機沒有真機可驗，風險大於收益，擱置。
    做的那天：decode 抽成純函式 + 表列測試，`placeMenu` 的抽出模式可參考。
 2. **REVIEW #10 剩餘：SQLITEBUSY 真機驗證**
-   `_writeHungerQuietly` 已加一次重試（2026-11-11），但「overlay isolate 能不能用 sqflite」
+   `_writeHungerQuietly`／`_rememberPosition` 已收進共用的 `_writeWithRetry`（一次重試，2026-11-11），但「overlay isolate 能不能用 sqflite」
    仍未在真機驗證（見下面 2026-11-06 的 B.3：餵飽 → 殺 app → 重開，看餓度是否還在）。
-3. **已知殘留 edge case：主頁按「關閉」時若 overlay 選單開著，存的是選單位置**
-   quit 路徑（選單按「結束」）已完全修好（overlay 先存寵物位置、主 app 不寫位置，2026-11-11）。
-   但使用者開著 overlay 選單、切回主頁按「關閉」時，`_rememberPosition` 仍存視窗左上角
-   （選單位置，比寵物高約 200px）→ 下次啟動寵物偏高被夾到螢幕頂。罕見路徑；根治要 overlay
-   把寵物位置或選單狀態 push 給主 app（新 channel 訊息），目前不划算。
+3. ~~**已知殘留 edge case：主頁按「關閉」時若 overlay 選單開著，存的是選單位置**~~
+   **已修（2026-11-11，REVIEW #3）**：主 app 的 `OverlayService._rememberPosition()` 整個刪除
+   （`close()` 不再有 `rememberPosition`），位置一律由 overlay 存：走動時節流
+   （`domain/position_throttle.dart`）＋收選單／按結束 `force`。主 app 不需要再被告知寵物在哪。
+   ⚠️ 新的依賴：位置與餓度同一條路（overlay isolate 寫 DB），第 2 條真機驗不過時兩者一起失效。
 
 ## 2026-11-10 真機測試後：6 項修復（bug + feature）
 

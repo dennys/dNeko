@@ -21,7 +21,7 @@ class HungerBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ratio = (hunger / PetStats.maxHunger).clamp(0.0, 1.0);
-    final hungry = hunger >= threshold;
+    final hungry = PetStats.isHungryAt(hunger, threshold); // 與 PetStats.isHungry 同一個來源
     final color = hungry ? Colors.redAccent : Colors.green;
     // -track- 色在深色模式下 black12 幾乎看不見（DEVICE_TEST A-6b）
     final track = Theme.of(context).brightness == Brightness.dark

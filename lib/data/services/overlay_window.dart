@@ -13,13 +13,11 @@ class OverlayWindow implements IOverlayWindow {
     );
   }
 
+  /// 只在「視窗縮回寵物尺寸」時用，拖曳一律開著；要同時改 enableDrag 的地方走
+  /// [moveAndResize]（開選單／收選單），所以這邊不暴露那個參數。
   @override
-  Future<void> resize({required double width, required double height, bool enableDrag = true}) =>
-      FlutterOverlayWindow.resizeOverlay(
-        width.toInt(),
-        height.toInt(),
-        enableDrag,
-      );
+  Future<void> resize({required double width, required double height}) =>
+      FlutterOverlayWindow.resizeOverlay(width.toInt(), height.toInt(), true);
 
   @override
   Future<Offset> currentPosition() async {

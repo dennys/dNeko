@@ -87,11 +87,30 @@ class PetController extends ChangeNotifier {
   void setSpeedPerTick(double speedPerTick) =>
       _movement = MovementEngine(speedPerTick: speedPerTick);
 
-  void pet() => _enter(
-        PetBehavior.affectionate,
-        action: AnimationAction.affectionate,
-        hold: const Duration(seconds: 2),
-      );
+  /// 一次性動畫（assets 裡 loop:false）播完就停在最後一幀，hold 多出來的部分就是「乾等」，
+  /// 看起來像卡畫面。所以兩個 hold 都貼著動畫長度 + 一幀緩衝：
+  /// Affectionate 3 幀×300ms=0.9s（原本 hold 2s → 乾等 1.1s）、Eat 2 幀×300ms=0.6s（原本 3s → 2.4s）。
+  /// 改 animation.json 的幀數/速度要連這裡一起改。
+  static const Duration _affectionateHold = Duration(milliseconds: 1200);
+  static const Duration _eatingHold = Duration(milliseconds: 900);
+
+  /// 真的吃下一口時的回調。**只有懸浮會掛**：計分與存盤是 overlay 那側的事，
+  /// 預覽塊是沙箱（不該因為在 app 裡餵兩口就悄悄養高某隻動物的親密度）。
+  void Function()? onFed;
+
+  /// 撫摸：播撒嬌、站住 [_affectionateHold]。**定格時直接無視** —— `_onTick` 在定格時不倒
+  /// hold，改了 action 會讓牠卡在撒嬌最後一幀直到解凍，「定格＝動作固定不動」就破了。
+  ///
+  /// 回傳「這一下有沒有真的觸發」：無效的互動不該計親密度（呼叫端據此決定加不加分）。
+  bool pet() {
+    if (_frozen) return false;
+    _enter(
+      PetBehavior.affectionate,
+      action: AnimationAction.affectionate,
+      hold: _affectionateHold,
+    );
+    return true;
+  }
 
   /// 食物落點一律夾進可漫遊範圍，否則牠會永遠抵著邊走不到。
   void feedAt(Offset foodPosition) {
@@ -101,13 +120,8 @@ class PetController extends ChangeNotifier {
 
   void beginDrag() {
     _isDragging = true;
-    _enter(PetBehavior.idle, action: AnimationAction.affectionate);
-    _notifyIfChanged();
-  }
-
-  void dragTo(Offset position) {
-    if (!_isDragging) return;
-    _position = _clampToBounds(position);
+    // 用 sit 不用 affectionate：以前拖曳也播撒嬌，外觀上分不出「被摸」與「被拖」
+    _enter(PetBehavior.idle, action: AnimationAction.sit);
     _notifyIfChanged();
   }
 
@@ -122,7 +136,7 @@ class PetController extends ChangeNotifier {
     // 拖曳中 syncFromWindow 不 clamp（視窗跟手），放開時才夾回 zone 邊界（A-2/A-7）。
     // 不夾的話拖出選區就留在外面，brain 的下一個決定雖在 bounds 內、位置卻在區外。
     _position = _clampToBounds(_position);
-    _applyDecision(_brain.decideNext(_bounds, isHungry: _stats.isHungry));
+    _applyDecision(_brain.decideNext(_bounds, isHungry: _stats.isHungry, bond: _stats.bondValue));
     _notifyIfChanged();
   }
 
@@ -139,7 +153,7 @@ class PetController extends ChangeNotifier {
     if (_frozen == value) return;
     _frozen = value;
     if (!_frozen) {
-      _applyDecision(_brain.decideNext(_bounds, isHungry: _stats.isHungry));
+      _applyDecision(_brain.decideNext(_bounds, isHungry: _stats.isHungry, bond: _stats.bondValue));
       _notifyIfChanged();
     }
   }
@@ -177,17 +191,18 @@ class PetController extends ChangeNotifier {
 
     if (_behavior == PetBehavior.goToFood) {
       _stats.feed();
+      onFed?.call();
       _enter(
         PetBehavior.eating,
         action: AnimationAction.eat,
-        hold: const Duration(seconds: 3),
+        hold: _eatingHold,
       );
     } else if (_edge.isAtEdge(_position, _bounds)) {
       // 抵達且仍在邊緣 → 繼續沿邊/回頭，不發呆
       _enter(PetBehavior.wander,
           target: _edge.nextTargetOnEdge(_position, _bounds));
     } else {
-      _applyDecision(_brain.decideNext(_bounds, isHungry: _stats.isHungry));
+      _applyDecision(_brain.decideNext(_bounds, isHungry: _stats.isHungry, bond: _stats.bondValue));
     }
     _notifyIfChanged();
   }
@@ -195,7 +210,7 @@ class PetController extends ChangeNotifier {
   void _waitThenDecide() {
     _hold -= _tick;
     if (_hold > Duration.zero) return;
-    _applyDecision(_brain.decideNext(_bounds, isHungry: _stats.isHungry));
+    _applyDecision(_brain.decideNext(_bounds, isHungry: _stats.isHungry, bond: _stats.bondValue));
     _notifyIfChanged();
   }
 
@@ -214,6 +229,14 @@ class PetController extends ChangeNotifier {
     switch (decision.behavior) {
       case PetBehavior.wander:
         _enter(PetBehavior.wander, target: decision.target);
+      case PetBehavior.affectionate:
+        // 親密度高了會自己撒嬌（PetBrain 唯一的 bond 後果）。hold 用 _affectionateHold 而不是
+        // decision.holdTime：撒嬌該播多久取決於素材有幾幀，是這裡的事、不是 brain 的事。
+        _enter(
+          PetBehavior.affectionate,
+          action: AnimationAction.affectionate,
+          hold: _affectionateHold,
+        );
       case PetBehavior.sleep:
         _enter(PetBehavior.sleep,
             action: AnimationAction.sleep, hold: decision.holdTime);
