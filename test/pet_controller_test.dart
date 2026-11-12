@@ -253,7 +253,7 @@ void main() {
       c.dispose();
     });
 
-    testWidgets('定格時摸牠無效（否則會卡在撒嬌最後一幀直到解凍）', (tester) async {
+    testWidgets('定格時摸牠有效，撒嬌後回到原動作並維持定格', (tester) async {
       final c = PetController(
         bounds: const Rect.fromLTWH(0, 0, 1000, 1000),
         brain: _AlwaysIdleBrain(),
@@ -262,11 +262,12 @@ void main() {
 
       c.setFrozen(true);
       final before = c.action;
-      // 回傳值要一起鎖：overlay 用它決定「這一下加不加親密度」。只鎖動畫的話，
-      // 「回傳 true 但不播動畫」那種 regression 會變成「定格被摸一摸，隔天親密度憑空 +6」
-      expect(c.pet(), isFalse);
-      expect(c.action, before, reason: '定格就是動作固定不動（DEVICE_TEST 對 A-9a 的期待）');
-      expect(c.action, isNot(AnimationAction.affectionate));
+      // 定格中摸牠也算有效（會加親密度）：撒嬌時動作才會變，撒嬌播完回到原動作、仍定格
+      expect(c.pet(), isTrue);
+      expect(c.action, AnimationAction.affectionate);
+      await tester.pump(const Duration(milliseconds: 1400));
+      expect(c.action, before);
+      expect(c.frozen, isTrue);
 
       // 解凍後摸牠照常撒嬌
       c.setFrozen(false);
@@ -322,6 +323,37 @@ void main() {
       c.setPaused(false);
       await pumpTicks(tester, 5);
       expect(c.position, isNot(before));
+      c.dispose();
+    });
+  });
+
+  group('選單小動作（flourish）', () {
+    testWidgets('playFlourish 會切到對應動作', (tester) async {
+      final c = make(
+        bounds: const Rect.fromLTWH(0, 0, 1000, 1000),
+        brain: _AlwaysIdleBrain(),
+      );
+      c.playFlourish(PetBehavior.lookAround);
+      expect(c.action, AnimationAction.lookAround);
+      c.dispose();
+    });
+
+    testWidgets('定格時 playFlourish 無效，撫摸有效：撒嬌後回到原動作且仍定格', (tester) async {
+      final c = make(
+        bounds: const Rect.fromLTWH(0, 0, 1000, 1000),
+        brain: _AlwaysIdleBrain(),
+      );
+      c.setFrozen(true);
+      final before = c.action;
+
+      c.playFlourish(PetBehavior.lookAround);
+      expect(c.action, before);
+
+      expect(c.pet(), isTrue);
+      expect(c.action, AnimationAction.affectionate);
+      await pumpTicks(tester, 90); // 撒嬌 1200ms
+      expect(c.action, before);
+      expect(c.frozen, isTrue);
       c.dispose();
     });
   });

@@ -65,7 +65,7 @@ class AnimalAnimationDefinition {
     return alias == null ? null : actions[alias];
   }
 
-  /// 水平走是否要把 walkSide 幀鏡像（只有「借用 walkSide 去走向右」時才需要）。
+  /// 哪些動作要把幀鏡像（走右邊借用 walkSide 時）。張望的左右翻轉改由 AnimalAnimator 依時間處理。
   bool mirrorsSideFor(AnimationAction action) =>
       action == AnimationAction.walkRight &&
       actions[AnimationAction.walkRight] == null &&
@@ -84,6 +84,11 @@ class AnimalAnimationDefinition {
     AnimationAction.walkUpRight: AnimationAction.walkUp,
     AnimationAction.walkDownLeft: AnimationAction.walkDown,
     AnimationAction.walkDownRight: AnimationAction.walkDown,
+    AnimationAction.lookAround: AnimationAction.sit,
+    AnimationAction.doze: AnimationAction.sit,
+    AnimationAction.wobble: AnimationAction.sit,
+    AnimationAction.hop: AnimationAction.sit,
+    AnimationAction.stretch: AnimationAction.affectionate,
   };
 
   /// 解析 animation.json。任何一個欄位不對就丟 [FormatException]，

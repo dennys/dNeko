@@ -40,6 +40,24 @@ class AppLocalizationsJa extends AppLocalizations {
   String get menuQuit => 'アプリを終了';
 
   @override
+  String get menuActionLookAround => 'きょろきょろ';
+
+  @override
+  String get menuActionDoze => 'うとうと';
+
+  @override
+  String get menuActionWobble => 'ゆらゆら';
+
+  @override
+  String get menuActionHop => 'ぴょんぴょん';
+
+  @override
+  String get menuActionStretch => '伸び';
+
+  @override
+  String get menuActionCircle => 'しっぽ追い';
+
+  @override
   String get overlayRunning => '画面で動かしています';
 
   @override

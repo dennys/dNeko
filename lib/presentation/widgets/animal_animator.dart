@@ -1,8 +1,34 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import '../../data/models/animation_action.dart';
 import '../../data/models/animation_definition.dart';
 import '../../data/models/animal_resource.dart';
 import '../../data/services/animation_loader.dart';
+
+/// 沒有專用素材的小動作：在坐著的幀上加程式化動作。t 為控制器進度（0..1，一輪循環）。
+typedef _Motion = Widget Function(double t, Widget child);
+
+const double _hopHeight = 8;
+const double _wobbleAmplitude = 4;
+const double _nodAngle = 0.08;
+
+_Motion? _motionFor(AnimationAction action) => switch (action) {
+      AnimationAction.hop => (t, child) => Transform.translate(
+            offset: Offset(0, -_hopHeight * math.sin(t * 2 * math.pi).abs()),
+            child: child,
+          ),
+      AnimationAction.wobble => (t, child) => Transform.translate(
+            offset: Offset(_wobbleAmplitude * math.sin(t * 4 * math.pi), 0),
+            child: child,
+          ),
+      AnimationAction.doze => (t, child) => Transform.rotate(
+            angle: _nodAngle * math.sin(t * 2 * math.pi),
+            child: child,
+          ),
+      AnimationAction.lookAround => (t, child) => Transform.flip(flipX: t >= 0.5, child: child),
+      _ => null,
+    };
 
 class AnimalAnimator extends StatefulWidget {
   final AnimalResource resource;
@@ -117,8 +143,15 @@ class _AnimalAnimatorState extends State<AnimalAnimator> with TickerProviderStat
       ),
     );
 
-    if (!mirrored) return image;
-    return Transform.flip(flipX: true, child: image);
+    final child = mirrored ? Transform.flip(flipX: true, child: image) : image;
+
+    final motion = _motionFor(widget.action);
+    if (motion == null) return child;
+    return AnimatedBuilder(
+      animation: _controller,
+      child: child,
+      builder: (context, c) => motion(_controller.value, c!),
+    );
   }
 }
 
