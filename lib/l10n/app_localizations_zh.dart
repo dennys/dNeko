@@ -40,6 +40,24 @@ class AppLocalizationsZh extends AppLocalizations {
   String get menuQuit => '结束桌宠';
 
   @override
+  String get menuActionLookAround => '左右张望';
+
+  @override
+  String get menuActionDoze => '打盹';
+
+  @override
+  String get menuActionWobble => '摇摆';
+
+  @override
+  String get menuActionHop => '跳跳';
+
+  @override
+  String get menuActionStretch => '伸懒腰';
+
+  @override
+  String get menuActionCircle => '转圈追尾';
+
+  @override
   String get overlayRunning => '正在屏幕上运行';
 
   @override
@@ -212,6 +230,24 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get menuQuit => '結束桌寵';
+
+  @override
+  String get menuActionLookAround => '左右張望';
+
+  @override
+  String get menuActionDoze => '打盹';
+
+  @override
+  String get menuActionWobble => '搖擺';
+
+  @override
+  String get menuActionHop => '跳跳';
+
+  @override
+  String get menuActionStretch => '伸懶腰';
+
+  @override
+  String get menuActionCircle => '轉圈追尾';
 
   @override
   String get overlayRunning => '正在畫面上跑';

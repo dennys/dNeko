@@ -161,6 +161,42 @@ abstract class AppLocalizations {
   /// **'Quit'**
   String get menuQuit;
 
+  /// No description provided for @menuActionLookAround.
+  ///
+  /// In en, this message translates to:
+  /// **'Look around'**
+  String get menuActionLookAround;
+
+  /// No description provided for @menuActionDoze.
+  ///
+  /// In en, this message translates to:
+  /// **'Doze'**
+  String get menuActionDoze;
+
+  /// No description provided for @menuActionWobble.
+  ///
+  /// In en, this message translates to:
+  /// **'Wobble'**
+  String get menuActionWobble;
+
+  /// No description provided for @menuActionHop.
+  ///
+  /// In en, this message translates to:
+  /// **'Hop'**
+  String get menuActionHop;
+
+  /// No description provided for @menuActionStretch.
+  ///
+  /// In en, this message translates to:
+  /// **'Stretch'**
+  String get menuActionStretch;
+
+  /// No description provided for @menuActionCircle.
+  ///
+  /// In en, this message translates to:
+  /// **'Chase tail'**
+  String get menuActionCircle;
+
   /// No description provided for @overlayRunning.
   ///
   /// In en, this message translates to:

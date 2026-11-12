@@ -12,9 +12,9 @@ import 'data/services/animal_sound.dart';
 import 'data/services/overlay_window.dart';
 import 'data/models/animal_resource.dart';
 import 'data/models/animation_definition.dart';
-import 'data/models/animation_action.dart';
 import 'domain/drag_watch.dart';
 import 'domain/pet_bond.dart';
+import 'domain/pet_behavior.dart';
 import 'domain/pet_settings.dart';
 import 'domain/locale_code.dart';
 import 'domain/menu_placement.dart';
@@ -115,6 +115,15 @@ class _OverlayAppState extends State<_OverlayApp> {
 
   /// 選單開在寵物上方（下方空間不夠時），決定 [_buildMenu] 的擺法
   bool _menuAbove = false;
+
+  /// 視窗改尺寸的過場中：內容先透明，免得 TextureView 把舊畫面拉伸出來（見 [_resizeHidden]）
+  bool _contentHidden = false;
+  double? _expectedHeight;
+  Timer? _revealTimer;
+  DateTime _revealNotBefore = DateTime.fromMillisecondsSinceEpoch(0);
+
+  /// 視窗要搬位置的過場最短藏多久（見 [_resizeHidden]）
+  static const Duration _moveSettle = Duration(milliseconds: 380);
   Locale _locale = const Locale('en'); // overlay 自己的語系
   bool _loadFailed = false;
   DateTime _lastHungerSave = DateTime.fromMillisecondsSinceEpoch(0);
@@ -564,9 +573,12 @@ class _OverlayAppState extends State<_OverlayApp> {
     _driver?.setEnabled(false);
     _controller?.setPaused(true);
     const window = OverlayWindow();
-    // 先讀位置再校準：[_roamFor] 把視窗搬到角落過，事後讀到的就不是寵物待的地方了
+    // 開選單不能校準：[_roamFor] 會把視窗搬到螢幕角落量測再搬回來，那段內容還看得見，
+    // 動物就會瞬移到角落再回位。只用載入時已量好的快取；沒有就先退回 fallback。
     final pos = await window.currentPosition();
-    final roam = await _roamFor(_petSize, anchor: pos);
+    final roam = _roam != null && _roamPetSize == _petSize
+        ? _roam!
+        : _metrics.fallbackRoam(_petSize);
     final placement = placeMenu(
       petPos: pos,
       roam: roam,
@@ -576,14 +588,65 @@ class _OverlayAppState extends State<_OverlayApp> {
     );
     _menuAbove = placement.above;
 
-    await window.moveAndResize(
-      position: placement.topLeft,
-      width: _menuWidth,
-      height: _menuHeight,
-      enableDrag: false,
+    await _resizeHidden(
+      toState: _WindowState.menu,
+      expectedHeight: _menuHeight,
+      minHidden: placement.above ? _moveSettle : Duration.zero,
+      resize: () => window.moveAndResize(
+        position: placement.topLeft,
+        width: _menuWidth,
+        height: _menuHeight,
+        enableDrag: false,
+      ),
     );
     _armMenuTimer();
-    setState(() => _state = _WindowState.menu);
+  }
+
+  /// 改視窗尺寸的過場：先把內容藏起來，視窗變成新尺寸後再顯示。
+  ///
+  /// overlay 的 Flutter view 是 TextureView，視窗一 resize，它會把「舊尺寸的最後一幀」
+  /// 拉伸、擺到新視窗上，直到 Flutter 畫出新尺寸的幀為止 —— 動物先變大、跑到視窗外、
+  /// 再瞬間回位就是這個。所以 resize 前先畫一張透明幀，等 [_buildContent] 的
+  /// LayoutBuilder 量到新高度（第一張新尺寸的幀）才顯示。代價是過場約幾十毫秒看不到動物。
+  /// [minHidden]：至少藏這麼久才顯示。視窗要搬位置時（選單開在動物上方），影片顯示新尺寸的幀
+  /// 出來後視窗還會再平滑滑約 0.2 秒才到位，要等它滑完才顯示，否則看起來像動物飛過去。
+  Future<void> _resizeHidden({
+    required _WindowState toState,
+    required double expectedHeight,
+    required Future<void> Function() resize,
+    Duration minHidden = Duration.zero,
+  }) async {
+    setState(() {
+      _contentHidden = true;
+      _state = toState;
+    });
+    await WidgetsBinding.instance.endOfFrame;
+    await Future<void>.delayed(const Duration(milliseconds: 32)); // 等透明幀真的送到畫面
+    _expectedHeight = expectedHeight; // 要在 resize 之前設，新尺寸的幀可能比 await 回來還早
+    _revealNotBefore = DateTime.now().add(minHidden);
+    _revealTimer?.cancel();
+    // 原生把高度夾掉時的保底
+    _revealTimer = Timer(minHidden + const Duration(milliseconds: 400), () => _reveal(force: true));
+    try {
+      await resize();
+    } catch (_) {
+      _reveal(force: true);
+      rethrow;
+    }
+  }
+
+  void _reveal({bool force = false}) {
+    final wait = _revealNotBefore.difference(DateTime.now());
+    if (!force && wait > Duration.zero) {
+      _revealTimer?.cancel();
+      _revealTimer = Timer(wait, _reveal);
+      return;
+    }
+    _revealTimer?.cancel();
+    _revealTimer = null;
+    _expectedHeight = null;
+    if (!mounted || !_contentHidden) return;
+    setState(() => _contentHidden = false);
   }
 
   void _armMenuTimer() {
@@ -599,19 +662,24 @@ class _OverlayAppState extends State<_OverlayApp> {
     // resize 以視窗左上角為錨點；選單開在上方時錨點不在動物身上，要搬回動物的位置。
     // 位置與尺寸同一次寫入，不先縮再搬
     final controller = _controller;
-    if (controller != null) {
-      await window.moveAndResize(
-        position: controller.position,
-        width: _petSize,
-        height: _petSize,
-        enableDrag: true,
-      );
-      // 選單開著時視窗左上角是選單的位置，主 app 那邊存到的從來就不是寵物 ——
-      // 收選單是「寵物回到正常狀態」的時刻，在這裡把正確位置留檔。
-      unawaited(_rememberPosition(controller.position, force: true));
-    } else {
-      await window.resize(width: _petSize, height: _petSize);
-    }
+    // 過場期間動物可能已經開始走，先記下收選單那一刻的位置
+    final restorePos = controller?.position;
+    await _resizeHidden(
+      toState: _WindowState.collapsed,
+      expectedHeight: _petSize,
+      minHidden: _menuAbove ? _moveSettle : Duration.zero,
+      resize: () => restorePos == null
+          ? window.resize(width: _petSize, height: _petSize)
+          : window.moveAndResize(
+              position: restorePos,
+              width: _petSize,
+              height: _petSize,
+              enableDrag: true,
+            ),
+    );
+    // 選單開著時視窗左上角是選單的位置，主 app 那邊存到的從來就不是寵物 ——
+    // 收選單是「寵物回到正常狀態」的時刻，在這裡把正確位置留檔。
+    if (restorePos != null) unawaited(_rememberPosition(restorePos, force: true));
     _driver?.setEnabled(true);
     // 選單開著時 _applySettings 可能把 _roam 設成 fallbackRoam（未校準）：
     // 未校準的才清掉（下次 _openMenu/_loadAnimal 重新量真實 roam 範圍，A-4b）；
@@ -620,7 +688,6 @@ class _OverlayAppState extends State<_OverlayApp> {
       _roam = null;
       _roamPetSize = null;
     }
-    setState(() => _state = _WindowState.collapsed);
   }
 
   /// 餵食：不开关选单，供双击直接呼叫
@@ -741,10 +808,17 @@ class _OverlayAppState extends State<_OverlayApp> {
 
     final l10n = AppLocalizations.of(context)!;
 
-    if (_state == _WindowState.menu) {
-      return _buildMenu(l10n, resource, definition, controller);
-    }
-    return _buildPet(resource, definition, controller);
+    final content = _state == _WindowState.menu
+        ? _buildMenu(l10n, resource, definition, controller)
+        : _buildPet(resource, definition, controller);
+    return LayoutBuilder(builder: (context, constraints) {
+      final expected = _expectedHeight;
+      if (_contentHidden && expected != null && (constraints.maxHeight - expected).abs() < 2) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => _reveal());
+      }
+      // Opacity 0 不畫但仍保留子樹，動物的動畫狀態不會因為過場被重建
+      return Opacity(opacity: _contentHidden ? 0 : 1, child: content);
+    });
   }
 
   /// 載入失敗（或還載入中）時的佔位畫面。
@@ -800,6 +874,23 @@ class _OverlayAppState extends State<_OverlayApp> {
     );
   }
 
+  FeedingMenuTile _flourishTile(
+    PetController controller,
+    PetBehavior behavior,
+    IconData icon,
+    String label,
+  ) {
+    return FeedingMenuTile(
+      icon: icon,
+      label: label,
+      // 先收選單（會解除暫停），再播動作；順序不能反，否則圓周移動會被暫停擋掉
+      onTap: () {
+        unawaited(_closeMenu());
+        controller.playFlourish(behavior);
+      },
+    );
+  }
+
   Widget _buildMenu(
     AppLocalizations l10n,
     AnimalResource resource,
@@ -816,7 +907,8 @@ class _OverlayAppState extends State<_OverlayApp> {
           key: _animatorKey, // 與 _buildPet 共用：開/關選單時動畫狀態不重建，不會重載幀造成閃爍
           resource: resource,
           definition: definition,
-          action: AnimationAction.affectionate,
+          // 必須沿用目前動作：寫死其他動作會在開/關選單時觸發 didUpdateWidget 重載幀，造成閃爍
+          action: controller.action,
           loader: _loader,
           displayWidth: _petSize,
           displayHeight: _petSize,
@@ -835,6 +927,16 @@ class _OverlayAppState extends State<_OverlayApp> {
       onFreeze: _freezeAction,
       onClose: _closeMenu,
       onQuit: () => unawaited(_quitApp()),
+      tiles: [
+        _flourishTile(controller, PetBehavior.lookAround, Icons.visibility, l10n.menuActionLookAround),
+        _flourishTile(controller, PetBehavior.doze, Icons.bedtime_outlined, l10n.menuActionDoze),
+        _flourishTile(controller, PetBehavior.wobble, Icons.swap_horiz, l10n.menuActionWobble),
+        _flourishTile(
+            controller, PetBehavior.hop, Icons.keyboard_double_arrow_up, l10n.menuActionHop),
+        _flourishTile(
+            controller, PetBehavior.stretch, Icons.wb_sunny_outlined, l10n.menuActionStretch),
+        _flourishTile(controller, PetBehavior.circle, Icons.autorenew, l10n.menuActionCircle),
+      ],
     );
     const gap = SizedBox(height: 8);
     // 餓度列紧跟選單上方：開選單就是來看牠狀態的，还要另外開主頁就白做這個選單了
@@ -862,11 +964,17 @@ class _OverlayAppState extends State<_OverlayApp> {
     );
     // 錨定而不是置中：選單開在下面→動物貼視窗頂；開在上面→動物貼視窗底。
     // 開/關選單時動物都穩穩待在同一个位置。
-    return Column(
-      mainAxisAlignment: _menuAbove ? MainAxisAlignment.end : MainAxisAlignment.start,
-      children: _menuAbove
-          ? [hunger, gap, menu, gap, petView]
-          : [petView, gap, hunger, gap, menu],
+    // OverflowBox：視窗還沒放大時（開選單的過渡幀）內容比視窗高，仍錨在同一邊，動物不跳位
+    return OverflowBox(
+      alignment: _menuAbove ? Alignment.bottomCenter : Alignment.topCenter,
+      minHeight: 0,
+      maxHeight: double.infinity,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: _menuAbove
+            ? [hunger, gap, menu, gap, petView]
+            : [petView, gap, hunger, gap, menu],
+      ),
     );
   }
 
@@ -875,6 +983,7 @@ class _OverlayAppState extends State<_OverlayApp> {
     unawaited(_eventSub?.cancel());
     _eventSub = null;
     _menuTimer?.cancel();
+    _revealTimer?.cancel();
     _loadSeq++; // 讓還在飛的載入流程全部作廢（它們回來時只會看到過期的顺序號）
     _dragTimer?.cancel();
     _driver?.dispose();

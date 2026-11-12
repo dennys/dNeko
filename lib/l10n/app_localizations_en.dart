@@ -40,6 +40,24 @@ class AppLocalizationsEn extends AppLocalizations {
   String get menuQuit => 'Quit';
 
   @override
+  String get menuActionLookAround => 'Look around';
+
+  @override
+  String get menuActionDoze => 'Doze';
+
+  @override
+  String get menuActionWobble => 'Wobble';
+
+  @override
+  String get menuActionHop => 'Hop';
+
+  @override
+  String get menuActionStretch => 'Stretch';
+
+  @override
+  String get menuActionCircle => 'Chase tail';
+
+  @override
   String get overlayRunning => 'Running on your screen';
 
   @override

@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:math' show cos, pi, sin;
 import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import '../../data/models/animation_action.dart';
+import '../../domain/flourish_scheduler.dart';
 import '../../domain/pet_behavior.dart';
 import '../../domain/pet_decision.dart';
 import '../../domain/pet_stats.dart';
@@ -32,10 +34,12 @@ class PetController extends ChangeNotifier {
     IEdgeBehavior? edge, // 新增（預設沿邊走）
     this._direction = const DirectionResolver(),
     Offset? position,
+    FlourishScheduler? flourish,
   })  : _bounds = bounds,
         _ownsStats = stats == null,
         _stats = stats ?? PetStats(),
         _brain = brain ?? PetBrain(),
+        _flourishScheduler = flourish ?? FlourishScheduler(),
         // 速度預設只有 MovementEngine 一處定義（這裡不再抄一份 1.5）
         _movement = movement ?? (speedPerTick == null ? const MovementEngine() : MovementEngine(speedPerTick: speedPerTick)),
         _edge = edge ?? EdgeWalkBehavior(),
@@ -71,6 +75,18 @@ class PetController extends ChangeNotifier {
   bool _isDragging = false;
   Timer? _timer;
 
+  final FlourishScheduler _flourishScheduler;
+
+  /// 計時動作結束後接著要播的動作（撫摸後跳跳、進食後跳跳）。[_enter] 會清掉它。
+  PetBehavior? _queued;
+
+  static const Duration _hopHold = Duration(milliseconds: 900);
+  static const Duration _stretchHold = Duration(milliseconds: 900); // 素材同撒嬌，播一次
+  static const double _circleRadius = 40;
+  static const int _circleWaypoints = 4;
+  Offset _circleCenter = Offset.zero;
+  int _circleIndex = 0;
+
   void start() => _timer ??= Timer.periodic(_tick, (_) => _onTick());
 
   /// 換 zone／螢幕後換 bounds：位置與目標都要夾回新範圍，
@@ -98,18 +114,38 @@ class PetController extends ChangeNotifier {
   /// 預覽塊是沙箱（不該因為在 app 裡餵兩口就悄悄養高某隻動物的親密度）。
   void Function()? onFed;
 
-  /// 撫摸：播撒嬌、站住 [_affectionateHold]。**定格時直接無視** —— `_onTick` 在定格時不倒
-  /// hold，改了 action 會讓牠卡在撒嬌最後一幀直到解凍，「定格＝動作固定不動」就破了。
+  /// 撫摸：播撒嬌、站住 [_affectionateHold]。
+  /// 定格時也能摸：撒嬌播完回到摸之前的姿勢，**不解除定格**，也不接跳跳。
   ///
   /// 回傳「這一下有沒有真的觸發」：無效的互動不該計親密度（呼叫端據此決定加不加分）。
   bool pet() {
-    if (_frozen) return false;
+    if (_frozen) {
+      if (_behavior != PetBehavior.affectionate) _actionBeforePet = _action;
+      _enter(
+        PetBehavior.affectionate,
+        action: AnimationAction.affectionate,
+        hold: _affectionateHold,
+      );
+      return true;
+    }
     _enter(
       PetBehavior.affectionate,
       action: AnimationAction.affectionate,
       hold: _affectionateHold,
     );
+    _queued = PetBehavior.hop; // 撒嬌播完接跳跳
     return true;
+  }
+
+  /// 定格中被摸時，撒嬌播完前的動作（撒嬌期間不覆寫，避免連摸時記到撒嬌本身）。
+  AnimationAction _actionBeforePet = AnimationAction.sit;
+
+  /// 選單點選的小動作。定格或拖曳中無效；不計親密度。
+  void playFlourish(PetBehavior behavior) {
+    if (_frozen || _isDragging || !_isFlourish(behavior)) return;
+    if (_paused && behavior == PetBehavior.circle) return; // 轉圈需要移動，選單開著時不動
+    _enterFlourish(behavior);
+    _notifyIfChanged();
   }
 
   /// 食物落點一律夾進可漫遊範圍，否則牠會永遠抵著邊走不到。
@@ -162,14 +198,42 @@ class PetController extends ChangeNotifier {
 
   void _onTick() {
     _stats.tick(_tick);
-    if (_isDragging || _frozen || _paused) return;
+    if (_isDragging) return;
+    if (_frozen) {
+      _tickFrozenPet();
+      return;
+    }
+    if (_paused) {
+      _tickHoldWhilePaused();
+      return;
+    }
 
-    if (_behavior == PetBehavior.wander || _behavior == PetBehavior.goToFood) {
+    final flourish = _flourishScheduler.tryPick(_tick, _flourishCandidates());
+    if (flourish != null) {
+      _enterFlourish(flourish);
+      _notifyIfChanged();
+      return;
+    }
+
+    if (_behavior == PetBehavior.wander ||
+        _behavior == PetBehavior.goToFood ||
+        _behavior == PetBehavior.circle) {
       _move();
       return;
     }
     _waitThenDecide();
   }
+
+  /// 隨機小動作的候選：發呆時張望／打盹（飢餓再加搖擺），漫遊時轉圈。
+  List<PetBehavior> _flourishCandidates() => switch (_behavior) {
+        PetBehavior.idle => <PetBehavior>[
+            PetBehavior.lookAround,
+            PetBehavior.doze,
+            if (_stats.isHungry) PetBehavior.wobble,
+          ],
+        PetBehavior.wander => const <PetBehavior>[PetBehavior.circle],
+        _ => const <PetBehavior>[],
+      };
 
   void _move() {
     final result = _movement.step(
@@ -178,6 +242,11 @@ class PetController extends ChangeNotifier {
       bounds: _bounds,
     );
     _position = result.position;
+
+    if (_behavior == PetBehavior.circle) {
+      _moveAlongCircle(result.arrived);
+      return;
+    }
 
     // 漫遊途中貼到邊緣 → 交給邊緣策略決定新目標（餵食途中不打斷）
     // 目標已在邊上時不重抽：沿邊走時每幀重抽會讓左右方向來回跳
@@ -201,6 +270,7 @@ class PetController extends ChangeNotifier {
         action: AnimationAction.eat,
         hold: _eatingHold,
       );
+      _queued = PetBehavior.hop; // 吃完跳一下
     } else if (_edge.isAtEdge(_position, _bounds)) {
       // 抵達且仍在邊緣 → 繼續沿邊/回頭，不發呆
       _enter(PetBehavior.wander,
@@ -211,12 +281,118 @@ class PetController extends ChangeNotifier {
     _notifyIfChanged();
   }
 
+  /// 轉圈：以開始時的位置為圓心，依序走四個點（每 90 度）。走完回到發呆，下一 tick 重新決定。
+  void _moveAlongCircle(bool arrived) {
+    if (arrived) {
+      _circleIndex++;
+      if (_circleIndex >= _circleWaypoints) {
+        _enter(PetBehavior.idle, action: AnimationAction.sit);
+        _notifyIfChanged();
+        return;
+      }
+      _target = _circleWaypoint(_circleIndex);
+    }
+    _action = _direction.fromVelocity(_target! - _position);
+    _notifyIfChanged();
+  }
+
+  Offset _circleWaypoint(int index) {
+    final angle = index * pi / 2;
+    return _clampToBounds(_circleCenter + Offset(cos(angle), sin(angle)) * _circleRadius);
+  }
+
   void _waitThenDecide() {
     _hold -= _tick;
     if (_hold > Duration.zero) return;
-    _applyDecision(_brain.decideNext(_bounds, isHungry: _stats.isHungry, bond: _stats.bondValue));
+    _onHoldExpired();
     _notifyIfChanged();
   }
+
+  /// 定格中只倒數撒嬌，播完回到摸之前的姿勢（仍維持定格）。其他情況不動。
+  void _tickFrozenPet() {
+    if (_behavior != PetBehavior.affectionate) return;
+    _hold -= _tick;
+    if (_hold > Duration.zero) return;
+    _enter(PetBehavior.idle, action: _actionBeforePet);
+  }
+
+  /// 選單開著時不做移動與隨機抽籤，但正在播的計時動作（撒嬌、跳跳…）仍要倒數，
+  /// 否則牠會卡在最後一幀，直到關選單才動。
+  void _tickHoldWhilePaused() {
+    if (!_isTimed(_behavior)) return;
+    _hold -= _tick;
+    if (_hold > Duration.zero) return;
+    _onHoldExpired();
+    _notifyIfChanged();
+  }
+
+  /// 計時結束的銜接：排隊的動作先播；睡醒伸懶腰；選單開著就回發呆，不抽新的決定。
+  void _onHoldExpired() {
+    final next = _queued ?? (_behavior == PetBehavior.sleep ? PetBehavior.stretch : null);
+    _queued = null;
+    if (next != null) {
+      _enterFlourish(next);
+      return;
+    }
+    if (_paused) {
+      _enter(PetBehavior.idle, action: AnimationAction.sit);
+      return;
+    }
+    _applyDecision(_brain.decideNext(_bounds, isHungry: _stats.isHungry, bond: _stats.bondValue));
+  }
+
+  void _enterFlourish(PetBehavior behavior) {
+    if (behavior == PetBehavior.circle) {
+      _circleCenter = _position;
+      _circleIndex = 0;
+      _enter(behavior, target: _circleWaypoint(0));
+      return;
+    }
+    _enter(behavior, action: _actionFor(behavior), hold: _flourishHoldFor(behavior));
+  }
+
+  static bool _isFlourish(PetBehavior behavior) => switch (behavior) {
+        PetBehavior.lookAround ||
+        PetBehavior.doze ||
+        PetBehavior.wobble ||
+        PetBehavior.hop ||
+        PetBehavior.stretch ||
+        PetBehavior.circle =>
+          true,
+        _ => false,
+      };
+
+  /// 有計時、會自己結束的行為（轉圈與睡眠不計時）。
+  static bool _isTimed(PetBehavior behavior) => switch (behavior) {
+        PetBehavior.affectionate ||
+        PetBehavior.eating ||
+        PetBehavior.lookAround ||
+        PetBehavior.doze ||
+        PetBehavior.wobble ||
+        PetBehavior.hop ||
+        PetBehavior.stretch =>
+          true,
+        _ => false,
+      };
+
+  static AnimationAction _actionFor(PetBehavior behavior) => switch (behavior) {
+        PetBehavior.lookAround => AnimationAction.lookAround,
+        PetBehavior.doze => AnimationAction.doze,
+        PetBehavior.wobble => AnimationAction.wobble,
+        PetBehavior.hop => AnimationAction.hop,
+        PetBehavior.stretch => AnimationAction.stretch,
+        _ => AnimationAction.sit,
+      };
+
+  /// 各小動作的停留時間：素材幀數與幀長換算，多出來的一幀緩衝與撒嬌相同。
+  static Duration _flourishHoldFor(PetBehavior behavior) => switch (behavior) {
+        PetBehavior.lookAround => const Duration(milliseconds: 2000),
+        PetBehavior.doze => const Duration(milliseconds: 2500),
+        PetBehavior.wobble => const Duration(milliseconds: 1800),
+        PetBehavior.hop => _hopHold,
+        PetBehavior.stretch => _stretchHold,
+        _ => Duration.zero,
+      };
 
   void _notifyIfChanged() {
     final at = _position;
@@ -256,6 +432,7 @@ class PetController extends ChangeNotifier {
     AnimationAction? action,
     Duration hold = Duration.zero,
   }) {
+    _queued = null;
     _behavior = behavior;
     _target = target;
     _hold = hold;
