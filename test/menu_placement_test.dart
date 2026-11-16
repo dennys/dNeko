@@ -6,59 +6,60 @@ import 'package:dneko/domain/pet_settings.dart';
 import 'package:dneko/domain/screen_metrics.dart';
 
 void main() {
-  // 可漫遊範圍：寬 400、高 800（頂端座標 0..400 / 0..800）；動物 120，選單 240x300
+  // 可漫遊範圍：寬 400、高 800（頂端 0..400 / 0..800）；動物 120
   const roam = Rect.fromLTRB(0, 0, 400, 800);
   const petSize = 120.0;
-  const menuW = 240.0;
-  const menuH = 300.0;
 
-  MenuPlacement place(Offset pet, {Rect? inRoam, double menuHeight = menuH}) =>
-      placeMenu(
-        petPos: pet,
-        roam: inRoam ?? roam,
-        petSize: petSize,
-        menuWidth: menuW,
-        menuHeight: menuHeight,
-      );
+  group('placeMenuWindow（選單是另一個視窗）', () {
+    const menuSize = Size(184, 430);
+    const gap = 8.0;
 
-  group('placeMenu', () {
-    test('動物在畫面中間：選單朝下長，動物位置不動', () {
-      final p = place(const Offset(100, 100));
+    MenuPlacement placeWindow(Offset pet) => placeMenuWindow(
+          petPos: pet,
+          petSize: petSize,
+          roam: roam,
+          menuSize: menuSize,
+          gap: gap,
+        );
+
+    test('動物在畫面中間：選單開在下方，中間留 gap，水平對齊動物', () {
+      final p = placeWindow(const Offset(100, 100));
       expect(p.above, isFalse);
-      expect(p.topLeft.dy, 100, reason: '朝下長，動物的 y 不動');
+      expect(p.topLeft.dy, 100 + petSize + gap);
+      expect(p.topLeft.dx, 100 + petSize / 2 - menuSize.width / 2);
     });
 
-    test('寬度變大時水平置中回動物原本的位置', () {
-      // 動物 x=100，選單比動物寬 120，所以左移 60
-      final p = place(const Offset(100, 100));
-      expect(p.topLeft.dx, 40);
+    test('選單不能蓋到動物：下方的選單頂端至少要在動物底部 + gap', () {
+      final p = placeWindow(const Offset(100, 100));
+      expect(p.topLeft.dy, greaterThanOrEqualTo(100 + petSize + gap));
     });
 
-    test('動物貼近底部放不下：選單朝上長，動物固定在視窗底部', () {
-      // 下方空間不夠（maxTop = 800 + 120 - 300 = 620），上方夠
-      final p = place(const Offset(100, 700));
+    test('動物貼著底部：選單改開在上方，底邊貼著動物頂端 - gap', () {
+      final p = placeWindow(const Offset(100, 700));
       expect(p.above, isTrue);
-      // 上長時視窗 y = 動物 y - (選單高 - 動物高)
-      expect(p.topLeft.dy, 700 - (menuH - petSize));
+      expect(p.topLeft.dy, 700 - gap - menuSize.height);
     });
 
-    test('水平靠右邊界：選單夾回不超出右邊', () {
-      // x=350 → 置中後 290，但 maxLeft = 400 + 120 - 240 = 280
-      final p = place(const Offset(350, 100));
-      expect(p.topLeft.dx, 280);
+    test('水平靠右：選單夾進 roam，不超出右邊', () {
+      final p = placeWindow(const Offset(380, 100));
+      expect(p.topLeft.dx + menuSize.width, lessThanOrEqualTo(roam.right));
     });
 
-    test('水平靠左邊界：選單夾回不超出左邊', () {
-      // x=0 → 置中後 -60，夾回 roam.left = 0
-      final p = place(const Offset(0, 100));
-      expect(p.topLeft.dx, 0);
+    test('上下都放不下：選單整塊夾進 roam（不能溢出螢幕）', () {
+      final p = placeWindow(const Offset(100, 300));
+      expect(p.topLeft.dy, greaterThanOrEqualTo(roam.top));
+      expect(p.topLeft.dy + menuSize.height, lessThanOrEqualTo(roam.bottom));
     });
 
-    test('上下都放不下時 y 夾回 roam 頂端，不出界', () {
-      // 很窄的範圍：高 300，選單 500 高，上下都裝不下
-      const narrow = Rect.fromLTRB(0, 0, 400, 300);
-      final p = place(const Offset(100, 200), inRoam: narrow, menuHeight: 500);
-      expect(p.topLeft.dy, narrow.top);
+    test('選單比 roam 還高時退化為貼頂，不會得到負座標', () {
+      final p = placeMenuWindow(
+        petPos: const Offset(10, 10),
+        petSize: petSize,
+        roam: const Rect.fromLTRB(0, 0, 400, 200),
+        menuSize: menuSize,
+      );
+      expect(p.topLeft.dy, 0);
+      expect(p.topLeft.dx, greaterThanOrEqualTo(0));
     });
   });
 

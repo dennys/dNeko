@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui';
 
 import '../../domain/i_overlay_window.dart';
+import '../../utils/log.dart';
 import 'pet_controller.dart';
 
 /// 只負責：監聽 PetController 位置變化，移動 OS 視窗到對應座標
@@ -54,15 +55,14 @@ class OverlayPetDriver {
         if (!_queued) return;
         _queued = false;
       }
-    } catch (e) {
+    } catch (e, st) {
       // 清掉已送記錄，讓下一次位置變動重試（否則視窗永久卡在舊位置）。
       _lastMoved = const Offset(-1, -1);
       // 每 16ms 重試一次，失敗只在第一次寫 log，不然 logcat 會被洗爆。
       // 但一定要留痕：以前 moveTo 是 unawaited，平台端拒絕時畫面只是不動，
       // 沒有任何地方看得見。
       if (_consecutiveFailures++ == 0) {
-        // ignore: avoid_print
-        print('移動懸浮視窗失敗: $e');
+        appError('移動懸浮視窗失敗（寵物會卡在舊位置直到下次變動重試）', e, st);
       }
     } finally {
       _sending = false;

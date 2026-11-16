@@ -1,38 +1,45 @@
 import 'dart:ui';
 
-/// 選單視窗的左上角與「選單是否開在動物上方」
+/// 選單視窗的左上角與「選單開在動物上方還是下方」
 class MenuPlacement {
   final Offset topLeft;
+
+  /// 生產代碼目前不讀它（選單是另一個視窗，上下只是擺位差異），但 `placeMenuWindow` 的測試
+  /// 靠它鎖住「優先開下方、放不下才往上」—— 別當死欄位刪掉
   final bool above;
 
   const MenuPlacement(this.topLeft, {required this.above});
 }
 
-/// 開選單時的視窗位置。動物固定不動：下方夠就朝下長；不夠就往上長（動物貼視窗底）；
-/// 寬度變大時水平置中回動物原本的位置。整個視窗都夾在 [roam] 之內。
+/// 選單是**另一個視窗**時的左上角（`feat/overlay-menu-own-window`：動物的視窗不再為選單改尺寸）。
 ///
-/// [petPos] 是動物（寵物視窗）目前的左上角；[roam] 是視窗實際可到達的頂端範圍。
-MenuPlacement placeMenu({
+/// 跟 [placeMenu] 的差別只在「選單裡沒有動物」：不需要把動物塊算進高度，
+/// 選單與動物之間留 [gap] 的空隙；優先開在動物下方，下方放不下才往上長。
+/// 整個選單夾在 [roam] 之內（選單不能跑到狀態列／導航列外面）。
+MenuPlacement placeMenuWindow({
   required Offset petPos,
-  required Rect roam,
   required double petSize,
-  required double menuWidth,
-  required double menuHeight,
+  required Rect roam,
+  required Size menuSize,
+  double gap = 8,
 }) {
-  final extra = menuHeight - petSize;
-  final maxTop = roam.bottom + petSize - menuHeight; // 選單不壓到導航列的最大 y
-  final belowFits = petPos.dy <= maxTop;
-  final aboveFits = petPos.dy - extra >= roam.top;
-  final above = !belowFits && (aboveFits || petPos.dy - roam.top > roam.bottom - petPos.dy);
+  final petCenterX = petPos.dx + petSize / 2;
+  final belowY = petPos.dy + petSize + gap;
+  final aboveY = petPos.dy - gap - menuSize.height;
+  final fitsBelow = belowY + menuSize.height <= roam.bottom;
+  final fitsAbove = aboveY >= roam.top;
+  // 兩邊都放不下時才靠空間比較多的那一側（放不下的那側還是會被夾回界內）
+  final above = !fitsBelow && (fitsAbove || petPos.dy - roam.top > roam.bottom - petPos.dy);
 
-  final maxLeft = roam.right + petSize - menuWidth; // 同理，左右不出界
-  var x = petPos.dx - (menuWidth - petSize) / 2;
-  if (x < roam.left) x = roam.left;
-  if (maxLeft >= roam.left && x > maxLeft) x = maxLeft;
-
-  var y = above ? petPos.dy - extra : petPos.dy;
-  if (y < roam.top) y = roam.top;
-  if (maxTop >= roam.top && y > maxTop) y = maxTop;
+  final x = _clampStart(
+      petCenterX - menuSize.width / 2, roam.left, roam.right, menuSize.width);
+  final y = _clampStart(above ? aboveY : belowY, roam.top, roam.bottom, menuSize.height);
 
   return MenuPlacement(Offset(x, y), above: above);
 }
+
+/// 把「起點」夾進 [min, max] 之內，同時保證整個 [size] 不出界。
+/// 放不下（size 比範圍還大）時退化成貼 [min] —— 至少靠邊那一端看得見，
+/// 總比讓選單溢出螢幕另一邊好。
+double _clampStart(double start, double min, double max, double size) =>
+    size >= max - min ? min : start.clamp(min, max - size).toDouble();

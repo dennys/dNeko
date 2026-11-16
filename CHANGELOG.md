@@ -4,6 +4,105 @@
 **`git log` 才是權威**，這裡只是保留當時的判斷與驗收數字，方便日後回溯「為什麼现在是這樣」。
 新的完成紀錄加在最上面。
 
+> **2026-11-16 校訂（讀下面之前先講好）**
+> 1. 跨案的真機驗收單 `../DEVICE_TEST.md` **已刪除**：它從頭到尾沒有一項打勾或填日期，留著只會
+>    讓人以為「都驗過了」。因此下面所有「真機已驗／P0~P2 全過／餓度還在」之類的話，**都是口頭回報，
+>    沒有書面證據**。下次上機請照該條的項目臨時開單、當場填 ✅／✗＋日期。
+> 2. 舊 entry 裡「本機沒有 JDK 17+、`flutter build apk` 跑不了」是 2026-11-06 的狀態；現在這台
+>    Linux/aarch64 開發機出得了 debug APK，release（AOT）仍只能在 x86-64 機器或 CI（見 README 建置表）。
+> 3. 舊 entry 的「狗的 13 張素材缺」「小企鵝在商店清單裡」「本地 fork 的 `flutter_overlay_window`」
+>    都已過時：八隻內建動物素材齊全（各 15 張），商店只剩 `fox`，插件改回 pub.dev 1.0.2。
+
+---
+## 2026-11-16 三條 log／載入路徑的補丁（文件校訂時順手查出來的）
+
+- **內建動物不再被 DB 拖下水**：`AnimalRepository.resolveResource()` 之前是
+  `await getById() ?? builtIn()` —— DB 讀不到（sqflite 在 overlay isolate 不可用、檔損毀）時整個丟例外，
+  `_loadAnimal` 的 catch 直接把畫面打成佔位圓，**連隨 app 打包的貓都開不出來**，而 AGENTS/README
+  一直宣稱「內建動物直接從 assets 載入、不依賴 SQLite plugin」。改成 DB 優先但**讀失敗就退回
+  `builtIn()`**（下載的動物救不了：本地資料夾路徑只能問 DB）。
+  新增 `test/animal_repository_test.dart` 2 題；两条都是**把舊代碼塞回去會紅**的那種（第二條舊代碼
+  會抛例外而不是回 null）。
+- **載入失敗不再無聲**：`_loadAnimal` 的 `catch (_)` 與 `resource == null` 兩條路徑原本一句 log 都沒有
+  ——「id 沒註冊進 builtIns」與「素材壞了」在外面的表現都是那顆圓。現改走 `appError`（tag `dneko.error`）。
+- **`OverlayPetDriver` 的 moveTo 失敗**從 `print()` 改回 `appError`（連 StackTrace 一起帶）：
+  `print` 落在 logcat 的 `flutter` tag，而除錯指令是 `adb logcat -s dneko.error`，等於那條註解保證的
+  「一定要留痕」在實際用的 filter 下看不見；同時拿掉 `// ignore: avoid_print`。
+  ⚠️ 這條**沒有測試保護**（`overlay_pet_driver_test` 只鎖「失敗後會重試」），所以下次還會再漂。
+- 驗收：`flutter analyze` 0 問題、`flutter test` 203 → **205** 全過。**真機未測**（這三条都是
+  只在 DB/平台出錯時才走得到的路徑，本機造不出條件）。
+
+## 2026-11-13 清死碼：那四支「已被宣稱刪掉四次」的檔與 `placeMenu`
+
+- **第四次宣稱也還是假的，這次是真的**：`DELETED.txt`、`assets/dneko.png`（261 KB）、
+  `lib/domain/pet_display_mode.dart` 三支 `git rm`（第 4 支 app 模組 `OverlayService.kt` 已在選單
+  改寫時刪掉）。之前幾次之所以「宣稱刪了卻還在」：刪除做在**另一台機器**的 bundle commit
+  （`7648c91`，本機 `git cat-file -t` 查無此物、`git log --all --diff-filter=D -- DELETED.txt`
+  一直是空的）—— **跨機交付的刪除要嘛在同一條血線上做，要嘛交付後立刻在另一端驗證
+  `git ls-files`。**
+  （`pubspec.yaml` 的 assets 只列 `assets/animals/*/`，`dneko.png` 本來就沒進包，刪它零風險。）
+- **選單改寫長出的新死碼**：`placeMenu()`（選單搬到第二個視窗後改用 `placeMenuWindow()`，
+  lib 內零呼叫者）連它的測試組一起刪；`MenuPlacement.above` **留著** —— 生產代碼不讀它，
+  但 `placeMenuWindow` 的測試靠它鎖住「優先開下方、放不下才往上」，註解已標明別當死欄位刪。
+- `REVIEW.md`（2026-11-11 那份報告）**一併刪除**：15 條的結算本來就在下面「2026-11-11 REVIEW
+  修復」那條 entry（含反駁報告自己講錯的 #9 keystore、#13 `copyWith`、#2 的修法），真機清單在
+  `../DEVICE_TEST.md`（2026-11-16 已刪，且從未填過），剩下的只有 11-11 當時的行號與敘述 —— 選單改寫之後 `檔案:行號` 全部漂移
+  （測試 132→198、`overlay_main.dart` 792→921 行），留著只會變成沒人對得上的敘述。
+  準則跟 `POPUP_TRANSITION.md` 一樣：**報告是快照，結算與教訓進 CHANGELOG，快照不留。**
+- 驗收：`flutter analyze` 0 問題、`flutter test` 198（刪掉 6 題死測試）。
+
+---
+## 2026-11-13 選單續修：餵食語意、定格變灰、原生三條保險
+
+**使用者會以為是 bug 的三個（都改掉了）**
+- **餵食量寫死 40 → 改成餵到飽**（`PetStats.feed()` 預設 `amount == null` 時 hunger 歸零）。
+  舊行為讓設定頁那個「多久變餓」slider（1~100 分鐘）完全是裝飾：衰減 1 點/分鐘＋固定贖回 40
+  ⇒ 不管門檻設幾都是每 40 分鐘餵一次。現在「餵完能安靜多久」＝門檻值。
+  為什麼不是 `amount ?? hungryThreshold`：門檻設 20 時從餓透餵一次只到 80、還是餓，要連按
+  5 次才脫餓 —— 又變回「餵了沒反應」。`pet_stats_test` 鎖住門檻 20/60/90 的「餵完撐多久」。
+- **定格時按選單那 6 個動作格「沒反應」**：`playFlourish` 本來就在 `_frozen` 時靜默丟掉，
+  現在選單把那 6 格**變灰＋按不下去**（`FeedingMenuTile.enabled`，`menu_main` 用
+  `!payload.frozen`）。按不下去也不會誤重置 6 秒自動關的計時器。
+- **餵食會偷偷解除定格**（`feedAt()` 的 `_frozen = false`，是明確互動所以保留）：選單網格下方
+  加一行小字講清楚（l10n 新 key `menuFeedUnfreezes`，四語系）。視窗高度由
+  `FeedingMenu.contentHeight` 算，加了那行就同步加高，並用 widget 測試鎖住不 overflow。
+
+**原生三條保險（機率極低，但都是「看起來像壞掉」）**
+- `MenuOverlay`：選單 isolate 的 handler 可能還沒註冊就推 payload（剛 preWarm 就長按）→
+  延後 250 ms **補打一次**（`_loadPayload` 冪等）。
+- `forwardToPet` 發現寵物那側 engine 不在時，原本只 log 丟掉 —— 連 `ACTION_OUTSIDE` 都會被丟，
+  等於沒東西關得掉那顆視窗 → 改成**自己 `removeViewNow()`**。
+- `addView` 失敗（post 之後才發生，Dart 那側早已收到 success）→ 補送 `{"action":"close"}`，
+  否則寵物會白白凍到 6 秒逾時、期間長按也沒反應。
+
+驗收：`flutter analyze` 0 問題、`flutter test` 204（新增 `test/feeding_menu_test.dart` 4 題、
+`pet_stats_test` 餵食那幾題重寫）、debug APK 編得過。**真機待重測**：選單高度（加了小字那行）、
+定格開選單看那 6 格變灰、餵食後多久又餓。
+
+---
+## 2026-11-13 選單改成第二個懸浮視窗（真機已驗，**勝出**）
+
+- 開／關選單動物**完全不動**：選單搬到第二個 `WindowManager` 視窗 + 第二顆 FlutterEngine
+  （原生 `MenuOverlay.kt`、Dart `lib/menu_main.dart`），寵物視窗從頭到尾不 resize、不搬移。
+  上下半螢幕也不再是兩條路。為什麼只能這樣：`AGENTS.md`「選單是另一個視窗」。
+- **另一條落選**：`fix/overlay-menu-keep-pet-visible`（同一視窗、把舊幀「預先畫成被拉伸後剛好對」）
+  真機實測**與改動前體感相同**。教訓 —— 把體驗押在 `FlutterTextureView`「舊 buffer 等比拉伸填滿
+  新邊框」這個**未文件化**行為上是死路；要「動物不能被碰」就只能另開視窗。別再回来試第二遍。
+- 行為（使用者拍板）：選單開著時凍住牠、拖曳寵物＝關選單、選單不可拖／不貼邊、6 秒自動關、
+  選單裡那隻預覽動物刪掉（牠本來就一直顯示在螢幕上）。
+- 選單那顆 engine 跟著懸浮開關：`OverlayService.close()` → `hideMenu` + `disposeMenu`
+  （桌面寵物開一整天，懸浮關了就不該還佔記憶體）；下次開懸浮 `preWarmMenu` 重建。
+- 指令走「選單 isolate → 原生 → 寵物 isolate」，**不繞主 app**：劃掉 app 介面後寵物還在跑。
+- 清掉的過場機器約 150 行（`_WindowState`／`_resizeHidden`／`_reveal`／`_expectedHeight`／
+  `_moveSettle`／`OverflowBox`／共用 GlobalKey…），`_menuOpen` 一個 bool 取代。
+- 驗收：`flutter analyze` 0 問題、`flutter test` 198、`flutter build apk --debug`（含新 Kotlin）過；
+  **上機回報：P0~P2 共 15 項通過**（當時那張 `../DEVICE_TEST.md` A-13 沒填就打掉了，**無書面記錄**）—— 四條關閉路徑都會
+  解凍、11 格功能、第二次開選單內容會更新、四角與貼邊、劃掉 app 介面後仍可用、關懸浮再開、
+  餵食後殺 app 重開餓度還在、深色／中／日／英、連開 20 次、`NOT_TOUCH_MODAL` 穿透。
+  只剩量化兩項沒做：多一顆 engine 的記憶體差、第一次開選單的預熱效果（都不影響可用性）。
+- 收尾：兩條分支已砍（own-window `cf2a96a` 已在主線；落選那條 `1f26574` 沒 merge，
+  記錄留在本節與 `AGENTS.md`）。
+
 ---
 ## 2026-11-12 選單動作格、定格可摸、選單過場修正
 
@@ -17,7 +116,9 @@
   **仍維持定格**。`playFlourish` 在定格時仍靜默無效。`feedAt` 仍會解凍（走不過去吃）。
 - **選單過場**：開／關選單先藏內容、等視窗穩定才顯示；`_openMenu` 不再校準（`_roamFor`）。
   下半螢幕（選單往上長）多藏 380 ms。**體驗仍不理想**（下半螢幕約 0.4 秒空白），
-  根因分析、錄影取證方法與後續選項全在 `POPUP_TRANSITION.md`。
+  根因（TextureView 拉伸舊幀）與「別改回同視窗」的理由已併進 `AGENTS.md`「選單是另一個視窗」；
+  當時評估過的三條路（第二個視窗／原生 PopupWindow／原生控制 alpha）最後走了第一條 ——
+  因為它不用動 fork。
 - **誤診紀錄**：「拖到下半螢幕放手後動物往上跑」不是 bug，是設定頁「區域」選了右上角。
 - 驗收：`flutter analyze` 無問題、`flutter test` 185 項全過。**尚未跑完整的真機驗收單**；
   動作的手感、中文標籤是否塞得進 92 dp、ja／zh 翻譯都還沒有人確認。
@@ -52,7 +153,7 @@
 新增 `lib/domain/pet_bond.dart`（純計分 + encode/decode）與 `test/pet_bond_test.dart` 12 題
 （額度、跨天歸零、封頂、encode/decode 守住額度、壞資料回 null、bond=0 回退舊機率、
 滿值 20%、餓時親密度無效、亂傳負值/超大不搞壞機率）。`flutter test` 155 → **167** 全過、
-analyze 0、debug APK ✅。**真機未測**：A-12 清單在 `~/dennys/DEVICE_TEST.md`（尤其 A-12c：
+analyze 0、debug APK ✅。**真機未測**：當時排的 A-12 清單（隨 `../DEVICE_TEST.md` 刪除；含 A-12c：
 用 adb 把 bond 灌成 100，看牠會不會自己撒嬌 —— 這才是「有沒有後果」的驗證）。
 
 ---
@@ -73,7 +174,7 @@ README 3 處、REVIEW 2 處、CHANGELOG 1 處改寫成「Linux/aarch64 開發機
 ## 2026-11-11 第二輪：互動與餓度的手感（①③④＋②B）
 
 `flutter analyze` 0 issue、`flutter test` 154 全過（151 → 154）、debug APK 編過。
-討論過程與被否決的選項全記在 `TODO.md`「互動與餓度」那一節；真機驗收單 = `../DEVICE_TEST.md` A-11。
+討論過程與被否決的選項全記在 `TODO.md`「互動與餓度」那一節；當時的 A-11 真機清單已隨 `../DEVICE_TEST.md` 刪除（未執行）。
 
 - **②B 餓的判定 `>=` → `>`，並收成單一來源**：`PetStats.isHungryAt(hunger, threshold)` 是現在
   唯一的判準，`PetStats.isHungry`、`_setHunger` 的跨門檻通知、`setHungryThreshold`、以及
@@ -102,7 +203,7 @@ README 3 處、REVIEW 2 處、CHANGELOG 1 處改寫成「Linux/aarch64 開發機
 
 `flutter analyze` 0 issue、`flutter test` 151 全過（132 → 151，+19：DragWatch 8、位置節流 8、getAll 合併 3）、
 `flutter build apk --debug --target-platform android-arm64` ✅。**真機仍然零次** —— 這批改的正好是
-只能上機驗的東西，驗收步驟已寫進 `../DEVICE_TEST.md` 的 A-10（含 A-9c 期待反轉那條）。
+只能上機驗的東西，當時的驗收步驟寫在 A-10（含 A-9c 期待反轉那條）；該單已隨 `../DEVICE_TEST.md` 刪除，未執行。
 
 - **#1（Must）「記位置」整個是假的**：`PetController` 從來沒讀過原生的 `startPosition`，第一次 tick
   就把視窗抓回 `bounds.center`；加上首次載入必然要校準 `_roamFor`（此刻 `_controller` 還是 null，
@@ -113,7 +214,7 @@ README 3 處、REVIEW 2 處、CHANGELOG 1 處改寫成「Linux/aarch64 開發機
   200 px/s 時一跳 3.2px > 2px 門檻，還疊著方法通道延遲）換成「視窗自己第一次的讀值」。整個狀態機
   抽出成 `domain/drag_watch.dart`（純邏輯），`test/drag_watch_test.dart` 8 題鎖住「寵物在走、
   視窗不動 → 一次 drag 都不能有」—— 換了基準之後這個 bug 在結構上就回不來。已知代價不變
-  （DEVICE_TEST A-8：拖曳中停頓 >400ms 算放手）。
+  （舊驗收單 A-8：拖曳中停頓 >400ms 算放手，只確認「不會更糟」）。
 - **#3（Must）存下來的是選單的位置**：主 app 的 `OverlayService._rememberPosition()` 整個刪掉
   （`close()` 不再有 `rememberPosition` 參數）—— 主 app 只看得見視窗左上角，選單開著時那個座標是
   選單的、比寵物高約 156px。位置一律由 overlay 這個唯一知情者存：走動時節流（5 秒／50px，靜止完全不寫）、
@@ -128,7 +229,7 @@ README 3 處、REVIEW 2 處、CHANGELOG 1 處改寫成「Linux/aarch64 開發機
 - **#6**：`getAll()` = DB 列 ∪ `builtIns`（同 id 以 DB 為準；純函式 `mergeBuiltIns` + 3 題測試）。
   `seedBuiltIns()`／`insertBuiltIns()`／onUpgrade 的 `oldVersion < 3` 分支，連「加新動物要記得 bump
   `petDbVersion`」那個永遠不會紅的坑一起消失（約 −25 行）。⚠️ 代價：**刪掉 DB 裡的內建列不會再讓牠
-  消失**（DEVICE_TEST A-9c 的期待已反轉）；目前 UI 沒有刪內建的路徑，要做之前得先加一欄「使用者隱藏」。
+  消失**（舊驗收單 A-9c 的期待已反轉）；目前 UI 沒有刪內建的路徑，要做之前得先加一欄「使用者隱藏」。
 - **#8**：`_applySettings` 的 cascade 跨 `await` 打在同一個（可能已被 `_loadAnimal` 換掉並 dispose 的）
   controller 上 → 改成先存區域變數、`await` 後 `identical` 才准套設定（本檔其他處早就在防這類競態）。
 - **#11 / #12**：`_loadAnimal` 補 `_menuTimer?.cancel()`（否則 6 秒後會醒過來對新 controller 多搬一趟）；
@@ -193,6 +294,27 @@ README 3 處、REVIEW 2 處、CHANGELOG 1 處改寫成「Linux/aarch64 開發機
 本機沒有真機可驗，風險大於收益；safeName / locale / decodeHunger 三塊純邏輯已有測試。
 
 ---
+## 2026-11-10 真機測試後的 6 項修復（自 TODO.md 歸檔，2026-11-13）
+
+當時 TODO 裡這一節全部做完，按本檔案的慣例（「做完就搬到 CHANGELOG，別堆在 TODO 吃 token」）搬過來：
+
+1. **主頁餓度即時化**：overlay 餓度變化經 `shareData({'cmd':'hunger','value':X})` push 給主 app，
+   主頁用獨立的 `_liveHunger` 顯示（不蓋掉 DB 讀的 `_savedHunger`，2026-11-11 修正）；DB 存盤仍 60s 節流。
+   label 語意：live 值顯示「即時」，「更新 HH:mm」只跟 DB 那份。
+2. **Size bug（close→restart）**：engine 是 cached 的，payload dedup 會跳過 `_applySettings`
+   （含 `_resizePetWindow`）→ 動物停在舊尺寸。修法：dedup 跳過時仍補跑一次 `_resizePetWindow`。
+3. **A-2／A-7 拖曳不夾 zone**：`syncFromWindow` 拖曳中不 clamp（視窗要跟手），`endDrag` 放手時才
+   `_clampToBounds` 夾回 zone 邊界。
+4. **A-9a 換動物不再丟定格與位置**：`_loadAnimal` 在 dispose 舊 controller 前抓 `_frozen`＋`_position`
+   掛給新的（`PetController` 構造子加 `position`、`PetControllerFactory.create` 加 `position`/`frozen`），
+   position 夾進新 bounds。
+5. **A-6a 選單餓度列沒出現**：當時判為「裝置 APK 過舊」（HungerBar 是無條件畫的）。
+   **2026-11-13 真機結案** —— 選單頂部那條餓度列在 A-13 的多個項目裡反覆看過（含飽食度更新、深色）。
+6. **A-4b topInset（差半個動物到頂）已修**：`fallbackRoam` 頂端補 `defaultStatusBarHeightDp`（25dp）；
+   `_closeMenu` 只清**未校準**的 roam（`_roamCalibrated` 旗標，2026-11-11 的修正 —— 無條件清會讓每次
+   開選單都重新量、寵物在兩個角落之間瞬移，REVIEW #2）。calibrated 路徑已含狀態列偏移，不可再加。
+
+---
 ## 2026-11-10 four user-visible fixes (device checks still zero)
 
 - `animal_animator.dart`: `didUpdateWidget` also watches `definition`/`resource`. Switching
@@ -211,7 +333,7 @@ README 3 處、REVIEW 2 處、CHANGELOG 1 處改寫成「Linux/aarch64 開發機
 ## 2026-11-09 本輪：把審查報告的缺口做掉（代碼面，commit `0f56ce9`）
 
 `flutter analyze` 0 issue、`flutter test` 92 全過（85 → 92，+4 預覽塊 / +3 previewBounds）。
-**逐條都還沒在真機跑過** —— 驗收單集中到 **`../DEVICE_TEST.md`**，所以下面每一條的意義是
+**逐條都還沒在真機跑過** —— 驗收單後來集中到 `../DEVICE_TEST.md`（2026-11-16 已刪，從未填過），所以下面每一條的意義是
 「程式碼這樣寫了並有單元測試」，不是「真機驗過了」。
 
 - **README 宣稱的「App 內模式」補實作**（`presentation/widgets/pet_preview.dart`）：主頁上方一塊
@@ -352,7 +474,7 @@ README 3 處、REVIEW 2 處、CHANGELOG 1 處改寫成「Linux/aarch64 開發機
 - **`edge_behavior.dart`**：雨個策略各自複製過一遍的貼邊判定收成 `isAtEdgeOf()`，容差統一成
   `edgeTolerance` 一個常數。
 - `path_provider_android` 的本機 pin 從 `pubspec.yaml` 移到 `pubspec_overrides.yaml`（不進 git，
-  這台機器的 path_provider 問題不該變成别人的 build 行為）。
+  這台機器的 path_provider 問題不該變成別人的 build 行為）。
 
 ---
 

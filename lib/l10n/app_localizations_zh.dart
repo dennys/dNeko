@@ -34,6 +34,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get menuUnfreeze => '解除定格';
 
   @override
+  String get menuFeedUnfreezes => '餵食會解除定格';
+
+  @override
   String get menuClose => '关闭';
 
   @override
@@ -224,6 +227,9 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get menuUnfreeze => '解除定格';
+
+  @override
+  String get menuFeedUnfreezes => '餵食會解除定格';
 
   @override
   String get menuClose => '關閉';

@@ -1,6 +1,6 @@
 # dNeko 桌寵素材產生 prompt 模板（圖片 AI 專用）
 
-要新增一隻動物（小狐狸、小兔子…；現有的小花貓 / 小狗 / 小企鵝就是照這份流程做的）時，
+要新增一隻動物（小狐狸、小兔子…；現行八隻內建動物就是照這份流程做的）時，
 把下面 **第 2 節的整段**貼給會出圖的 AI
 （Nano Banana / GPT-Image / ImageFX / Midjourney 皆可），再把第 3 節的清單一起給它。
 產生出來的圖要用第 6 節的 self-check 驗過才放進 app。
@@ -126,7 +126,8 @@
 }
 ```
 
-- `animalId` 用小寫英文（現有的是 `cat` / `dog` / `penguin`；新的像 `fox`），它同時是**資料夾名**與 DB 主鍵。
+- `animalId` 用小寫英文（現行八隻：`cat`、`cat2`、`dog`、`penguin`、`heart_dog`、`racoon`、`sloth`、
+  `monkey`；新的像 `fox`），它同時是**資料夾名**與 DB 主鍵。
 - `edgeBehavior` 二選一：`walk`（走到邊界繼續沿邊走）或 `turnBack`（碰邊折返）；
   大小寫不拘，寫錯或省略會退回 `walk`（不會報錯，所以別指望它幫你抓錯字）。
 - 動作鍵名**必須**是上面這七個 PascalCase 字串；`frames` 是**不含 `.png`** 的檔名。
@@ -149,12 +150,11 @@ flutter test test/asset_frames_test.dart
 它會擋掉：不是合法 PNG、沒有 8-bit alpha 通道、**四角全不透明（＝背景根本沒摳掉）**、
 全透明空圖、主體貼到畫布邊緣（會被裁）、**同一隻動物的兩幀位元組完全相同（模型偷懒複製）**、
 `animation.json` 參考了不存在的檔名、有圖卻沒被任何動作用到（白打包進 APK）、
-六個動作缺項、以及「只有 animation.json 沒圖卻註冊進選單」。
-> ⚠️ 新素材（15 張、含 `walk_s*`/`WalkSide`）要能過檢，**必須連 `test/asset_frames_test.dart`
-> 一起更新**（必要動作清單 6→7、幀數 13→15）——那支測試和 app 的動作映射是同一邊的人改，
-> 只放圖不改測試會直接紅。
+七個動作缺項（`WalkUp`/`WalkDown`/`WalkSide`/`Sit`/`Sleep`/`Eat`/`Affectionate`）、以及「只有 animation.json 沒圖卻註冊進 `builtIns`」。
+> 現況：那支測試**已經**是 7 個動作／15 張（`requiredActions` 在 `test/asset_frames_test.dart`）；
+> 要改需求（例如再加一個動作）時，測試與 app 的動作映射要同一邊一起改，只放圖會直接紅。
 它只會**示警**（不擋）的：各幀畫布尺寸不一致、`frameWidth/frameHeight` 與實際圖不符
-—— 三隻現行素材都已對齊（貓 212×208、狗/企鵝 256×256），看到這兩條示警就代表新素材有問題。
+—— 現行八隻的幀尺寸各自都一致（貓/貓2 212×208，其餘 256×256），看到這兩條示警就代表新素材有問題。
 
 自動檢查抓不到的，用眼睛再看一遍：
 
@@ -165,7 +165,7 @@ flutter test test/asset_frames_test.dart
 - [ ] `eat1/2` 有食物且符合角色（貓狗＝盆＋飼料，野生＝直接吃食材），兩幀食物位置大小一致。
 - [ ] 沒有地面陰影、道具、特效、文字、簽名、邊框（食物除外）。
 - [ ] 角色不被裁切，且佔畫布高度約 60~70%（太小像灰塵，太大會貼邊被裁）。
-- [ ] `walk_d1/2` 真的左右對稱（程式支援前左右走會借用它）。
+- [ ] `walk_d1/2` 真的左右對稱（沒有 `WalkSide` 時左右走借用它；斜向也借 `walk_u*`/`walk_d*`）。
 - [ ] `walk_s1/2` 是 **90° 正側面且鼻尖朝左**（3/4 側、微側都不行；app 只靠鏡像產生向右走）、
       接地線與正面幀同一條 y、大小同其他幀。
 
@@ -181,7 +181,8 @@ ls assets/animals/<animalId>/   # 應該是 15 張 png + 1 支 json，共 16 個
 #      - assets/animals/<animalId>/
 
 # 3) 註冊內建動物：lib/data/repositories/animal_repository.dart 的 builtIns
-#    加 ('<animalId>', '{{動物}}')，主頁選單才看得到牠（選單讀 DB，不是讀資料夾）
+#    加 ('<animalId>', '{{動物}}')，主頁選單才看得到牠
+#    （選單看的清單 = DB 列 ∪ builtIns，見 AnimalRepository.getAll；內建動物不靠 seed 進 DB）
 
 # 4) 驗：素材本身合規 + 資料夾 ⇔ builtIns ⇔ pubspec 三方一致
 flutter test test/asset_frames_test.dart test/pet_state_persistence_test.dart
@@ -195,7 +196,8 @@ flutter analyze
 
 ## 8. 既有動物追加側面幀（13 張 → 15 張）
 
-貓/狗/企鵝已經有 13 張，**不需要重畫整組**，只要補 `walk_s1/walk_s2` 兩張。
+（現行八隻**都已經是 15 張**，本節留給日後接回舊素材、或哪隻真的少了側面幀時用。）
+那隻動物已有 13 張時**不需要重畫整組**，只要補 `walk_s1/walk_s2` 兩張。
 把現有那隻的 `walk_d1.png` 和 `sit1.png` 當參考圖，連下面整段一起貼給出圖 AI：
 
 ```text

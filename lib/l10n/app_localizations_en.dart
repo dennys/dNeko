@@ -34,6 +34,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get menuUnfreeze => 'Unfreeze';
 
   @override
+  String get menuFeedUnfreezes => 'Feeding cancels freeze';
+
+  @override
   String get menuClose => 'Close';
 
   @override

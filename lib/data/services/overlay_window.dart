@@ -13,8 +13,8 @@ class OverlayWindow implements IOverlayWindow {
     );
   }
 
-  /// 只在「視窗縮回寵物尺寸」時用，拖曳一律開著；要同時改 enableDrag 的地方走
-  /// [moveAndResize]（開選單／收選單），所以這邊不暴露那個參數。
+  /// 只在縮回寵物尺寸時用；拖曳一律開著。選單不再改這個視窗的尺寸（改成另一個視窗，
+  /// 見 menu_main.dart 與原生 MenuOverlay.kt），所以這裡也不再需要「同時搬位置」。
   @override
   Future<void> resize({required double width, required double height}) =>
       FlutterOverlayWindow.resizeOverlay(width.toInt(), height.toInt(), true);
@@ -27,21 +27,4 @@ class OverlayWindow implements IOverlayWindow {
 
   @override
   Future<void> close() => FlutterOverlayWindow.closeOverlay();
-
-  /// 位置＋尺寸一次寫進視窗（單一 updateViewLayout）：切換選單時不會先搬後縮，中間不閃一幀。
-  /// 不放進 IOverlayWindow，避免強迫其他實作（測試假物件）跟著改。
-  Future<void> moveAndResize({
-    required Offset position,
-    required double width,
-    required double height,
-    required bool enableDrag,
-  }) async {
-    await FlutterOverlayWindow.updateOverlay(
-      x: position.dx.round(),
-      y: position.dy.round(),
-      width: width.round(),
-      height: height.round(),
-      enableDrag: enableDrag,
-    );
-  }
 }

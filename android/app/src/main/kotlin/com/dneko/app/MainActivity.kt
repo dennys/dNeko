@@ -42,6 +42,20 @@ class MainActivity : FlutterActivity() {
                     }
 
                     "pinToggleShortcut" -> result.success(pinToggleShortcut())
+                    // 選單的第二個視窗（見 MenuOverlay.kt）：開懸浮時就把選單那顆 engine 预热好，
+                    // 第一次長按才不用等冷啟動；關懸浮時兼做兜底，把還開著的選單一起收掉。
+                    "preWarmMenu" -> {
+                        MenuOverlay.preWarm(applicationContext)
+                        result.success(true)
+                    }
+                    "hideMenu" -> {
+                        MenuOverlay.hideMenu()
+                        result.success(true)
+                    }
+                    "disposeMenu" -> {
+                        MenuOverlay.disposeMenu()
+                        result.success(true)
+                    }
                     else -> result.notImplemented()
                 }
             }

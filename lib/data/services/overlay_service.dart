@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:ui';
+import 'package:flutter/services.dart';
 import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 import '../../domain/i_overlay_service.dart';
 import '../../domain/screen_metrics.dart';
@@ -45,6 +45,21 @@ class OverlayService implements IOverlayService {
     );
 
     unawaited(_shareStartupData(payload));
+    // 選單是另一個視窗（原生 MenuOverlay.kt）：現在就把它那顆 engine 预热好，
+    // 使用者第一次長按才不用等冷啟動。失敗不影響寵物（頂多選單慢一點）。
+    unawaited(_menuNative('preWarmMenu'));
+  }
+
+  /// 呼叫 app 模組自己的原生端（`com.dneko/app`，MainActivity 註冊）。
+  /// 綁不上（例：原生還沒這支）時靜默 —— 選單慢一點或 6 秒後自己關，都不能影響寵物。
+  static const _appChannel = MethodChannel('com.dneko/app');
+
+  Future<void> _menuNative(String method) async {
+    try {
+      await _appChannel.invokeMethod(method);
+    } catch (_) {
+      // 見上：這裡沒有值得崩潰的失敗
+    }
   }
 
   /// 上次關閉時的位置，夾回目前螢幕內（螢幕轉向或換機後可能已經在畫面外）。
@@ -109,7 +124,13 @@ class OverlayService implements IOverlayService {
   /// （比寵物高一大截），存下來下次開懸浮會偏高被系統夾到螢幕頂。位置由 overlay 自己存
   /// （`overlay_main._rememberPosition`）—— 只有它知道寵物在哪。
   @override
-  Future<void> close() => FlutterOverlayWindow.closeOverlay();
+  Future<void> close() async {
+    // 選單那顆視窗是自己 addView 出來的，關寵物不會順手關它；那顆 engine 更要主動放掉
+    // —— 桌面寵物開一整天，不該在懸浮關了之後還佔著記憶體。
+    await _menuNative('hideMenu');
+    await _menuNative('disposeMenu');
+    await FlutterOverlayWindow.closeOverlay();
+  }
 
   @override
   Stream<dynamic> get events => FlutterOverlayWindow.overlayListener;

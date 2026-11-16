@@ -1,6 +1,6 @@
 name: dneko
 description: ANeko-like desktop pet app
-publish_to: none # app 不發布到 pub.dev；path 依賴（fork 插件）需要這行才不報 invalid_dependency
+publish_to: none # app 不發布到 pub.dev（2026-11-16 後已無 path 依賴：flutter_overlay_window 改回 pub.dev 版）
 version: 1.0.0+1
 
 environment:
@@ -18,11 +18,11 @@ dependencies:
   path_provider: ^2.1.6
   path: ^1.9.1
   dio: ^5.9.2
-  # 1.0.x 需要 Gradle 9 / AGP 9 / Java 17（本專案已於階段 40 升級）
-  # 本地 fork（packages/flutter_overlay_window）：原生端加了 ACTION_OUTSIDE 支援，
-  # 讓選單可以「點螢幕其他地方」關掉。升級前必讀 AGENTS.md 的「本地 fork 插件」。
-  flutter_overlay_window:
-    path: packages/flutter_overlay_window
+  # 1.0.x 需要 Gradle 9 / AGP 9 / Java 17（本專案已於階段 40 升級）。
+  # 2026-11-16 之前用的是 packages/ 下的本地 fork（為了 ACTION_OUTSIDE「點外面關選單」）；
+  # 選單改成第二個懸浮視窗之後那補丁沒人聽了，diff 過上游只差那兩處 → 改回 pub 版。
+  # 要恢復那個功能、以及升版要注意的兩條坑：見 AGENTS.md「flutter_overlay_window」。
+  flutter_overlay_window: 1.0.2
   package_info_plus: ^10.2.2
   audioplayers: ^6.8.1
 

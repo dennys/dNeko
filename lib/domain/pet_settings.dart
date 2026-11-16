@@ -34,7 +34,11 @@ class PetSettings {
   /// 餓的門檻（分鐘）：不餵的話多久後 isHungry 翻 true。
   /// 衰減速率固定 1 點/分鐘（PetStats.defaultHungerPerSecond），所以分鐘數＝門檻點數；
   /// 上限 100 = maxHunger，再大就永遠餓不到。
-  static const int minHungerMinutes = 1;
+  ///
+  /// 下限從 1 抬到 5：`PetStats.feed()` 改成「餵到飽」之後，門檻 1 分鐘代表餵完 1 分鐘就又餓
+  /// （舊的固定餵 40 點起碼撐 40 分鐘），等於餵食按鈕按了沒意義，而且餓的時候 `PetBrain`
+  /// 0% 睡覺 → 變成一隻永不睡的寵物。舊安裝存過 1 的，`fromJson` 會在下載設定時自動夾上來。
+  static const int minHungerMinutes = 5;
   static const int maxHungerMinutes = 100;
   static const int defaultHungerMinutes = 60;
 

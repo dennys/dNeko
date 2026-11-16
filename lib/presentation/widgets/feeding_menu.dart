@@ -6,7 +6,16 @@ class FeedingMenuTile {
   final String label;
   final VoidCallback onTap;
 
-  const FeedingMenuTile({required this.icon, required this.label, required this.onTap});
+  /// false = 變灰且按了沒反應（定格時 `PetController.playFlourish` 會靜默丟掉小動作；
+  /// 與其讓使用者按了以為壞掉，不如一眼看出現在不能按）
+  final bool enabled;
+
+  const FeedingMenuTile({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.enabled = true,
+  });
 }
 
 /// 精靈（精靈出巡）式的緊湊彈出選單：icon 列一條一條，中間是 2 欄動作網格，結束在最後（error 色）。
@@ -17,8 +26,13 @@ class FeedingMenu extends StatelessWidget {
   static const double _tileHeight = 52;
   static const int _gridRows = 3;
 
-  /// Card 內容高度（5 列 × 44 + 分隔線 + 3 行網格 + 分隔線 + 上下 padding）；overlay 靠它算視窗高度
-  static const double contentHeight = 5 * 44 + 1 + _gridRows * _tileHeight + 1 + 16;
+  /// 底部那行小字的區塊高度
+  static const double _footnoteHeight = 18;
+
+  /// Card 內容高度（5 列 × 44 + 分隔線 + 3 行網格 + 分隔線 + 小字 + 上下 padding）；
+  /// 選單視窗高度由它算出來（`menu_main.kMenuWindowSize`），改這行視窗會跟著變。
+  static const double contentHeight =
+      5 * 44 + 1 + _gridRows * _tileHeight + 1 + _footnoteHeight + 16;
 
   final String feedLabel;
   final String petLabel;
@@ -37,6 +51,10 @@ class FeedingMenu extends StatelessWidget {
   /// 任一列被按到时通知外面（用來重置自動關閉計時器）
   final VoidCallback? onInteract;
 
+  /// 網格下方那行小字（例如「餵食會解除定格」）；null／空 = 不畫，但高度照樣保留
+  /// （視窗尺寸是 kMenuWindowSize 固定的，有無小字不該讓它跳）
+  final String? footnote;
+
   const FeedingMenu({
     super.key,
     required this.feedLabel,
@@ -51,6 +69,7 @@ class FeedingMenu extends StatelessWidget {
     required this.onQuit,
     required this.tiles,
     this.onInteract,
+    this.footnote,
   }) : assert(tiles.length == _gridRows * 2);
 
   @override
@@ -86,9 +105,27 @@ class FeedingMenu extends StatelessWidget {
                     _GridTile(
                       icon: tile.icon,
                       label: tile.label,
+                      enabled: tile.enabled,
                       onTap: () => tap(tile.onTap),
                     ),
                 ],
+              ),
+            ),
+            SizedBox(
+              height: _footnoteHeight,
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  child: Text(
+                    footnote ?? '',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ),
             ),
             const Divider(height: 1, indent: 14, endIndent: 14),
@@ -109,14 +146,21 @@ class _GridTile extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
+  final bool enabled;
 
-  const _GridTile({required this.icon, required this.label, required this.onTap});
+  const _GridTile({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.enabled = true,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final fg = Theme.of(context).colorScheme.onSurface;
+    final base = Theme.of(context).colorScheme.onSurface;
+    final fg = enabled ? base : base.withValues(alpha: 0.35);
     return InkWell(
-      onTap: onTap,
+      onTap: enabled ? onTap : null,
       child: SizedBox(
         width: FeedingMenu._tileWidth,
         height: FeedingMenu._tileHeight,

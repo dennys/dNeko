@@ -7,6 +7,7 @@
   "menuPet": "撫摸",
   "menuFreeze": "定格",
   "menuUnfreeze": "解除定格",
+  "menuFeedUnfreezes": "餵食會解除定格",
   "menuClose": "關閉",
   "menuQuit": "結束桌寵",
   "menuActionLookAround": "左右張望",

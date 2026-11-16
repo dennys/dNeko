@@ -149,6 +149,12 @@ abstract class AppLocalizations {
   /// **'Unfreeze'**
   String get menuUnfreeze;
 
+  /// No description provided for @menuFeedUnfreezes.
+  ///
+  /// In en, this message translates to:
+  /// **'Feeding cancels freeze'**
+  String get menuFeedUnfreezes;
+
   /// No description provided for @menuClose.
   ///
   /// In en, this message translates to:

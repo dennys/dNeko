@@ -11,7 +11,7 @@ class PetStats extends ChangeNotifier {
 
   /// 每秒累積的飢餓值。1/60 ≈ 每分鐘 1 點：不餵的話約 1 小時變餓、約 100 分鐘餓透。
   ///
-  /// 舊值是 1.0/秒 —— 那代表開機 **100 秒**就永遠停在 maxHunger，而餵食只贖回 40，
+  /// 舊值是 1.0/秒 —— 那代表開機 **100 秒**就永遠停在 maxHunger，而當時的餵食只贖回 40，
   /// 於是跑兩分鐘後 `isHungry` 恆為 true，PetBrain 永遠只選 wander/idle，
   /// 這隻寵物再也沒睡過覺。
   static const double defaultHungerPerSecond = 1 / 60;
@@ -35,9 +35,9 @@ class PetStats extends ChangeNotifier {
 
   /// 「這個餓度算不算餓」的**唯一**判準 —— PetBrain 的決策與 HungerBar 的顏色都走這裡。
   ///
-  /// 用 `>` 不用 `>=`：餵食量是 40，從餓透（100）餵一次剛好落在門檻 60 上；用 `>=` 會判成
-  /// 「仍然餓」→ 要餵兩次才脫餓，而餓的時候 PetBrain 絕不睡覺（使用者餵完卻看到牠照常只走
-  /// 不睡，像餵了沒反應）。以前判準在 PetStats 與 HungerBar 各寫一份 `>=`，改一邊必漏另一邊。
+  /// 用 `>` 不用 `>=`：餓度**剛好等於**門檻時算「不餓」。會正好落在整數門檻上是常事
+  /// （衰減 1 點/分鐘、門檻也是分鐘數），判成餓的話 PetBrain 絕不睡覺，使用者會看到
+  /// 「明明不餓卻一直走」。以前判準在 PetStats 與 HungerBar 各寫一份 `>=`，改一邊必漏另一邊。
   static bool isHungryAt(double hunger, double threshold) => hunger > threshold;
 
   /// 是否餓到想找食物
@@ -103,7 +103,15 @@ class PetStats extends ChangeNotifier {
   }
 
   /// 進食後降低飢餓
-  void feed({double amount = 40}) => _setHunger(_hunger - amount);
+  /// 吃一口：預設**餵到飽**（hunger 歸零）。
+  ///
+  /// 為什麼不是固定點數：衰減是 1 點/分鐘，而預設以前是 40 點 ⇒ 不管設定頁「多久變餓」
+  /// 設幾，都是每 40 分鐘要餵一次 —— 那個 slider 對「多久要餵一次」完全無效（使用者以為
+  /// 在調餵食負擔）。改成餵到飽之後，「餵完能安靜多久」就等於門檻值，slider 講什麼就是什麼。
+  /// （也不是 `amount ?? hungryThreshold`：門檻設 20 時從餓透餵一次只從 100 降到 80，
+  /// 還是餓 → 要連按 5 次才脫餓，又變回「餵了沒反應」。）
+  /// [amount] 留著給測試與將來的「餵一小口」用。
+  void feed({double? amount}) => _setHunger(amount == null ? 0 : _hunger - amount);
 
   void _setHunger(double value) {
     final clamped = value.clamp(0.0, maxHunger);

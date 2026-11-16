@@ -34,6 +34,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get menuUnfreeze => '動き出す';
 
   @override
+  String get menuFeedUnfreezes => 'ごはんをあげると静止が解けます';
+
+  @override
   String get menuClose => '閉じる';
 
   @override

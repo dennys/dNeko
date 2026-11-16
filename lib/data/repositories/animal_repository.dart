@@ -1,4 +1,5 @@
 import 'package:sqflite/sqflite.dart';
+import '../../utils/log.dart';
 import 'i_animal_repository.dart';
 import '../models/animal_resource.dart';
 import 'pet_database.dart';
@@ -59,7 +60,16 @@ class AnimalRepository implements IAnimalRepository {
   /// 才退回內建 —— 素材是隨 app 打包的，不該因為一列被刪就整個變成佔位圓。
   @override
   Future<AnimalResource?> resolveResource(String animalId) async {
-    return await getById(animalId) ?? AnimalRepository.builtIn(animalId);
+    // 順序仍是 DB 優先（下載過/改過的那份要贏過內建定義），但**讀不到 DB 不能讓內建動物
+    // 也一起變成佔位圓**：overlay isolate 啟動就靠這行，sqflite 在 isolate 裡掛掉時
+    // 至少還有隨 app 打包進來的素材可用（下載的動物本來就住在本地資料夾，DB 壞了無法還原）。
+    AnimalResource? fromDb;
+    try {
+      fromDb = await getById(animalId);
+    } catch (e, st) {
+      appError('讀動物失敗，$animalId 退回內建素材', e, st);
+    }
+    return fromDb ?? AnimalRepository.builtIn(animalId);
   }
 
   @override

@@ -7,6 +7,7 @@
   "menuPet": "なでる",
   "menuFreeze": "静止",
   "menuUnfreeze": "動き出す",
+  "menuFeedUnfreezes": "ごはんをあげると静止が解けます",
   "menuClose": "閉じる",
   "menuQuit": "アプリを終了",
   "menuActionLookAround": "きょろきょろ",

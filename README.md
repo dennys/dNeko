@@ -11,9 +11,11 @@
 
 - **自主漫遊**：動物依 `animation.json` 的 8 方向動畫在限定範圍內走動，速度／大小／活動範圍可在主頁調整。
 - **互動**：
-  - 短按 = 撫摸、雙擊 = 餵食（預覽塊與 overlay 相同）。
-  - 長按（**僅 overlay**）= 彈出選單：餵食／撫摸／凍結／收起／結束，選單頂部一條是即時餓度；
-    點螢幕其他地方或按寵物即收起，數秒無操作也會自動收起。預覽塊沒有選單。
+  - 短按 = 撫摸（有音效的動物會叫，現行只有貓系與狗系）、雙擊 = 餵食（預覽塊與 overlay 相同）。
+  - 長按（**僅 overlay**）= 彈出選單（**第二個懸浮視窗**，寵物不會被搬走）：餵食／撫摸／凍結／收起／
+    結束 5 列 + **6 個小動作格**（張望／打盹／搖擺／跳跳／伸懶腰／轉圈），選單頂部一條是即時餓度
+    （右邊一顆愛心是親密度）；點螢幕其他地方或按寵物即收起，6 秒無操作也自動收起。預覽塊沒有選單。
+    小動作也會由 `FlourishScheduler` 自主隨機播（每分鐘約 25%、冷卻 30 秒）。
 - **兩種顯示模式**
   - 主頁預覽塊：跑的是與 overlay **同一套** `PetController`，拖速度／大小滑桿即時看到結果；
     活動範圍（zone）對它無效（預覽塊沒有「全螢幕／僅下方」的語意），餓度也是**獨立沙箱**，
@@ -21,9 +23,12 @@
   - Overlay 模式：懸浮在其他 app 之上（需 `SYSTEM_ALERT_WINDOW` 權限），可拖曳、跑遍全螢幕，仍可點擊互動。
 - **飢餓值系統**：餓度隨時間**上升**（0 = 飽、100 = 餓透）並影響行為，跨重開保存（依離開時間補算）。
   主頁那一欄是**存盤的餓度**（走 DB）、懸浮選單那條是**即時餓度**；分兩處是為了能歸因
-  「overlay 寫不寫得進去」與「overlay 讀不讀得回來」（見 `../DEVICE_TEST.md` A-5）。
+  「overlay 寫不寫得進去」與「overlay 讀不讀得回來」。
+- **親密度**：0~100、只漲不跌、每隻動物各一份；唯一的後果是越高越會**主動撒嬌**（不影響餓度）。
+  計分只發生在懸浮那側（預覽塊是沙箱）。
 - **邊緣行為**：碰邊「沿邊走」或「回頭」，由 `animation.json` 設定，資料驅動。
-- **動物**：內建貓／狗／小企鵝，可另外下載動物素材包。
+- **動物**：內建 8 隻（貓、貓 2、狗、小企鵝、愛心狗、浣熊、樹懶、猴子）；商店下載的架構在寫著、
+  入口目前關著（見下方「新增／下載動物」）。
 - **多國語言**：英文、簡體中文、繁體中文、日文（主頁下拉式選單，預設跟隨系統）。
 - **主題**：跟随系統／淺色／深色。
 - **桌面捷徑**：一鍵開關懸浮寵物。
@@ -38,10 +43,9 @@ lib/
 ├── domain/        # 領域層：純邏輯（移動、決策、邊緣行為、飢餓值）
 ├── presentation/  # 表現層：controllers / pages / widgets
 ├── l10n/          # 多國語言 ARB
-├── main.dart      # App 進入點；也保留 overlayMain native entrypoint
-└── overlay_main.dart  # Overlay isolate UI 實作
-packages/
-└── flutter_overlay_window/  # 本地 fork 的懸浮窗插件（見下方「本地 fork 插件」）
+├── main.dart      # App 進入點；也保留 overlayMain / menuMain native entrypoint
+├── overlay_main.dart  # Overlay isolate UI 實作（那隻寵物）
+└── menu_main.dart     # 選單那顆 engine 的 UI（第二個懸浮視窗）
 ```
 
 核心邏輯（`PetController`、`MovementEngine`、`PetBrain`、`PetStats`、`EdgeBehavior`）
@@ -91,15 +95,15 @@ flutter build apk --release --target-platform android-arm64 --no-tree-shake-icon
 ## 🔑 簽名（升級免重裝）
 
 release 以**固定的一把** keystore 簽名（同一案只准有一把：換鑰 = 舊安裝無法覆蓋升級，只能砍掉重裝）。
-repo 是 public，金鑰與密碼**不進版控**，放在三個地方：
+repo 是 public，金鑰與密碼**不進版控**：
 
 | 位置 | 放什麼 |
 |---|---|
-| Windows 開發機 | `android\app\dneko.keystore` + `android\app\key.properties` |
-| Linux/aarch64 開發機 | `android/app/dneko.keystore` + `android/app/key.properties` |
+| Windows 開發機 | `android\app\dneko.keystore` + `android\app\key.properties`（**目前唯一存活的實體檔**） |
 | GitHub Actions | secrets `KEYSTORE_B64`（keystore 檔的 base64）、`KEY_PROPERTIES`（key.properties 全文） |
+| Linux/aarch64 開發機 | ❌ 2026-11-11 實查**什麼都沒有**（該放的兩支檔都不存在 —— 見下方的遺失風險） |
 
-三處必須是**同一把**。`key.properties` 四行（`storeFile` 是**相對 `android/app/` 的路徑**，別寫成 `app/dneko.keystore`）：
+兩處必須是**同一把**。`key.properties` 四行（`storeFile` 是**相對 `android/app/` 的路徑**，別寫成 `app/dneko.keystore`）：
 
 ```properties
 storeFile=dneko.keystore
@@ -114,8 +118,7 @@ keyPassword=<同上那個密碼>
 > 而 Gradle 簽名走的正是 `getKey()`（`build.gradle.kts` 直接把這四行餵給 signingConfig）。
 
 ⚠️ **不要在新機器上 `keytool -genkeypair` 另生一把** —— 簽名不同就等於換鑰，舊安裝收不到覆蓋更新。
-新機器請從既有機器複製（**目前只有 Windows 開發機有**；`~/dennys/AGENTS.md` 那節講的 Linux/aarch64 開發機備份
-> 2026-11-11 實查不存在）：
+新機器請**從 Windows 開發機**複製（Linux/aarch64 那台沒有鑰，照它抄只會失敗）：
 
 ```bash
 scp <existing-machine>:<repo>/android/app/dneko.keystore   <new-machine>:<repo>/android/app/
@@ -144,38 +147,38 @@ CI 的 `Restore signing key` 會先清洗 secret 被判貼帶入的空白/`\r`�
 > **待辦（人手的事，不是代碼）**：從 Windows 機取 `dneko.keystore` + `key.properties`，分存三處
 > （開發機／第二台機器或 NAS／密碼管理器），`sha256sum` 核對一致後把實際路徑補回這一段。
 
-## 📦 本地 fork 插件
+## 📦 overlay 插件（`flutter_overlay_window`）
 
-`flutter_overlay_window` 改用 `packages/flutter_overlay_window/`（基底 = pub 1.0.2 的 fork），
-原生端加了 `ACTION_OUTSIDE` 支援，讓 overlay 選單可以「點螢幕其他地方」關掉（上游 issue #170 被拒絕，不會有官方版）。
-**升級此插件前必讀 `AGENTS.md` 的「本地 fork 插件」章節**：補丁清单、升版流程、手測步驟。
+用 pub.dev 的 `1.0.2`（2026-11-16 起）。本案曾经把它 fork 進 repo 打補丁做「點螢幕其他地方關選單」，
+但選單已改成第二個懸浮視窗、自己處理點外面，補丁與 fork 都不再需要。
+**升版前讀 `AGENTS.md` 的「flutter_overlay_window」章節**：兩條必核對的坑（`CACHED_TAG`、
+選單 engine 不自動註冊 plugin）與上機重掃清單。
 
 ## 🐱 新增／下載動物
 
-每隻動物是一個資料夾，包含 `animation.json` 與各動作的 PNG 幀圖。
+每隻動物是一個資料夾：`assets/animals/<id>/` 裡的 `animation.json` + **15 張 PNG**
+（`sit1/2`、`walk_u1/2`、`walk_d1/2`、`walk_s1/2`、`sleep1/2`、`eat1/2`、`afct1/2/3`）。
+`animation.json` 的標準模板（七個動作鍵一個都不能少，直接複製）在 **`ASSET_PROMPT.md` 第 5 節**，
+產圖規格與 self-check 在同一份檔。
 
-```json
-{
-  "animalId": "cat",
-  "displayName": "小花貓",
-  "frameWidth": 32,
-  "frameHeight": 32,
-  "edgeBehavior": "walk",        // walk = 沿邊走, turnBack = 回頭
-  "actions": {
-    "WalkUp": { "frames": ["walk_u1","walk_u2"], "frameDurationMs": 250, "loop": true }
-    // ... 其他動作
-  }
-}
-```
+新增一隻內建動物是**三步**，少一步就不對：
 
-- **內建動物**：放在 `assets/animals/<id>/`，並在 `pubspec.yaml` 註冊。`animation.json` 的 frame 名稱需對應同資料夾 PNG 檔名，例如 `walk_u1` 對應 `walk_u1.png`。建議使用透明背景 PNG，尺寸以 `frameWidth` / `frameHeight` 為準。
+1. 素材放進 `assets/animals/<id>/`（含 `animation.json`），`frame` 名就是 PNG 檔名（`walk_u1` → `walk_u1.png`）。
+2. `pubspec.yaml` 的 `flutter.assets` 加一行 `- assets/animals/<id>/`（漏了 rootBundle 讀不到 → 整隻變佔位圓）。
+3. `lib/data/repositories/animal_repository.dart` 的 `builtIns` 加 `('<id>', '<顯示名>')` —— 漏了这步
+   就是「素材齊了但主頁選單選不到」（`c616eab` 踩過）。
+
+验：`flutter test test/asset_frames_test.dart`（素材合規 + 資料夾 ⇄ `builtIns` ⇄ pubspec 三方一致）。
+
 - **下載動物**：透過商店下載到本機，寫入 SQLite。**商店目前停用**（`home_page.dart` 的 `kStoreEnabled = false`，
   入口隱藏；原因與開放條件見該常數的註解與 TODO.md），所以現行版本只有內建動物。
 
 ## 🖥️ Overlay 注意事項
 
 - `flutter_overlay_window` 會以字串尋找 `main.dart` 內的 `overlayMain()`；請保留該 entrypoint，再委派到 `overlay_main.dart`。
-- Overlay 跑在獨立 isolate，內建動物直接從 assets 載入，避免啟動時依賴 SQLite plugin。
+- Overlay 跑在獨立 isolate。載入動物走 `AnimalRepository.resolveResource()`：DB 優先（下載過的贏過
+  內建定義），但**DB 讀不到會退回內建素材**，不會連貓都開不出來（`test/animal_repository_test.dart` 鎖住）。
+  載入失敗時畫面退成佔位圓（tap = 重試），原因一律記進 logcat 的 `dneko.error`。
 - 漫遊範圍由 overlay 端「搬到極端再讀回」實測校準（原生 WindowManager 的安全區與 MediaQuery 常對不上）。
 - 快速切換 start/stop 時，UI 會鎖住按鈕等待外掛狀態同步，避免重複 show/close 造成狀態卡住。
 

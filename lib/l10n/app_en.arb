@@ -7,6 +7,7 @@
   "menuPet": "Pet",
   "menuFreeze": "Freeze",
   "menuUnfreeze": "Unfreeze",
+  "menuFeedUnfreezes": "Feeding cancels freeze",
   "menuClose": "Close",
   "menuQuit": "Quit",
   "menuActionLookAround": "Look around",

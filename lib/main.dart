@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'l10n/app_localizations.dart';
 import 'overlay_main.dart' as overlay_entry;
+import 'menu_main.dart' as menu_entry;
 import 'data/repositories/animal_repository.dart';
 import 'data/repositories/settings_repository.dart';
 import 'data/services/animal_download_service.dart';
@@ -57,6 +58,12 @@ Future<void> main() async {
 @pragma('vm:entry-point')
 void overlayMain() {
   overlay_entry.runOverlayApp();
+}
+
+/// 選單的第二個懸浮視窗（原生 `MenuOverlay.kt` 用這個名字起第二顆 engine）
+@pragma('vm:entry-point')
+void menuMain() {
+  menu_entry.runMenuApp();
 }
 
 class MyApp extends StatelessWidget {

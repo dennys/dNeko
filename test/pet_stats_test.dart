@@ -17,14 +17,33 @@ void main() {
       expect(PetStats.isHungryAt(60.01, 60), isTrue);
     });
 
-    test('餓透餵一次就要能脫餓（>= 的年代要餵兩次，看起來像餵了沒反應）', () {
+    test('餓透餵一次就要能脫餓（預設是「餵到飽」，不是贖回固定點數）', () {
       final stats = PetStats(initialHunger: PetStats.maxHunger); // 餓透 100
       expect(stats.isHungry, isTrue);
 
-      stats.feed(); // 餵食量 40 → 60，剛好落在預設門檻上
-      expect(stats.hunger, 60);
-      expect(stats.isHungry, isFalse,
-          reason: '60 >= 60 的年代這裡仍判餓 → PetBrain 絕不睡覺 → 必須再餵一次');
+      stats.feed();
+      expect(stats.hunger, 0);
+      expect(stats.isHungry, isFalse);
+    });
+
+    test('餵完能安靜的分鐘數＝門檻值（設定頁那個 slider 讲的必须是真话）', () {
+      // 衰減 1 點/分鐘 ⇒ 餵到 0 之後要過 hungryThreshold 分鐘才重新變餓。
+      // 舊預設是固定餵 40 點，那時門檻設幾都是 40 分鐘餵一次 —— slider 完全是裝飾。
+      for (final threshold in [20.0, 60.0, 90.0]) {
+        final stats = PetStats(initialHunger: PetStats.maxHunger, hungryThreshold: threshold);
+        stats.feed();
+        stats.tick(Duration(minutes: threshold.toInt()));
+        expect(stats.isHungry, isFalse, reason: '門檻 $threshold：剛好在門檻上算不餓');
+        stats.tick(const Duration(minutes: 1));
+        expect(stats.isHungry, isTrue, reason: '門檻 $threshold：超過 1 分鐘就該判餓');
+      }
+    });
+
+    test('門檻很低時餵一次也要能脫餓（这才是不用 amount ?? threshold 的理由）', () {
+      // 若餵食量 = 門檻值：門檻 20、餓透 100 → 餵一次只到 80，還是餓，要連按 5 次
+      final stats = PetStats(initialHunger: PetStats.maxHunger, hungryThreshold: 20);
+      stats.feed();
+      expect(stats.isHungry, isFalse);
     });
 
     test('進食後降低飢餓值', () {

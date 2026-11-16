@@ -66,6 +66,14 @@ void main() {
           PetSettings.minHungerMinutes);
     });
 
+    test('舊安裝存過 1 分鐘的，讀回來會被夾到下限（餵到飽之後 1 分鐘＝餵了沒意義）', () {
+      // 下限是 2026-11-13 從 1 抬上來的：`PetStats.feed()` 改成餵到飽之後，門檻 1 分鐘
+      // 意味著餵完 1 分鐘就又餓，而且餓時 PetBrain 絕不睡覺 → 永不睡的寵物。
+      expect(PetSettings.minHungerMinutes, 5);
+      expect(PetSettings.fromJson(const {'hungerMinutesUntilHungry': 1}).hungerMinutesUntilHungry,
+          PetSettings.minHungerMinutes);
+    });
+
     test('餓的門檻：copyWith 只改它時其他欄位不動', () {
       const s = PetSettings(speedPxPerSecond: 150);
       final next = s.copyWith(hungerMinutesUntilHungry: 15);

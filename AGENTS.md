@@ -16,7 +16,7 @@ dNeko 是 ANeko 風格的桌面寵物 App（Flutter / Android）。動物可在 
 | 層 | 路徑 | 職責 | 可依賴 |
 | ---- | ---- | ---- | ---- |
 | Data | `lib/data` | models / repositories / services（DB、檔案、下載、overlay） | domain |
-| Domain | `lib/domain` | 純邏輯：移動、決策、邊緣行為、飢餓、螢幕換算 | 無（不依賴 Flutter UI） |
+| Domain | `lib/domain` | 純邏輯：移動、決策、邊緣行為、飢餓、螢幕換算 | `dart:ui`（`Offset`/`Rect`/`Size`）與 `flutter/foundation.dart`（`ChangeNotifier`）；**不得 import `flutter/material.dart`** |
 | Presentation | `lib/presentation` | controllers / pages / widgets | data, domain |
 
 **規則**：domain 層不得 import `package:flutter/material.dart`（可用 `dart:ui` 的 `Offset`/`Rect`/`Size`）。
@@ -56,33 +56,57 @@ dNeko 是 ANeko 風格的桌面寵物 App（Flutter / Android）。動物可在 
 
 ## Overlay 注意事項
 
-- overlay 跑在獨立 isolate；`main.dart` 必須保留 `@pragma('vm:entry-point') overlayMain()`，再委派到 `overlay_main.dart` 的實作。
-- overlay 內建動物應直接從 assets 載入，避免啟動時依賴 SQLite plugin；下載動物才查 repository。
+- 選單（popup）是**第二個懸浮視窗**（實作見下一節）：**別改回「把寵物視窗放大來裝選單」**。
+  overlay 的 Flutter view 是 `FlutterTextureView`，視窗一 resize 它就把舊尺寸的最後一幀拉伸到
+  新邊框（錄影逐格有證據），開／關選單就會看到動物消失或跳位。2026-11-13 走過一次回頭路：
+  resize 前先把那幀反縮（預先補償），純函式與往復測試都對，**真機體感沒改善** → 落選，
+  分支已砍。要撿回來：`git branch x 1f26574` —— 它未 merge、是**悬空 commit**，`git gc --prune`
+  之後就讀不到，要留就現在開 branch。驗收與教訓：`CHANGELOG.md` 2026-11-13 那幾條（原真機驗收單
+  `../DEVICE_TEST.md` 已於 2026-11-16 刪除 —— 它從頭到尾一項都沒打勾）。
+
+- overlay 跑在獨立 isolate；`main.dart` 必須保留 `@pragma('vm:entry-point') overlayMain()` 與 `menuMain()`
+  （後者是選單那顆 engine 的入口），分別委派到 `overlay_main.dart` / `menu_main.dart`。
+- overlay 載入動物走 `AnimalRepository.resolveResource()`：DB 優先（下載過的那份要贏過內建定義），
+  但**讀不到 DB 會退回內建素材**（`builtIn()`）而不是把內建動物一起打回佔位圓 —— 這是 2026-11-16
+  補的（`test/animal_repository_test.dart` 鎖住）：sqflite 在 overlay isolate 掛掉時，那八隻打包進
+  assets 的動物仍要開得出來。下載的動物沒辦法這樣救（本地資料夾路徑只能問 DB）。
 - 全螢幕漫遊用「移動小視窗」技巧：視窗只有寵物大小，靠 `moveOverlay` 移動。
 - `flutter_overlay_window` API 參數以 Android dp 為主；不要在呼叫 `moveOverlay` / `resizeOverlay` 前自行乘上 `devicePixelRatio`。
 
-## 本地 fork 插件（升級前必讀）
+## flutter_overlay_window（2026-11-16 起改回 pub.dev 版）
 
-`flutter_overlay_window` 不是 pub.dev 版，是複製進 `packages/flutter_overlay_window/` 的 fork
-（基底 = pub 1.0.2），用 path 依賴。**升級 = 解壓新版覆蓋後重打補丁，漏打不會編譯錯誤、
-只會讓「點外面關選單」無聲失效**，务必照下表逐項核對。
+現在用的是 **pub.dev 的 `flutter_overlay_window: 1.0.2`**，`packages/flutter_overlay_window/`
+那個本地 fork 已經刪掉了。
 
-上游已知不會收這個功能：issue #170（ACTION_OUTSIDE）被 maintainer closed as not planned。
+為什麼曾經 fork：上游 issue #170（overlay 視窗要聽見「點螢幕其他地方」）被 maintainer
+`closed as not planned`，所以自己打了兩記補丁讓選單能點外面關掉。2026-11-13 選單改成
+**第二個懸浮視窗**（app 模組自己的 `MenuOverlay.kt` + 第二顆 FlutterEngine，entrypoint
+`menuMain` + `lib/menu_main.dart`）之後，「點外面」由選單那顆視窗自己的
+`FLAG_WATCH_OUTSIDE_TOUCH` 處理，寵物視窗那兩記補丁沒人聽了。2026-11-16 用 `curl` 抓 pub 封存
+diff 過：fork 與上游**只差那兩記補丁**（`lib/`、`pubspec.yaml`、`android/src/test` 全相同），
+所以整個退回 pub 版。
 
-補丁只有兩處，都在 `android/.../OverlayService.java`，搜 `dNeko patch` 可定位：
+### 哪天又要「寵物視窗聽見點外面」
 
-| # | 位置 | 內容 |
-| ---- | ---- | ---- |
-| 1 | `onStartCommand` 的 `WindowManager.LayoutParams` flags | 多加 `\| FLAG_WATCH_OUTSIDE_TOUCH` |
-| 2 | `onTouch()` 開頭（**必須在 enableDrag 早退之前**，選單開著時 drag 是關的） | `ACTION_OUTSIDE` 時 `flutterChannel.invokeMethod("onOutsideTap", null)` 後 `return false` |
+必須重新 fork（上游不會收），配方就那兩處，都在 `OverlayService.java`：
 
-Dart 端（原版檔案、未改）：`lib/overlay_main.dart` 自己對 `MethodChannel('x-slayer/overlay')`
-註冊 handler 收 `onOutsideTap`。升級時確認原生端這個 channel 名字（`OverlayConstants.OVERLAY_TAG`）
-還是 `x-slayer/overlay`、且原生端沒有自己註冊同名的 Dart→native handler 之外的用途。
+1. `onStartCommand` 的 `WindowManager.LayoutParams` flags 多加 `| FLAG_WATCH_OUTSIDE_TOUCH`
+2. `onTouch()` 開頭（**必須在 enableDrag 早退之前**）：`ACTION_OUTSIDE` 時
+   `flutterChannel.invokeMethod("onOutsideTap", null)` 後 `return false`
 
-升版流程：下載 pub 封存（`https://pub.dev/api/archives/flutter_overlay_window-<ver>.tar.gz`）
-→ 解壓覆蓋 `packages/flutter_overlay_window/`（保留例：刪除 example/ 與 test/）
-→ 重打上面兩處補丁 → 手測：開選單 → 點桌面其他地方 → 選單應收起。
+Dart 端要自己對 `MethodChannel('x-slayer/overlay')`（= `OverlayConstants.OVERLAY_TAG`）註冊
+handler 收 `onOutsideTap` —— 沒有這一步，補丁只是把事件丟進空氣。
+
+### 選單那顆 engine 有兩條坑（跟 fork 無關，pub 版照樣成立）
+
+| 坑 | 說明 |
+| ---- | ---- |
+| `MenuOverlay.PET_ENGINE_TAG` | 必須等於插件的 `OverlayConstants.CACHED_TAG`（現行 `"myCachedEngine"`）。對不上**不會編譯錯誤**，只會「選單按了沒反應」—— 升插件版號時要核對這一串。 |
+| 選單那顆 engine 用 `setAutomaticallyRegisterPlugins(false)` | 讓 plugin 自動註冊的話，插件的單例 `WindowSetup` 會被第二個 plugin 實例 `setMessenger` 搶走，寵物→主 app 的訊息（即時餓度、結束）就再也送不到。哪天要讓選單用 plugin，先讀 `MenuOverlay.ensureMenuEngine` 那段註解。 |
+
+升版流程現在很單純：改 `pubspec.yaml` 版號 → `flutter pub get` → `flutter analyze` /
+`flutter test` / `flutter build apk` → 核對 `CACHED_TAG` 沒變 → **上機重掃外掛本身那組**
+（開懸浮、拖曳寵物、關了再開、撤權限後的行為）。
 
 另外 `dependency_overrides` 把 `path_provider_android` 鎖在 2.2.23（Linux/aarch64 主機的 NDK/CMake
 問題），升它之前先讀 pubspec 裡那段註解。
