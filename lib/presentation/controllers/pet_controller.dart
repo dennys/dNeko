@@ -89,6 +89,18 @@ class PetController extends ChangeNotifier {
 
   void start() => _timer ??= Timer.periodic(_tick, (_) => _onTick());
 
+  /// 暫停主迴圈，與 [start] 成對（`start()` 冪等，重開懸浮時直接再呼叫一次就行）。
+  ///
+  /// 存在的原因：插件的 `closeOverlay` 只有 `stopService`，`onDestroy` 不銷毀 cached
+  /// engine，所以**關掉懸浮之後這個 isolate 還活著**（真機實測：關掉後寵物繼續走，位置
+  /// 每 5 秒被寫進 DB，下次開懸浮牠就出現在別的地方）。不停下來就是每 16ms 空轉一次、
+  /// 每 tick 送一次已經沒有人收的 `moveTo`、外加每 5 秒寫一筆 DB。
+  /// 由 [OverlayPetDriver] 在平台連續拒絕搬視窗時呼叫。
+  void stop() {
+    _timer?.cancel();
+    _timer = null;
+  }
+
   /// 換 zone／螢幕後換 bounds：位置與目標都要夾回新範圍，
   /// 否則寵物會留在舊區外，直到下一次 wander 決定才「瞬移」回來。
   void updateBounds(Rect bounds) {
@@ -110,6 +122,11 @@ class PetController extends ChangeNotifier {
   static const Duration _affectionateHold = Duration(milliseconds: 1200);
   static const Duration _eatingHold = Duration(milliseconds: 900);
 
+  /// 餓昏那兩格：貼著素材長度 + 一幀緩衝（多出來的時間停在最後一幀會像壞掉）。
+  /// 素材是 beg 3 幀 × 260ms、faint 3 幀 × 300ms；借 sit／sleep 幀的動物也夠播。
+  static const Duration _begHold = Duration(milliseconds: 1100);
+  static const Duration _faintHold = Duration(milliseconds: 1300);
+
   /// 真的吃下一口時的回調。**只有懸浮會掛**：計分與存盤是 overlay 那側的事，
   /// 預覽塊是沙箱（不該因為在 app 裡餵兩口就悄悄養高某隻動物的親密度）。
   void Function()? onFed;
@@ -119,31 +136,35 @@ class PetController extends ChangeNotifier {
   ///
   /// 回傳「這一下有沒有真的觸發」：無效的互動不該計親密度（呼叫端據此決定加不加分）。
   bool pet() {
+    // 餓昏時摸牠不撒嬌：撒嬌會被讀成「牠不餓」，此刻該看到的是討食（也才接得上餵食）。
+    final starving = _stats.isStarving;
+    final behavior = starving ? PetBehavior.beg : PetBehavior.affectionate;
+    final action = starving ? AnimationAction.beg : AnimationAction.affectionate;
+    final hold = starving ? _begHold : _affectionateHold;
     if (_frozen) {
-      if (_behavior != PetBehavior.affectionate) _actionBeforePet = _action;
-      _enter(
-        PetBehavior.affectionate,
-        action: AnimationAction.affectionate,
-        hold: _affectionateHold,
-      );
+      if (_behavior != behavior) _actionBeforePet = _action;
+      _enter(behavior, action: action, hold: hold);
       return true;
     }
-    _enter(
-      PetBehavior.affectionate,
-      action: AnimationAction.affectionate,
-      hold: _affectionateHold,
-    );
-    _queued = PetBehavior.hop; // 撒嬌播完接跳跳
+    _enter(behavior, action: action, hold: hold);
+    // 撒嬌播完接跳跳；討食後面不接 —— 跳跳會把「牠餓到在拜」的氣氛破掉
+    if (!starving) _queued = PetBehavior.hop;
     return true;
   }
 
   /// 定格中被摸時，撒嬌播完前的動作（撒嬌期間不覆寫，避免連摸時記到撒嬌本身）。
   AnimationAction _actionBeforePet = AnimationAction.sit;
 
-  /// 選單點選的小動作。定格或拖曳中無效；不計親密度。
+  /// 選單點選的小動作。拖曳中無效；不計親密度。
+  ///
+  /// **定格中被按也要播**（2026-11-17 人類的決定：選單那些動作格不該因為定格而變灰）。
+  /// 按選單是明確的互動，所以跟 [feedAt] 一樣先解除定格再播。這裡刻意直接改 `_frozen`
+  /// 而不走 [setFrozen]：setFrozen 解凍時會請 brain 重新決定下一個行為，那會把使用者
+  /// 剛點的這個動作蓋掉。
   void playFlourish(PetBehavior behavior) {
-    if (_frozen || _isDragging || !_isFlourish(behavior)) return;
+    if (_isDragging || !_isFlourish(behavior)) return;
     if (_paused && behavior == PetBehavior.circle) return; // 轉圈需要移動，選單開著時不動
+    _frozen = false;
     _enterFlourish(behavior);
     _notifyIfChanged();
   }
@@ -174,11 +195,16 @@ class PetController extends ChangeNotifier {
     // 拖曳中 syncFromWindow 不 clamp（視窗跟手），放開時才夾回 zone 邊界（A-2/A-7）。
     // 不夾的話拖出選區就留在外面，brain 的下一個決定雖在 bounds 內、位置卻在區外。
     _position = _clampToBounds(_position);
-    _applyDecision(_brain.decideNext(_bounds, isHungry: _stats.isHungry, bond: _stats.bondValue));
+    _applyDecision(_brain.decideNext(_bounds,
+              isHungry: _stats.isHungry,
+              isStarving: _stats.isStarving,
+              bond: _stats.bondValue));
     _notifyIfChanged();
   }
 
-  /// 定格：停止自主移动與行為切換（饑餓仍照常累積）。只能手動解除。
+  /// 定格：停止自主移动與行為切換（饑餓仍照常累積）。
+  /// 解除的時機：選單再按一次「定格」、[feedAt]（餵食）、或 [playFlourish]（按動作格）——
+  /// 都是明確的互動；只有時間與摸牠不會把定格解開。
   bool _frozen = false;
   bool get frozen => _frozen;
 
@@ -191,7 +217,10 @@ class PetController extends ChangeNotifier {
     if (_frozen == value) return;
     _frozen = value;
     if (!_frozen) {
-      _applyDecision(_brain.decideNext(_bounds, isHungry: _stats.isHungry, bond: _stats.bondValue));
+      _applyDecision(_brain.decideNext(_bounds,
+              isHungry: _stats.isHungry,
+              isStarving: _stats.isStarving,
+              bond: _stats.bondValue));
       _notifyIfChanged();
     }
   }
@@ -227,9 +256,16 @@ class PetController extends ChangeNotifier {
   /// 隨機小動作的候選：發呆時張望／打盹（飢餓再加搖擺），漫遊時轉圈。
   List<PetBehavior> _flourishCandidates() => switch (_behavior) {
         PetBehavior.idle => <PetBehavior>[
-            PetBehavior.lookAround,
-            PetBehavior.doze,
-            if (_stats.isHungry) PetBehavior.wobble,
+            // 餓昏時發呆就該鬧（不是張望/打盹那種悠閒小動作）
+            if (_stats.isStarving) ...[
+              PetBehavior.beg,
+              PetBehavior.faint,
+              PetBehavior.wobble,
+            ] else ...[
+              PetBehavior.lookAround,
+              PetBehavior.doze,
+              if (_stats.isHungry) PetBehavior.wobble,
+            ],
           ],
         PetBehavior.wander => const <PetBehavior>[PetBehavior.circle],
         _ => const <PetBehavior>[],
@@ -276,7 +312,10 @@ class PetController extends ChangeNotifier {
       _enter(PetBehavior.wander,
           target: _edge.nextTargetOnEdge(_position, _bounds));
     } else {
-      _applyDecision(_brain.decideNext(_bounds, isHungry: _stats.isHungry, bond: _stats.bondValue));
+      _applyDecision(_brain.decideNext(_bounds,
+              isHungry: _stats.isHungry,
+              isStarving: _stats.isStarving,
+              bond: _stats.bondValue));
     }
     _notifyIfChanged();
   }
@@ -308,12 +347,15 @@ class PetController extends ChangeNotifier {
     _notifyIfChanged();
   }
 
-  /// 定格中只倒數撒嬌，播完回到摸之前的姿勢（仍維持定格）。其他情況不動。
+  /// 定格中也要倒數「會自己結束的動作」，否則動作停在最後一幀看起來像壞掉：
+  /// 撒嬌播完回到摸之前的姿勢（仍定格），其他計時動作（吃／跳跳／搖擺／打盹…）回到坐著。
+  /// 之前只倒數撒嬌，「正在吃東西时被定格」就永遠卡在吃的那一幀。
   void _tickFrozenPet() {
-    if (_behavior != PetBehavior.affectionate) return;
+    if (!_isTimed(_behavior)) return;
     _hold -= _tick;
     if (_hold > Duration.zero) return;
-    _enter(PetBehavior.idle, action: _actionBeforePet);
+    final resting = _behavior == PetBehavior.affectionate ? _actionBeforePet : AnimationAction.sit;
+    _enter(PetBehavior.idle, action: resting);
   }
 
   /// 選單開著時不做移動與隨機抽籤，但正在播的計時動作（撒嬌、跳跳…）仍要倒數，
@@ -338,7 +380,10 @@ class PetController extends ChangeNotifier {
       _enter(PetBehavior.idle, action: AnimationAction.sit);
       return;
     }
-    _applyDecision(_brain.decideNext(_bounds, isHungry: _stats.isHungry, bond: _stats.bondValue));
+    _applyDecision(_brain.decideNext(_bounds,
+              isHungry: _stats.isHungry,
+              isStarving: _stats.isStarving,
+              bond: _stats.bondValue));
   }
 
   void _enterFlourish(PetBehavior behavior) {
@@ -357,7 +402,9 @@ class PetController extends ChangeNotifier {
         PetBehavior.wobble ||
         PetBehavior.hop ||
         PetBehavior.stretch ||
-        PetBehavior.circle =>
+        PetBehavior.circle ||
+        PetBehavior.beg ||
+        PetBehavior.faint =>
           true,
         _ => false,
       };
@@ -365,6 +412,8 @@ class PetController extends ChangeNotifier {
   /// 有計時、會自己結束的行為（轉圈與睡眠不計時）。
   static bool _isTimed(PetBehavior behavior) => switch (behavior) {
         PetBehavior.affectionate ||
+        PetBehavior.beg ||
+        PetBehavior.faint ||
         PetBehavior.eating ||
         PetBehavior.lookAround ||
         PetBehavior.doze ||
@@ -381,6 +430,8 @@ class PetController extends ChangeNotifier {
         PetBehavior.wobble => AnimationAction.wobble,
         PetBehavior.hop => AnimationAction.hop,
         PetBehavior.stretch => AnimationAction.stretch,
+        PetBehavior.beg => AnimationAction.beg,
+        PetBehavior.faint => AnimationAction.faint,
         _ => AnimationAction.sit,
       };
 
@@ -391,6 +442,8 @@ class PetController extends ChangeNotifier {
         PetBehavior.wobble => const Duration(milliseconds: 1800),
         PetBehavior.hop => _hopHold,
         PetBehavior.stretch => _stretchHold,
+        PetBehavior.beg => _begHold,
+        PetBehavior.faint => _faintHold,
         _ => Duration.zero,
       };
 
@@ -420,6 +473,9 @@ class PetController extends ChangeNotifier {
       case PetBehavior.sleep:
         _enter(PetBehavior.sleep,
             action: AnimationAction.sleep, hold: decision.holdTime);
+      case PetBehavior.beg || PetBehavior.faint || PetBehavior.wobble:
+        // 餓昏鬧騰（含 brain 偶爾挑的 wobble）：動作與 hold 由這裡決定，不信 brain 的 holdTime
+        _enterFlourish(decision.behavior);
       default:
         _enter(PetBehavior.idle,
             action: AnimationAction.sit, hold: decision.holdTime);

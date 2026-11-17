@@ -92,6 +92,20 @@ flutter build apk --release --target-platform android-arm64 --no-tree-shake-icon
 
 所以 Linux/aarch64 主機上日常只跑 `--debug`；**要 release 就在 x86-64 機器（Windows）出，或 push 後取 CI 的 artifact。**
 
+### Windows 桌寵版（懸浮版）
+
+```powershell
+flutter pub get
+flutter build windows --release   # 輸出 build\windows\x64\runner\Release\dneko.exe
+```
+
+同一個 repo、同一套 domain：Windows 版**整個 exe 就是那顆懸浮視窗**（無邊框、透明、置頂、
+點牠不搶鍵盤焦點），選單疊在同一顆視窗裡，能調的都在系統匣。需要 VS 2022 的「使用 C++ 的桌面開發」
+工作負載，**第一次 build 要有網路**。
+
+目前狀態：**第一版，代碼側全綠、真機零次** —— 開發機（Linux/aarch64）編不了 Windows 目標。
+環境需求、14 層驗收 ladder、已知取捨（沒扣工作列、沒有設定頁、商店未接）都寫在 **[`WINDOWS.md`](WINDOWS.md)**。
+
 ## 🔑 簽名（升級免重裝）
 
 release 以**固定的一把** keystore 簽名（同一案只准有一把：換鑰 = 舊安裝無法覆蓋升級，只能砍掉重裝）。

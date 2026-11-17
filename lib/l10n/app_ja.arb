@@ -16,6 +16,8 @@
   "menuActionHop": "ぴょんぴょん",
   "menuActionStretch": "伸び",
   "menuActionCircle": "しっぽ追い",
+  "menuActionBeg": "おねだり",
+  "menuActionFaint": "たおれる",
   "overlayRunning": "画面で動かしています",
   "overlayIdle": "停止中です",
   "settingsLanguage": "言語",
@@ -33,6 +35,7 @@
   "settingsSize": "サイズ",
   "settingsHunger": "空腹のしきい値",
   "settingsZone": "移動エリア",
+  "settingsBottomBand": "下部エリアの高さ（下部のみ）",
   "settingsSound": "なでたときに鳴き声",
   "settingsAnimal": "ペット",
   "zoneFullScreen": "全画面",
@@ -43,11 +46,28 @@
   "zoneBottomRight": "右下",
   "overlayStart": "デスクトップペットを開始",
   "overlayStop": "デスクトップペットを停止",
+  "@overlayShow": {
+    "description": "System tray menu: show the floating pet"
+  },
+  "overlayShow": "ペットを表示",
+  "@overlayHide": {
+    "description": "System tray menu: hide the floating pet (hunger is frozen)"
+  },
+  "overlayHide": "ペットを隠す",
+  "@overlayClickThroughOn": {
+    "description": "System tray: let mouse clicks pass through the pet"
+  },
+  "overlayClickThroughOn": "クリック透過：オン",
+  "@overlayClickThroughOff": {
+    "description": "System tray: the pet receives mouse clicks again"
+  },
+  "overlayClickThroughOff": "クリック透過：オフ",
   "overlayStarting": "開始中…",
   "overlayStopping": "停止中…",
   "overlayFailed": "オーバーレイの変更に失敗：{message}",
   "overlayPermissionDenied": "オーバーレイ権限が許可されませんでした",
   "animalCat": "猫",
+  "animalCat2": "にゃんこ",
   "animalDog": "犬",
   "animalPenguin": "ペンギン",
   "animalFox": "キツネ",

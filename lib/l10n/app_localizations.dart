@@ -203,6 +203,18 @@ abstract class AppLocalizations {
   /// **'Chase tail'**
   String get menuActionCircle;
 
+  /// No description provided for @menuActionBeg.
+  ///
+  /// In en, this message translates to:
+  /// **'Beg!'**
+  String get menuActionBeg;
+
+  /// No description provided for @menuActionFaint.
+  ///
+  /// In en, this message translates to:
+  /// **'Play dead!'**
+  String get menuActionFaint;
+
   /// No description provided for @overlayRunning.
   ///
   /// In en, this message translates to:
@@ -305,6 +317,12 @@ abstract class AppLocalizations {
   /// **'Roaming area'**
   String get settingsZone;
 
+  /// No description provided for @settingsBottomBand.
+  ///
+  /// In en, this message translates to:
+  /// **'Bottom band height (for \'bottom only\')'**
+  String get settingsBottomBand;
+
   /// No description provided for @settingsSound.
   ///
   /// In en, this message translates to:
@@ -365,6 +383,30 @@ abstract class AppLocalizations {
   /// **'Stop Overlay'**
   String get overlayStop;
 
+  /// System tray menu: show the floating pet
+  ///
+  /// In en, this message translates to:
+  /// **'Show Pet'**
+  String get overlayShow;
+
+  /// System tray menu: hide the floating pet (hunger is frozen)
+  ///
+  /// In en, this message translates to:
+  /// **'Hide Pet'**
+  String get overlayHide;
+
+  /// System tray: let mouse clicks pass through the pet
+  ///
+  /// In en, this message translates to:
+  /// **'Click-through: on'**
+  String get overlayClickThroughOn;
+
+  /// System tray: the pet receives mouse clicks again
+  ///
+  /// In en, this message translates to:
+  /// **'Click-through: off'**
+  String get overlayClickThroughOff;
+
   /// No description provided for @overlayStarting.
   ///
   /// In en, this message translates to:
@@ -394,6 +436,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Cat'**
   String get animalCat;
+
+  /// No description provided for @animalCat2.
+  ///
+  /// In en, this message translates to:
+  /// **'Kitty'**
+  String get animalCat2;
 
   /// No description provided for @animalDog.
   ///

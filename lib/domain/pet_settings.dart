@@ -7,7 +7,7 @@ const String defaultAnimalId = 'cat';
 /// 可漫遊區域
 enum PetZone {
   fullScreen, // 全螢幕
-  bottomBand, // 只在螢幕下方一條（不擋視線）
+  bottomBand, // 只在螢幕下方一條（厚度由 bottomBandFraction 決定，與寵物大小無關）
   topLeft,
   topRight,
   bottomLeft,
@@ -45,11 +45,27 @@ class PetSettings {
   /// 帶狀／角落區的邊長 = petSize × 此倍數
   static const double zoneSizeFactor = 2;
 
+  /// 「僅下方」那條的**可見帶高 ÷ 螢幕高**（設定頁那條 slider）。
+  ///
+  /// 定義成「看得見的帶」而不是「左上角可行域的厚度」：後者會再加上一個寵物高，
+  /// 那個數字對使用者就是假的。舊實作厚度寫死 `petSize × 2`，等於預設 120 的寵物
+  /// 可見帶高 3 × 120 = 360px（800 高的螢幕上 45%），還隨寵物大小膨縮 ——
+  /// 名字寫「不擋視線」卻占掉半屏，就是這樣來的。
+  ///
+  /// 下限 0.10：再小於 10% 時多數寵物會直接貼底坐著（厚度收到 0），調了沒反應，
+  /// 乾脆讓 slider 停在還有意義的範圍。上限 1.00 = 等於全螢幕。
+  static const double minBottomBandFraction = 0.10;
+  static const double maxBottomBandFraction = 1.00;
+  static const double defaultBottomBandFraction = 0.22;
+
   final double speedPxPerSecond;
 
   /// 寵物視窗邊長（Flutter 邏輯像素 = dp）
   final double petSize;
   final PetZone zone;
+
+  /// 「僅下方」時可見帶高占螢幕高的比例，見 [minBottomBandFraction]
+  final double bottomBandFraction;
 
   /// 目前選的動物（內建 id 或商店下載的 id）
   final String animalId;
@@ -70,6 +86,7 @@ class PetSettings {
     this.speedPxPerSecond = defaultSpeedPerSecond,
     this.petSize = defaultPetSize,
     this.zone = PetZone.fullScreen,
+    this.bottomBandFraction = defaultBottomBandFraction,
     this.animalId = defaultAnimalId,
     this.languageCode,
     this.themeMode = 'system',
@@ -84,6 +101,7 @@ class PetSettings {
     double? speedPxPerSecond,
     double? petSize,
     PetZone? zone,
+    double? bottomBandFraction,
     String? animalId,
     Object? languageCode = _unchanged,
     String? themeMode,
@@ -94,6 +112,7 @@ class PetSettings {
         speedPxPerSecond: speedPxPerSecond ?? this.speedPxPerSecond,
         petSize: petSize ?? this.petSize,
         zone: zone ?? this.zone,
+        bottomBandFraction: bottomBandFraction ?? this.bottomBandFraction,
         animalId: animalId ?? this.animalId,
         languageCode: languageCode == _unchanged
             ? this.languageCode
@@ -110,6 +129,7 @@ class PetSettings {
         'speedPxPerSecond': speedPxPerSecond,
         'petSize': petSize,
         'zone': zone.name,
+        'bottomBandFraction': bottomBandFraction,
         'animalId': animalId,
         'languageCode': languageCode,
         'themeMode': themeMode,
@@ -129,6 +149,9 @@ class PetSettings {
           (z) => z.name == json['zone'],
           orElse: () => PetZone.fullScreen,
         ),
+        bottomBandFraction: _number(json['bottomBandFraction'], defaultBottomBandFraction)
+            .clamp(minBottomBandFraction, maxBottomBandFraction)
+            .toDouble(),
         animalId: json['animalId'] is String && (json['animalId'] as String).isNotEmpty
             ? json['animalId'] as String
             : defaultAnimalId,

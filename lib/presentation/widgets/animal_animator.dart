@@ -5,6 +5,7 @@ import '../../data/models/animation_action.dart';
 import '../../data/models/animation_definition.dart';
 import '../../data/models/animal_resource.dart';
 import '../../data/services/animation_loader.dart';
+import 'hunger_bubble.dart';
 
 /// 沒有專用素材的小動作：在坐著的幀上加程式化動作。t 為控制器進度（0..1，一輪循環）。
 typedef _Motion = Widget Function(double t, Widget child);
@@ -38,6 +39,9 @@ class AnimalAnimator extends StatefulWidget {
   final double? displayWidth;
   final double? displayHeight;
 
+  /// 餓昏：頭頂多一顆求助氣泡（素材有沒有到位都畫得出來，見 [HungerBubble]）。
+  final bool starving;
+
   const AnimalAnimator({
     super.key,
     required this.resource,
@@ -46,6 +50,7 @@ class AnimalAnimator extends StatefulWidget {
     required this.loader,
     this.displayWidth,
     this.displayHeight,
+    this.starving = false,
   });
 
   @override
@@ -146,11 +151,30 @@ class _AnimalAnimatorState extends State<AnimalAnimator> with TickerProviderStat
     final child = mirrored ? Transform.flip(flipX: true, child: image) : image;
 
     final motion = _motionFor(widget.action);
-    if (motion == null) return child;
-    return AnimatedBuilder(
-      animation: _controller,
-      child: child,
-      builder: (context, c) => motion(_controller.value, c!),
+    final pet = motion == null
+        ? child
+        : AnimatedBuilder(
+            animation: _controller,
+            child: child,
+            builder: (context, c) => motion(_controller.value, c!),
+          );
+    if (!widget.starving) return pet;
+
+    // 氣泡摆在**框內**右上角而不是視窗上方：懸浮視窗只有寵物大小（「移動小視窗」技巧），
+    // 畫到框外會被視窗裁掉；素材畫布上方本來就留了約 23% 的空白頭部空間，放得下。
+    return Stack(
+      children: [
+        pet,
+        Positioned(
+          top: 0,
+          right: 0,
+          child: SizedBox(
+            width: width * 0.42,
+            height: width * 0.42,
+            child: const HungerBubble(),
+          ),
+        ),
+      ],
     );
   }
 }

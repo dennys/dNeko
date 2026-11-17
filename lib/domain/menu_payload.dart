@@ -8,6 +8,9 @@ import 'pet_stats.dart';
 /// 選單那一側沒有 PetController、不讀 DB、也不做 l10n：它只把這一份快照畫出來，
 /// 按到哪一格再把動作名稱送回寵物那側（見 `overlay_main._onMenuCommand`）。
 /// 選單只活 6 秒，不必即時更新飽食度（餵食本來就會把選單關掉）。
+///
+/// 這裡**沒有** `frozen`：那 6 個動作格以前靠它變灰，現在按下去會自己解除定格再播
+/// （`PetController.playFlourish`），所以選單這側不再需要知道定格與否。
 class MenuPayload {
   const MenuPayload({
     required this.themeMode,
@@ -15,7 +18,6 @@ class MenuPayload {
     required this.hunger,
     required this.hungryThreshold,
     required this.bondValue,
-    required this.frozen,
     required this.labels,
   });
 
@@ -25,7 +27,6 @@ class MenuPayload {
   final double hunger;
   final double hungryThreshold;
   final int bondValue;
-  final bool frozen;
 
   /// 選單文字的來源：`feed` / `pet` / `freeze` / `close` / `quit`，加上 6 個
   /// `PetBehavior.name`。字串在寵物那側翻譯好才送過來 —— 選單 isolate 因此
@@ -44,7 +45,6 @@ class MenuPayload {
       hungryThreshold: (json['hungryThreshold'] as num?)?.toDouble() ??
           PetStats.defaultHungryThreshold,
       bondValue: (json['bondValue'] as num?)?.toInt() ?? 0,
-      frozen: json['frozen'] as bool? ?? false,
       labels: rawLabels is Map
           ? rawLabels.map((k, v) => MapEntry('$k', '$v'))
           : const {},
@@ -57,7 +57,6 @@ class MenuPayload {
         'hunger': hunger,
         'hungryThreshold': hungryThreshold,
         'bondValue': bondValue,
-        'frozen': frozen,
         'labels': labels,
       };
 
@@ -75,9 +74,12 @@ class MenuPayload {
   }
 }
 
-/// 選單的六個小動作格。**兩側共用的唯一清單**：選單 isolate 用它決定要畫幾格、按下去
+/// 選單的八個小動作格。**兩側共用的唯一清單**：選單 isolate 用它決定要畫幾格、按下去
 /// 回傳的名字就是 `PetBehavior.name`，寵物那側（`overlay_main._flourishOf`）照同一份收。
-/// 加減動作只改這裡 + `menu_main._iconFor` + l10n 六條，不會兩邊對不起來。
+/// 加減動作只改這裡 + `menu_main._iconFor` + l10n 每格一條 + `FeedingMenu._gridRows`，
+/// 不會兩邊對不起來（`test/menu_payload_test.dart` 鎖長度）。
+///
+/// `beg`/`faint`（餓昏鬧騰）是**不分狀態永遠可按**的：小孩不會為了看牠裝死等 84 分鐘。
 const List<PetBehavior> kFlourishBehaviors = [
   PetBehavior.lookAround,
   PetBehavior.doze,
@@ -85,4 +87,6 @@ const List<PetBehavior> kFlourishBehaviors = [
   PetBehavior.hop,
   PetBehavior.stretch,
   PetBehavior.circle,
+  PetBehavior.beg,
+  PetBehavior.faint,
 ];

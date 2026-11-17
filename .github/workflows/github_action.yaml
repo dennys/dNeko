@@ -19,7 +19,48 @@ env:
   JAVA_VERSION: "21"
 
 jobs:
-  # 以前是「Setup Environment」+「Run Tests」兩個 job：第一個只做 pub get 並吐一個寫死的
+
+  # Windows 桌寵版（2026-11-17 第一版）是在 Linux/aarch64 開發機上盲寫的 —— 那台沒有 Windows
+  # 工具鏈也看不到畫面（見 WINDOWS.md）。這個 job 的意義就是把「編不編得過」交還給機器：
+  # GitHub 的 windows-latest 自帶 VS 2022 的 C++ 工作負載，不需要任何 secrets（只出 debug）。
+  # 紅燈是預期的（第一次就上機一定會修東西），但**紅燈的內容就是我們缺的那份情報**。
+  windows:
+    name: Windows 桌寵版（analyze / test / build）
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+          cache-key: flutter-${{ runner.os }}-pub-${{ hashFiles('**/pubspec.lock') }}
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      # analyze / test 在 Windows host 再跑一遍：大小寫與路徑Separator 這種坑只在 Windows 現形
+      - name: Analyze code
+        run: flutter analyze
+
+      - name: Run tests
+        run: flutter test
+
+      - name: Build Windows (debug)
+        run: flutter build windows --debug
+
+      - name: Upload Windows build
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-debug
+          path: build/windows/x64/runner/Debug/
+          retention-days: 7
+
+  # 以前是「Setup Environment」+「Run Tests」兩個 job
+：第一個只做 pub get 並吐一個寫死的
   # 版本字串，第二個又重 checkout + 重 pub get。收進同一個 job，並補上以前完全沒有的
   # Android build —— 本地踩過的 aapt2 / AOT / strip 這類問題，只有真的 build 才抓得到。
   ci:
@@ -57,10 +98,18 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      # lib/l10n/app_localizations*.dart 是產物卻進版控（build 前必須在樹裡），但沒有人檢查
+      # 它們和 .arb 同不同步 —— 改了 arb 忘了 gen-l10n 會 analyze 綠、測試綠（l10n_arb_test
+      # 只比對四份 arb 之間的鍵集合，不比對產物），裝出來的 APK 卻還是舊文字。
+      - name: Regenerate l10n and fail on drift
+        run: |
+          flutter gen-l10n
+          git diff --exit-code lib/l10n || { echo "::error::lib/l10n 的產物與 .arb 不同步 —— 本地跑 flutter gen-l10n 後一併 commit"; exit 1; }
+
       - name: Analyze code
         run: flutter analyze
 
-      # 目前 9 個測試檔都沒載入 sqflite；這步是預防性保留（體積小），
+      # 測試檔目前都不載入 sqflite（DB 邏輯用假實作測）；這步是預防性保留（體積小），
       # 避免日後 host 端測試用到 sqlite3 FFI 時才來修 CI。
       - name: Install system packages
         run: |

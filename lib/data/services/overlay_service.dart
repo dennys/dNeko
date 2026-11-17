@@ -29,7 +29,7 @@ class OverlayService implements IOverlayService {
     required String languageCode,
   }) async {
     final payload = _payload(animalId, settings, metrics, languageCode);
-    final start = await _startPosition(metrics, settings.petSize);
+    final start = await _startPosition(metrics, settings.petSize, animalId);
 
     await FlutterOverlayWindow.showOverlay(
       // 原生拖曳（插件 onTouch 用 rawX/rawY）。拖曳期間由 OverlayPetDriver 暫停、
@@ -64,10 +64,12 @@ class OverlayService implements IOverlayService {
 
   /// 上次關閉時的位置，夾回目前螢幕內（螢幕轉向或換機後可能已經在畫面外）。
   /// 位置只能由 overlay 寫：主 app 只看得見視窗左上角，選單開著時那是選單的位置。
-  Future<OverlayPosition> _startPosition(ScreenMetrics metrics, double petSize) async {
+  Future<OverlayPosition> _startPosition(
+      ScreenMetrics metrics, double petSize, String animalId) async {
     final Offset? saved;
     try {
-      saved = await _positions.loadPosition();
+      // 各養各的：每隻回到牠自己上次留下的位置
+      saved = await _positions.loadPosition(animalId);
     } catch (_) {
       return _firstRunPosition;
     }

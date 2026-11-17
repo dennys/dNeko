@@ -17,6 +17,45 @@ void main() {
       expect(PetStats.isHungryAt(60.01, 60), isTrue);
     });
 
+    group('餓昏線', () {
+      test('預設門檻 60 → 餓昏在 84 分（不餵 84 分鐘開始鬧騰）', () {
+        expect(PetStats.starvingThresholdAt(60), closeTo(84, 0.001));
+        expect(PetStats(initialHunger: 84, hungryThreshold: 60).isStarving, isFalse);
+        expect(PetStats(initialHunger: 85, hungryThreshold: 60).isStarving, isTrue);
+      });
+
+      test('餓昏線一定到得了（寫死「門檻 × 1.6」在門檻 > 62.5 時就永遠餓昏不了）', () {
+        for (final t in [5.0, 30.0, 60.0, 90.0, 99.0]) {
+          final starving = PetStats.starvingThresholdAt(t);
+          expect(starving, greaterThan(t), reason: '門檻 $t：餓昏要比餓更餓');
+          expect(starving, lessThan(PetStats.maxHunger), reason: '門檻 $t：餓昏不可達');
+        }
+      });
+
+      test('門檻拉到 100（永不餓）時也不會餓昏；非法門檻不會把餓昏線算到餓線以下', () {
+        final stats = PetStats(initialHunger: 100, hungryThreshold: 100);
+        expect(stats.isHungry, isFalse);
+        expect(stats.isStarving, isFalse);
+        expect(PetStats.starvingThresholdAt(500), PetStats.maxHunger);
+        expect(PetStats.starvingThresholdAt(-10), closeTo(60, 0.001));
+      });
+
+      test('餓昏一定伴隨餓（它是餓的加強版，不是第二套狀態）', () {
+        for (var h = 0; h <= 100; h += 5) {
+          final s = PetStats(initialHunger: h.toDouble(), hungryThreshold: 60);
+          if (s.isStarving) expect(s.isHungry, isTrue, reason: 'hunger=$h');
+        }
+      });
+
+      test('餵食立刻離開餓昏（沒有死亡機制，純粹是一段演出）', () {
+        final s = PetStats(initialHunger: 95);
+        expect(s.isStarving, isTrue);
+        s.feed();
+        expect(s.isStarving, isFalse);
+        expect(s.isHungry, isFalse);
+      });
+    });
+
     test('餓透餵一次就要能脫餓（預設是「餵到飽」，不是贖回固定點數）', () {
       final stats = PetStats(initialHunger: PetStats.maxHunger); // 餓透 100
       expect(stats.isHungry, isTrue);

@@ -7,17 +7,17 @@ class OverlayWindow implements IOverlayWindow {
   const OverlayWindow();
 
   @override
-  Future<void> moveTo(Offset logicalPosition) {
-    return FlutterOverlayWindow.moveOverlay(
-      OverlayPosition(logicalPosition.dx, logicalPosition.dy),
-    );
-  }
+  Future<bool> moveTo(Offset logicalPosition) async =>
+      (await FlutterOverlayWindow.moveOverlay(
+        OverlayPosition(logicalPosition.dx, logicalPosition.dy),
+      )) ??
+      false;
 
   /// 只在縮回寵物尺寸時用；拖曳一律開著。選單不再改這個視窗的尺寸（改成另一個視窗，
   /// 見 menu_main.dart 與原生 MenuOverlay.kt），所以這裡也不再需要「同時搬位置」。
   @override
-  Future<void> resize({required double width, required double height}) =>
-      FlutterOverlayWindow.resizeOverlay(width.toInt(), height.toInt(), true);
+  Future<bool> resize({required double width, required double height}) async =>
+      (await FlutterOverlayWindow.resizeOverlay(width.toInt(), height.toInt(), true)) ?? false;
 
   @override
   Future<Offset> currentPosition() async {

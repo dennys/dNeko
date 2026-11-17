@@ -4,6 +4,7 @@ import 'package:dneko/data/models/animation_action.dart';
 import 'package:dneko/data/models/animation_definition.dart';
 import 'package:dneko/domain/i_pet_brain.dart';
 import 'package:dneko/domain/pet_behavior.dart';
+import 'package:dneko/domain/flourish_scheduler.dart';
 import 'package:dneko/domain/pet_decision.dart';
 import 'package:dneko/domain/pet_stats.dart';
 import 'package:dneko/presentation/controllers/pet_controller.dart';
@@ -13,16 +14,24 @@ import 'package:dneko/presentation/controllers/pet_controller_factory.dart';
 void main() {
   const tick = Duration(milliseconds: 16);
 
+  /// 不會自己亂播小動作的排程器。**這些測試幾乎都在數「走了幾幀、通知幾次」**，而預設的
+  /// `FlourishScheduler()` 用的是沒 seed 的 `Random()`：pump 300 幀就有約 2% 的機率自己跳出
+  /// 一個 hop/wobble/doze，把位置與通知數的斷言吹翻（實測過：平行跑滿載時偶爾紅的就是它）。
+  /// 要播動作的測試都是直接叫 `playFlourish`，不靠這個排程器 —— 預設關掉是安全的。
+  FlourishScheduler quietFlourish() => FlourishScheduler(chancePerMinute: 0);
+
   PetController make({
     required Rect bounds,
     double? speedPerTick,
     IPetBrain? brain,
+    FlourishScheduler? flourish,
   }) {
     final controller = PetController(
       bounds: bounds,
       speedPerTick: speedPerTick,
       brain: brain,
       stats: PetStats(initialHunger: 50),
+      flourish: flourish ?? quietFlourish(),
     )..start();
     return controller;
   }
@@ -223,6 +232,7 @@ void main() {
         bounds: const Rect.fromLTWH(0, 0, 1000, 1000),
         brain: _AlwaysIdleBrain(),
         stats: PetStats(initialHunger: 50),
+        flourish: quietFlourish(),
       )..start();
       c.addListener(() => notifications++);
 
@@ -243,6 +253,7 @@ void main() {
         bounds: const Rect.fromLTWH(0, 0, 1000, 1000),
         brain: _AlwaysIdleBrain(),
         stats: PetStats(initialHunger: 50),
+        flourish: quietFlourish(),
       )..start();
       var notifications = 0;
       c.addListener(() => notifications++);
@@ -258,6 +269,7 @@ void main() {
         bounds: const Rect.fromLTWH(0, 0, 1000, 1000),
         brain: _AlwaysIdleBrain(),
         stats: PetStats(initialHunger: 50),
+        flourish: quietFlourish(),
       )..start();
 
       c.setFrozen(true);
@@ -338,7 +350,24 @@ void main() {
       c.dispose();
     });
 
-    testWidgets('定格時 playFlourish 無效，撫摸有效：撒嬌後回到原動作且仍定格', (tester) async {
+    testWidgets('定格時按動作格：解除定格並播出該動作', (tester) async {
+      // 2026-11-17 人類的決定：選單那 6 格不該因為定格而變灰 —— 按選單是明確的互動，
+      // 跟餵食一樣把定格解開再播（以前是靜默丟掉，選單在定格時等於殘廢一半）。
+      final c = make(
+        bounds: const Rect.fromLTWH(0, 0, 1000, 1000),
+        brain: _AlwaysIdleBrain(),
+      );
+      c.setFrozen(true);
+
+      c.playFlourish(PetBehavior.lookAround);
+
+      expect(c.action, AnimationAction.lookAround, reason: '定格中按下去也要有反應');
+      expect(c.frozen, isFalse, reason: '按動作格會解除定格（與 feedAt 同一套語意）');
+      c.dispose();
+    });
+
+    testWidgets('定格時撫摸仍維持定格：撒嬌播完回到原動作、不解凍', (tester) async {
+      // 摸牠與按動作格不同：摸一下不算「我要開始動了」，所以**不**解除定格。
       final c = make(
         bounds: const Rect.fromLTWH(0, 0, 1000, 1000),
         brain: _AlwaysIdleBrain(),
@@ -346,14 +375,52 @@ void main() {
       c.setFrozen(true);
       final before = c.action;
 
-      c.playFlourish(PetBehavior.lookAround);
-      expect(c.action, before);
-
       expect(c.pet(), isTrue);
       expect(c.action, AnimationAction.affectionate);
       await pumpTicks(tester, 90); // 撒嬌 1200ms
       expect(c.action, before);
       expect(c.frozen, isTrue);
+      c.dispose();
+    });
+  });
+
+  group('PetController 定格與主迴圈開關', () {
+    testWidgets('計時動作播到一半被定格：倒數完回到坐著，不會卡在最後一幀', (tester) async {
+      // 以前 `_tickFrozenPet` 只倒數撒嬌，「正在跳跳／吃東西時被定格」就永遠停在那一幀。
+      final c = make(
+        bounds: const Rect.fromLTWH(0, 0, 1000, 1000),
+        brain: _AlwaysIdleBrain(),
+      );
+      c.playFlourish(PetBehavior.hop); // 跳跳 900ms
+      expect(c.action, AnimationAction.hop);
+
+      c.setFrozen(true); // 跳跳還沒播完就被定格
+      await pumpTicks(tester, 70); // 900ms + 一幀緩衝
+
+      expect(c.action, AnimationAction.sit, reason: '定格中也要把計時動作倒數完');
+      expect(c.frozen, isTrue, reason: '倒數完不等於解凍');
+      c.dispose();
+    });
+
+    testWidgets('stop() 真的停下來，start() 又會走（重開懸浮要靠這對）', (tester) async {
+      // 插件的 closeOverlay 只 stopService、不銷毀 cached engine：isolate 會一直活著。
+      // driver 發現平台拒絕搬視窗時呼叫 stop()，重開懸浮時由 restart() 呼叫 start()。
+      final c = make(
+        bounds: const Rect.fromLTWH(0, 0, 1000, 1000),
+        speedPerTick: 10,
+      )..feedAt(const Offset(500, 900));
+
+      await pumpTicks(tester, 5);
+      final at = c.position;
+      expect(at, isNot(c.bounds.center));
+
+      c.stop();
+      await pumpTicks(tester, 20);
+      expect(c.position, at, reason: '定時器還跳著就會繼續走 —— 那正是「關掉後寵物還在散步」的成因');
+
+      c.start();
+      await pumpTicks(tester, 5);
+      expect(c.position, isNot(at), reason: 'start() 要能把牠喚回來（start 是冪等的）');
       c.dispose();
     });
   });
@@ -400,11 +467,125 @@ void main() {
       expect(c.position, const Offset(100, 100));
       c.dispose();
     });
+
+    group('餓昏鬧騰', () {
+      // 預設門檻 60 → 餓昏線 84，95 分穩穩在餓昏區
+      PetController starving({IPetBrain? brain}) => PetController(
+            bounds: const Rect.fromLTWH(0, 0, 1000, 1000),
+            brain: brain ?? _AlwaysIdleBrain(),
+            stats: PetStats(initialHunger: 95),
+            flourish: quietFlourish(),
+          )..start();
+
+      testWidgets('摸牠播討食而不是撒嬌（餓到這樣還撒嬌會被讀成不餓）', (tester) async {
+        final c = starving();
+        expect(c.stats.isStarving, isTrue);
+        expect(c.pet(), isTrue);
+        expect(c.action, AnimationAction.beg);
+        c.dispose();
+      });
+
+      testWidgets('討食播完不接跳跳（跳跳會把「牠餓到在拜」的氣氛破掉）', (tester) async {
+        final c = starving();
+        c.pet();
+        expect(c.action, AnimationAction.beg);
+        await tester.pump(const Duration(milliseconds: 1300)); // 超過 _begHold(1100)
+        expect(c.action, isNot(AnimationAction.hop));
+        c.dispose();
+      });
+
+      testWidgets('不餓時摸牠照樣撒嬌＋跳跳（餓昏判斷不誤傷）', (tester) async {
+        final c = PetController(
+          bounds: const Rect.fromLTWH(0, 0, 1000, 1000),
+          brain: _AlwaysIdleBrain(),
+          stats: PetStats(initialHunger: 5),
+          flourish: quietFlourish(),
+        )..start();
+        expect(c.pet(), isTrue);
+        expect(c.action, AnimationAction.affectionate);
+        await tester.pump(const Duration(milliseconds: 1300)); // 撒嬌 hold 1200 後接跳跳
+        expect(c.action, AnimationAction.hop);
+        c.dispose();
+      });
+
+      testWidgets('選單那兩格定格中也按得下去，播完不會卡在最後一幀', (tester) async {
+        final c = starving();
+        c.setFrozen(true);
+        c.playFlourish(PetBehavior.faint);
+        expect(c.action, AnimationAction.faint);
+        expect(c.frozen, isFalse, reason: '按選單是明確互動，跟餵食一樣先解定格');
+        await tester.pump(const Duration(milliseconds: 1500)); // 超過 _faintHold(1300)
+        expect(c.action, isNot(AnimationAction.faint));
+        c.dispose();
+      });
+
+      testWidgets('brain 傳到 isStarving（餓昏決策鏈路接得起來）', (tester) async {
+        final brain = _RecordingBrain();
+        final c = starving(brain: brain);
+        c.beginDrag();
+        c.endDrag(); // endDrag 一定請 brain 決定下一個行為
+        expect(brain.lastIsHungry, isTrue);
+        expect(brain.lastIsStarving, isTrue);
+        c.dispose();
+
+        final calm = _RecordingBrain();
+        final c2 = PetController(
+          bounds: const Rect.fromLTWH(0, 0, 1000, 1000),
+          brain: calm,
+          stats: PetStats(initialHunger: 10),
+          flourish: quietFlourish(),
+        )..start();
+        c2.beginDrag();
+        c2.endDrag();
+        expect(calm.lastIsStarving, isFalse);
+        c2.dispose();
+      });
+
+      testWidgets('brain 決定 beg/faint 時用自己的幀，不會掉進預設的 sit', (tester) async {
+        for (final pair in [
+          (PetBehavior.beg, AnimationAction.beg),
+          (PetBehavior.faint, AnimationAction.faint),
+          (PetBehavior.wobble, AnimationAction.wobble),
+        ]) {
+          final c = starving(brain: _RecordingBrain(pair.$1));
+          c.beginDrag();
+          c.endDrag();
+          expect(c.action, pair.$2, reason: '${pair.$1} 的動作不該被 _applyDecision 預設吃掉');
+          c.dispose();
+        }
+      });
+    });
   });
 }
 
 class _AlwaysIdleBrain implements IPetBrain {
   @override
-  PetDecision decideNext(Rect bounds, {bool isHungry = false, double bond = 0}) =>
+  PetDecision decideNext(
+    Rect bounds, {
+    bool isHungry = false,
+    bool isStarving = false,
+    double bond = 0,
+  }) =>
       const PetDecision(PetBehavior.idle, holdTime: Duration(seconds: 30));
+}
+
+/// 記下 controller 傳進來的飢餓狀態，並固定回一個行為（驗證決策鏈路用）。
+class _RecordingBrain implements IPetBrain {
+  _RecordingBrain([this.forced = PetBehavior.idle]);
+
+  final PetBehavior forced;
+  bool? lastIsHungry;
+  bool? lastIsStarving;
+
+  @override
+  PetDecision decideNext(
+    Rect bounds, {
+    bool isHungry = false,
+    bool isStarving = false,
+    double bond = 0,
+  }) {
+    lastIsHungry = isHungry;
+    lastIsStarving = isStarving;
+    return PetDecision(forced);
+  }
 }

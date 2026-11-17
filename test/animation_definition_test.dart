@@ -30,6 +30,23 @@ void main() {
       expect(def.getAction(AnimationAction.walkDownLeft)!.frames, ['walkdown1']);
     });
 
+    test('餓昏那兩格沒素材時借現成幀（beg→sit、faint→sleep），不會空白', () {
+      final def = AnimalAnimationDefinition.fromJson(
+        jsonDecode(jsonEncode(_json(['Sit', 'Sleep']))) as Map<String, dynamic>,
+      );
+
+      expect(def.getAction(AnimationAction.beg)!.frames, ['sit1']);
+      expect(def.getAction(AnimationAction.faint)!.frames, ['sleep1']);
+    });
+
+    test('素材有 Beg 時用自己的，不被借幀蓋掉', () {
+      final def = AnimalAnimationDefinition.fromJson(
+        jsonDecode(jsonEncode(_json(['Sit', 'Beg']))) as Map<String, dynamic>,
+      );
+
+      expect(def.getAction(AnimationAction.beg)!.frames, ['beg1']);
+    });
+
     test('素材有 WalkLeft 時用自己的，不被借幀蓋掉', () {
       final def = AnimalAnimationDefinition.fromJson(
         jsonDecode(jsonEncode(_json(['WalkUp', 'WalkDown', 'WalkLeft']))) as Map<String, dynamic>,
@@ -68,7 +85,7 @@ void main() {
   });
 
   // animation.json 是**下載下來的**檔案（動物商店），屬於不可信輸入。
-  // 以前完全沒驗證：空幀清單会让 AnimalAnimator 在 clamp(0, -1) 丟 RangeError，
+  // 以前完全沒驗證：空幀清單会讓 AnimalAnimator 在 clamp(0, -1) 丟 RangeError，
   // 使用者看到的是整隻寵物不見，而且看不出是素材壞了。
   group('AnimalAnimationDefinition 驗證不可信輸入', () {
     Map<String, dynamic> jsonWith(Map<String, dynamic> action) => {

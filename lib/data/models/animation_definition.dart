@@ -89,6 +89,10 @@ class AnimalAnimationDefinition {
     AnimationAction.wobble: AnimationAction.sit,
     AnimationAction.hop: AnimationAction.sit,
     AnimationAction.stretch: AnimationAction.affectionate,
+    // 餓昏鬧騰那兩格：素材是「有就好」——沒畫的動物照樣演得出来（借坐著/睡覺的幀），
+    // 所以补新素材不用改代碼，也不會因為缺 action 而畫面空白。
+    AnimationAction.beg: AnimationAction.sit,
+    AnimationAction.faint: AnimationAction.sleep,
   };
 
   /// 解析 animation.json。任何一個欄位不對就丟 [FormatException]，

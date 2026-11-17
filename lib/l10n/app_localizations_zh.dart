@@ -61,6 +61,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get menuActionCircle => '转圈追尾';
 
   @override
+  String get menuActionBeg => '讨食拜拜';
+
+  @override
+  String get menuActionFaint => '饿昏装死';
+
+  @override
   String get overlayRunning => '正在屏幕上运行';
 
   @override
@@ -112,6 +118,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsZone => '活動範圍';
 
   @override
+  String get settingsBottomBand => '下方区域高度（仅下方时）';
+
+  @override
   String get settingsSound => '摸一下会叫';
 
   @override
@@ -142,6 +151,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get overlayStop => '關閉桌寵';
 
   @override
+  String get overlayShow => '显示宠物';
+
+  @override
+  String get overlayHide => '隐藏宠物';
+
+  @override
+  String get overlayClickThroughOn => '鼠标穿透：开';
+
+  @override
+  String get overlayClickThroughOff => '鼠标穿透：关';
+
+  @override
   String get overlayStarting => '啟動中…';
 
   @override
@@ -157,6 +178,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get animalCat => '小花猫';
+
+  @override
+  String get animalCat2 => '阿咪';
 
   @override
   String get animalDog => '小狗';
@@ -256,6 +280,12 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String get menuActionCircle => '轉圈追尾';
 
   @override
+  String get menuActionBeg => '討食拜拜';
+
+  @override
+  String get menuActionFaint => '餓昏裝死';
+
+  @override
   String get overlayRunning => '正在畫面上跑';
 
   @override
@@ -307,6 +337,9 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String get settingsZone => '活動範圍';
 
   @override
+  String get settingsBottomBand => '下方區域高度（僅下方時）';
+
+  @override
   String get settingsSound => '摸一下會叫';
 
   @override
@@ -337,6 +370,18 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String get overlayStop => '關閉桌寵';
 
   @override
+  String get overlayShow => '顯示寵物';
+
+  @override
+  String get overlayHide => '隱藏寵物';
+
+  @override
+  String get overlayClickThroughOn => '滑鼠穿透：開';
+
+  @override
+  String get overlayClickThroughOff => '滑鼠穿透：關';
+
+  @override
   String get overlayStarting => '啟動中…';
 
   @override
@@ -352,6 +397,9 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get animalCat => '小花貓';
+
+  @override
+  String get animalCat2 => '阿咪';
 
   @override
   String get animalDog => '小狗';

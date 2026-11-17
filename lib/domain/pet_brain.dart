@@ -16,7 +16,29 @@ class PetBrain implements IPetBrain {
   static const double _maxAffectionShare = 0.20;
 
   @override
-  PetDecision decideNext(Rect bounds, {bool isHungry = false, double bond = 0}) {
+  PetDecision decideNext(
+    Rect bounds, {
+    bool isHungry = false,
+    bool isStarving = false,
+    double bond = 0,
+  }) {
+    // 餓昏：留在原地「鬧」給主人看 —— 討食拜拜、倒地裝死、搖擺，只留一點機率還去走。
+    // 不睡覺、不撒嬌（餓到這樣還撒嬌不像話）。沒有死亡機制，餵一口就結束。
+    // 機率是手調的：beg 最多（要讓人看懂牠在討食），faint 是笑點但不要頻繁。
+    if (isStarving) {
+      final starvingRoll = _random.nextDouble();
+      if (starvingRoll < 0.35) return const PetDecision(PetBehavior.beg);
+      if (starvingRoll < 0.60) return const PetDecision(PetBehavior.faint);
+      if (starvingRoll < 0.75) return const PetDecision(PetBehavior.wobble);
+      if (starvingRoll < 0.90) {
+        return PetDecision(PetBehavior.wander, target: _randomPoint(bounds));
+      }
+      return PetDecision(
+        PetBehavior.idle,
+        holdTime: Duration(seconds: 1 + _random.nextInt(2)),
+      );
+    }
+
     // 餓的時候不睡覺，且更傾向到處走動找東西。**親密度在這裡無效** —— 餓到死也要先找食物
     if (isHungry) {
       return _random.nextDouble() < 0.7

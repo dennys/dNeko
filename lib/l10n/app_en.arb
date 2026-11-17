@@ -16,6 +16,8 @@
   "menuActionHop": "Hop",
   "menuActionStretch": "Stretch",
   "menuActionCircle": "Chase tail",
+  "menuActionBeg": "Beg!",
+  "menuActionFaint": "Play dead!",
   "overlayRunning": "Running on your screen",
   "overlayIdle": "Currently off",
   "settingsLanguage": "Language",
@@ -33,6 +35,7 @@
   "settingsSize": "Size",
   "settingsHunger": "Hungry after",
   "settingsZone": "Roaming area",
+  "settingsBottomBand": "Bottom band height (for 'bottom only')",
   "settingsSound": "Sound when touched",
   "settingsAnimal": "Pet",
   "zoneFullScreen": "Full screen",
@@ -43,11 +46,28 @@
   "zoneBottomRight": "Bottom right",
   "overlayStart": "Start Overlay",
   "overlayStop": "Stop Overlay",
+  "@overlayShow": {
+    "description": "System tray menu: show the floating pet"
+  },
+  "overlayShow": "Show Pet",
+  "@overlayHide": {
+    "description": "System tray menu: hide the floating pet (hunger is frozen)"
+  },
+  "overlayHide": "Hide Pet",
+  "@overlayClickThroughOn": {
+    "description": "System tray: let mouse clicks pass through the pet"
+  },
+  "overlayClickThroughOn": "Click-through: on",
+  "@overlayClickThroughOff": {
+    "description": "System tray: the pet receives mouse clicks again"
+  },
+  "overlayClickThroughOff": "Click-through: off",
   "overlayStarting": "Starting...",
   "overlayStopping": "Stopping...",
   "overlayFailed": "Failed to change overlay: {message}",
   "overlayPermissionDenied": "Overlay permission was not granted",
   "animalCat": "Cat",
+  "animalCat2": "Kitty",
   "animalDog": "Dog",
   "animalPenguin": "Penguin",
   "animalFox": "Fox",

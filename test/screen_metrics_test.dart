@@ -28,40 +28,75 @@ void main() {
     const roam = Rect.fromLTRB(0, 24, 320, 696);
 
     test('fullScreen 就是實測範圍本身', () {
-      expect(zoneBounds(roam, pet, PetZone.fullScreen), roam);
+      expect(metrics.zoneBounds(roam, pet, PetZone.fullScreen), roam);
     });
 
-    test('下方帶貼著實測底部，厚度 2×petSize', () {
-      final band = zoneBounds(roam, pet, PetZone.bottomBand);
+    // 定義（2026-11-17 改）：設定值 = **可見帶高 ÷ 螢幕高**。`roam` 給的是視窗左上角的
+    // 可行域，所以可見帶高 = 厚度 + 視窗邊長；舊實作厚度寫死 `petSize × 2`，等於
+    // 「可見 3 × petSize」（預設 120 在 800 高螢幕上是 45%），還隨寵物大小膨縮。
+    test('下方帶：可見帶高 = fraction × 螢幕高（厚度要減一個寵物高）', () {
+      // 螢幕 800 × 0.5 = 可見 400；左上角厚度 = 400 - 80 = 320
+      final band = metrics.zoneBounds(roam, pet, PetZone.bottomBand, bottomBandFraction: 0.5);
       expect(band.bottom, 696);
-      expect(band.top, 536);
+      expect(band.top, 376);
       expect(band.left, 0);
       expect(band.right, 320);
+      expect(band.height + pet, closeTo(400, 0.001));
+    });
+
+    test('預設 0.22 就是螢幕的 22%', () {
+      final band = metrics.zoneBounds(roam, pet, PetZone.bottomBand);
+      expect(band.height + pet, closeTo(800 * PetSettings.defaultBottomBandFraction, 0.001));
+    });
+
+    test('調大寵物不會讓那條帶變寬（舊實作會跟著膨）', () {
+      for (final size in [80.0, 120.0]) {
+        final band = metrics.zoneBounds(roam, size, PetZone.bottomBand, bottomBandFraction: 0.5);
+        expect(band.height + size, closeTo(400, 0.001), reason: 'petSize=$size');
+      }
+    });
+
+    test('帶比寵物還矮 → 厚度收 0，牠貼底坐著（不會算出負 Rect）', () {
+      // 800 × 0.22 = 176 < 寵物 180
+      final band = metrics.zoneBounds(roam, 180, PetZone.bottomBand);
+      expect(band.height, 0);
+      expect(band.top, band.bottom);
+      expect(band.bottom, 696);
+    });
+
+    test('fraction 1.0 等於全螢幕；下限 0.1 也不會算出負 Rect', () {
+      expect(
+        metrics.zoneBounds(roam, pet, PetZone.bottomBand, bottomBandFraction: 1.0).top,
+        roam.top,
+      );
+      final thin = metrics.zoneBounds(roam, pet, PetZone.bottomBand, bottomBandFraction: 0.1);
+      expect(thin.height, 0);
+      expect(thin.bottom, 696);
     });
 
     test('角落區以該角為錨，邊長 2×petSize', () {
-      final br = zoneBounds(roam, pet, PetZone.bottomRight);
+      final br = metrics.zoneBounds(roam, pet, PetZone.bottomRight);
       expect(br.right, 320);
       expect(br.bottom, 696);
       expect(br.width, 160);
       expect(br.height, 160);
 
-      final tl = zoneBounds(roam, pet, PetZone.topLeft);
+      final tl = metrics.zoneBounds(roam, pet, PetZone.topLeft);
       expect(tl.left, 0);
       expect(tl.top, 24);
 
-      final tr = zoneBounds(roam, pet, PetZone.topRight);
+      final tr = metrics.zoneBounds(roam, pet, PetZone.topRight);
       expect(tr.right, 320);
       expect(tr.top, 24);
 
-      final bl = zoneBounds(roam, pet, PetZone.bottomLeft);
+      final bl = metrics.zoneBounds(roam, pet, PetZone.bottomLeft);
       expect(bl.left, 0);
       expect(bl.bottom, 696);
     });
 
     test('寵物比區域還大時不會跑出 roam 之外', () {
       for (final zone in PetZone.values) {
-        final r = zoneBounds(roam, 900, zone);
+        final r = metrics.zoneBounds(roam, 900, zone);
         expect(r.left >= roam.left, isTrue, reason: '$zone left');
         expect(r.top >= roam.top, isTrue, reason: '$zone top');
         expect(r.right <= roam.right, isTrue, reason: '$zone right');

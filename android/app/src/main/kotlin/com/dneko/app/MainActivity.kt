@@ -12,7 +12,8 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 // 懸浮視窗全部走 flutter_overlay_window（見 lib/data/services/overlay_window.dart），
-// 權限則由 permission_handler 處理（主頁的 _toggle）。
+// 懸浮權限也是 —— 主頁 _toggle 呼叫的 hasPermission/requestPermission 就是該插件的
+// OverlayWindow.hasPermission/requestPermission（本專案沒有 permission_handler 這個依賴）。
 // 這裡的 com.dneko/app 通道只做兩件事：把桌面捷徑帶進來的 pending action 交給 Dart、
 // 以及 requestPinShortcut（要釘哪個捷徑、按下要做什麼，邏輯都留在 Dart/Manifest 兩端）。
 class MainActivity : FlutterActivity() {

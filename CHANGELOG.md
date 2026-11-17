@@ -14,6 +14,278 @@
 >    都已過時：八隻內建動物素材齊全（各 15 張），商店只剩 `fox`，插件改回 pub.dev 1.0.2。
 
 ---
+---
+---
+---
+## 2026-11-17 第七輪：Windows 桌寵版（第一版，**盲寫**）
+
+`flutter create --platforms=windows` 生出 runner，加 `lib/platform/`（平台開關 + Windows shell），
+`main()` 只認 `PetPlatform.current.isWindowsPet` 一個分岔。驗收與上機流程全在 **`WINDOWS.md`**。
+
+**為什麼長這樣（當時的判斷）**
+
+- **整個 exe 就是那顆懸浮視窗**：Android 那边「主 app 設定頁 + 插件懸浮視窗 + 獨立 isolate」在
+  Windows 沒有對應物（`flutter_overlay_window` 是 Android only，Windows 連 plugin 註冊都沒有）。
+  第一版因此 = 寵物 + 系統匣，設定頁留给下一層（能調的先進系統匣：大小／活動範圍／穿透／顯示隱藏／結束）。
+- **選單疊在同一顆視窗**：Windows 沒有 `FlutterTextureView` 的 resize 拉伸 bug，不需要第二顆
+  FlutterEngine；`MenuDirector` 本來就是純狀態機（平台動作是注入的回調），所以直接重用，
+  兩側仍走同一條 `{"action": ...}` 協定，不會分岔。
+- **不抽 shell 公共父層**：兩邊視窗模型差太多（一個要問插件肯不肯搬、一個是自己家的視窗），
+  硬抽會變一堆 `if (isWindows)`。共用的是承重的 `PetController`／`MenuDirector`／`ScreenMetrics`／
+  `SettingsRepository`／`AnimalAnimator`／`FeedingMenu`。
+- **視窗樣式在 C++ 建立時給**（`WS_EX_LAYERED|TOOLWINDOW|NOACTIVATE` + `WS_POPUP`）：
+  「點牠不搶焦點」window_manager 0.5.x 沒有 API（0.6+ 才有 focusability），而且已顯示的視窗改
+  ex-style 不可靠。順手拿掉 runner 的「第一幀就 Show()」，否則會先閃一塊 1280×720 白盤。
+- **套件停在 `window_manager 0.5.2` / `tray_manager 0.5.2`**：新版（0.6/0.7）換了整套 API、
+  要 Flutter 3.47+/Dart 3.13+ 並拖 `nativeapi` C++ 核心；這一版自帶 C++，裝機只要 VS 的 C++
+  工作負載。**別順手升**（升版注意事項屆時補進 AGENTS.md）。
+- **DB**：`sqflite` 沒有 Windows 實作 → 桌面用 `sqflite_common_ffi`，切換點只有
+  `pet_database.databaseDirectory()` 一處，DDL 仍一份（這是那個檔頂端寫著的鐵律）。
+  順帶把資料目錄從 `getDatabasesPath()`（ffi 後端下會退回 temp → 重開機資料丟光）換成
+  `getApplicationSupportDirectory()`。
+
+**驗證**：`flutter analyze` 0 issue、`flutter test` **292** 全綠（新增 `test/windows_pet_window_geometry_test.dart`
+6 條：開選單時寵物不得跳位、選單不得出界、視窗必須是兩者並集）、Android 側 `build apk --debug` 照常。
+**螢幕上會發生的事一項都沒驗證過** —— 開發機是 Linux/aarch64，編不了 Windows 目標，這是 `WINDOWS.md`
+那份 ladder 存在的原因。
+
+**已知的未做/取捨**（詳細表格在 WINDOWS.md）：沒扣工作列、Windows 沒有設定頁、商店與下載未接
+（`getExternalStorageDirectory()` 是 Android only）、開機自啟沒有、系統匣沿用 PNG 圖示（可能要 .ico）。
+
+## 2026-11-17 第六輪：各養各的（per-animal 餓度與位置）
+
+人類的決定：「各養各的」＋「收起來的寵物不餓」。v1 是八隻共用一份餓度與位置，換寵物時
+牠帶著上一隻的飽食度與座標走，等於「換皮」而不是「換宠物」。
+
+- **鍵空間**：`pet_hunger_<id>` / `pet_position_<id>` / `pet_bond_<id>`（bond 早就是 per-animal，
+  這輪把餓度與位置補齊）。三個鍵名做成 `static` 讓測試能鎖住 —— 它們是 **on-disk 格式**，
+  改等於資料搬家。範圍守死：只有餓度／位置／親密度 per-animal，**大小／速度／活動範圍／
+  語系／主題是全域偏好**（人類的決定，不做各養各的）。
+- **「收起來不餓」的實作是一個旗標，不是時間戳**：`HungerRecord.wasDisplayed`。
+  正常關懸浮／換寵物 → 存盤時標 `false` → 重開**不補算**；當掉／被系統殺（沒來得關）→
+  維持 `true` → 依 `savedAt` 補算（跟舊版一樣）。舊資料沒有這個欄位一律讀成 `true`
+  （不懲罰舊安裝）。規則本身抽成純函式 [hungerOnWake] 并留 4 條測試 —— 寫在呼叫端的話改了沒人會紅。
+- **三個「收起來」時機**：換寵物（`_loadAnimal` 於新 controller 就緒後）、選單按結束（`_quitApp`）、
+  以及**懸浮被關掉但這個 isolate 還活著**的時候 —— 後者是新增 `OverlayPetDriver(onStopped:)`
+  才接得到的（插件 `closeOverlay` 只 stopService，平台只回 false；driver 停機那一刻才是真相）。
+  回呼由呼叫端**捕獲 animalId + controller** 傳入，不讀欄位：換寵物的空檔讀欄位會寫到別隻的鍵上。
+- **存盤要寫誰**：新增 `_controllerAnimalId`，不用 `_resource` —— 換動物時 `_resource` 會先被換成
+  新那隻，非同步的存盤就會寫到別隻頭上（這類競態本檔已有 `stale()`/`identical()` 的先例）。
+- **遷移**：首次碰 per-animal 狀態時把 v1 的全域餓度/位置搬給「當前那隻」（`pet_settings.animalId`），
+  寫 `pet_state_migrated_v2` 完成標記，**舊鍵保留不刪**（可回退）。遷移失敗的 Future 不留欄位上
+  （跟 `DatabaseHandle` 同一個教訓），下次呼叫重試。
+- **沒資料的新寵物**：餓度 0（飽的出場）、位置用中央（人類的決定）。
+- **刪寵物**：`deleteBond` → `deletePetState`，親密度／餓度／位置三把鍵一起清。
+- 連帶修一個會立刻被看見的顯示問題：主頁那行餓度在**換寵物後會繼續顯示上一隻的數字**
+  （20 秒輪詢才跟上）→ `_apply` 偵測到 animalId 換了就立刻重讀。
+- 測試 275 → **286**（新增 `pet_state_per_animal_test`：鍵名契約、hungerOnWake 四條、
+  編解碼含旗標與兩代舊格式；driver 的 onStopped 兩條），`flutter analyze` 無警告。
+- **可預期的行為變化（上機別誤判成 bug）**：換到一隻很久沒玩的動物，牠會**一出場就餓昏闹騰**，
+  因為那隻的計時從「上次收起來」開始算。
+
+## 2026-11-17 第五輪：「僅下方」那條帶改成**可見帶高 ÷ 螢幕高**，並做成設定
+
+- **舊定義的實際數字**（人類的體感回報「感覺像螢幕下 40% 都能跑」是對的）：帶厚寫死
+  `petSize × zoneSizeFactor(2)`，而 `zoneBounds` 回的是**視窗左上角**的可行域，所以可見帶高
+  = 厚度 + 一個寵物高 = **3 × petSize**。預設 120 在 800 高的螢幕上是 **45%**，調到最大 180 是
+  **67%** —— 名叫「不擋視線」卻隨寵物大小膨到半屏以上。
+- **新定義**：設定值 = **可見帶高 ÷ 螢幕高**（預設 0.22、可調 0.10~1.00）。厚度 =
+  `螢幕高 × fraction − petSize`（夾在 `0 ~ roam.height`）。選這個定義而不是「厚度 ÷ 螢幕高」，
+  因為給使用者調的數字必須是他看得到的那個東西。
+- **帶比寵物還矮時厚度收 0** → 牠貼在最底部坐著（`fraction` 拉到底、或寵物調到比那條帶還高時）。
+  這是可預期的退化，不會出現負 Rect 或跑出邊界（測試有掃 petSize=900 的那條守住）。
+- **四角（`topLeft` 等）刻意不跟著改**：那幾個的語意是「寵物大小的一塊」，改成螢幕比例會變成
+  怪長方形。`zoneSizeFactor` 只留給它们。
+- `zoneBounds` 從 top-level 函式**收進 `ScreenMetrics`**（要拿 `logicalSize.height`），
+  呼叫端兩處（`overlay_main`）與測試一起換。不是為架構，是它本來就需要螢幕高這個資訊。
+- 設定頁 slider **常駐顯示**（不隨 zone 選擇藏起來）：藏起來會讓設定頁跳動，而且使用者是
+  「先看到範圍不對」才想來調它。拖完才 `_apply`（沿用 hunger slider 的 preview/apply 兩段式）。
+- l10n 新增 `settingsBottomBand` × 4 語系（`l10n_arb_test` 會紅的那個門禁）。
+- 測試 267 → **275**，`flutter analyze` 無警告，debug APK 仍編得過。
+- **未驗**：真機上拖 slider 活動範圍是否即時變、22% 這個預設在實機上是否夠「不擋視線」
+  （`updateBounds` 的即時生效路徑是舊的，本輪只換了算出來的 Rect）。
+
+## 2026-11-17 第四輪：餓昏鬧騰（`beg` 討食拜拜 / `faint` 餓昏裝死）
+
+調性由人類拍板：**9 歲小孩、滑稽優先、fun 為先**（不是「可憐求助」）。
+
+- **餓昏線不新設門檻**：`PetStats.starvingThresholdAt(t) = t + (100 - t) × 0.6`，預設門檻 60 →
+  **不餵 84 分鐘**開始鬧。為什麼不用 `門檻 × 1.6`：hunger 封頂 100，slider 拉到 70 以上就
+  **永遠到不了餓昏**，等於那個設定把功能關掉（`test/pet_stats_test.dart` 那輪 `[5,30,60,90,99]`
+  鎖住「一定到得了」）。門檻拉到 100（永不餓）時餓昏也不會出現，語意一致。
+- **`PetBrain` 多一個 `isStarving`**（不靠 isHungry 猜）：餓昏時 35% 討食、25% 裝死、15% 搖擺、
+  15% 還去走、10% 原地喘氣；**絕不睡覺、絕不撒嬌**。只傳 isHungry 無法區分「到處找吃的」與
+  「癱在鬧」，所以這個參數是必要的，不是裝飾。
+- **摸牠：餓昏時播討食而不是撒嬌**，而且討食後面不接 `hop`（跳跳會把「牠餓到在拜」的氣氛破掉）。
+  不餓時行為與之前完全相同（`test/pet_controller_test.dart` 有鎖）。
+- **選單六格 → 八格**：`beg`/`faint` 進 `kFlourishBehaviors`，**不分狀態永遠可按**。
+  這是人類的要求：「小孩不會傻等 84 分鐘」——沒有這兩格，整個功能等於不存在。
+  `FeedingMenu._gridRows` 3 → 4（視窗高度由 `contentHeight` 自動長 52px），四語系各加
+  `menuActionBeg`/`menuActionFaint`。
+- **餓度條變成報信器**：過餓昏線換橘色 + 火苗圖示，軌道上画一條餓昏線刻痕 —— 讓小孩看得出
+  「再一下下就能看到牠裝死」，而不是乾等。位置與顏色同一個 `PetStats.starvingThresholdAt` 來源。
+- **求助氣泡不依賴新素材**：`HungerBubble` 缺 `assets/images/hunger_bubble.png` 時由
+  `_BubblePainter` 現畫一顆（空碗＋抖動線，沿用素材規格的配色）。人類會用 `ASSET_PROMPT.md`
+  第 9 節的 prompt 去別的 AI 出圖，放進去就自動換成那張，代碼不用動。
+  氣泡畫在**框內**右上角（懸浮視窗只有寵物大小，框外會被裁），素材上方本來留了約 23% 空白頭部。
+- **叫聲**：餓昏時 `setPlaybackRate(0.85)`（低沉但不會聽成另一種動物）；倍速每次播放都設，
+  不做「事後還原」（`play()` 只等到開始播放，馬上還原會把這聲的倍速抵銷）。
+- **素材缺不缺都不卡**：`_missingFrameAlias` 加 `beg→sit`、`faint→sleep`，沒畫的動物照樣演；
+  宣告了幀卻少圖由 `asset_frames_test` 在測試階段擋。所以順序是「先做完 code → 先只做貓試水溫 →
+  好笑再補其余七隻」，不好笑只改 prompt 不改代碼。
+- 測試 243 → **267 全綠**，`flutter analyze` 無警告。新增：`hunger_bubble_test`、`hunger_bar_test`、
+  餓昏線/餓昏決策/餓昏互動/借幀各一組。
+- **未驗**：真機上八隻的餓昏觀感（借 sit/sleep 的動物差別很小，氣泡是主要訊號）、
+  選單 8 格在實機窄屏的實際高度、`setPlaybackRate` 在真機的效果。
+
+## 2026-11-17 第三輪：寵物視窗改成注入、觸控模型拍板、清掉第二塊死代碼
+
+- **`overlay_main.dart` 的寵物視窗改成注入**：九處自己 new `OverlayWindow()` 全部改走
+  `_OverlayApp.window`（`IOverlayWindow`），實作由 `runOverlayApp()` 這個組合根給。
+  這是桌面版與「自己開 N 顆原生視窗」那條路的共同前置 —— 現在有兩個未來使用者，不是預留開關。
+  訊息通道（`overlayListener` ／ `shareData` 三處）仍直接打插件：沒有第二個實作者之前不先造介面。
+- **觸控模型拍板：預設可觸控**（人類的決定）。「為什麼不做閒時穿透」寫進 TODO 的「多寵物」那節 ——
+  摸／餵／開選單全掛在寵物視窗的 `GestureDetector` 上，而穿透的視窗收不到任何事件，
+  所以那個功能的全部成本都在「喚醒入口」；抱怨擋到東西時的第一解是既有的 `PetZone`，不是穿透。
+  附帶記下做多寵物時要還的債：`touchable` 必須 per-animal（逐窗是唯一粒度）。
+- **刪掉 `android/.../com/dneko/app/OverlayService.kt`（177 行 + `NekoView`）**：它不是 Service 子類別、
+  不在 Manifest、沒有任何引用，連它要載入的 `assets/dneko.png` 都不存在（早期遺留）。
+  活著的只有插件那個 `flutter.overlay.window.flutter_overlay_window.OverlayService`。
+
+---
+## 2026-11-17 第二輪審查的後續修復（DB 開檔會毒化整個程序、幽靈選單、商店換版不能回滾、fork 死檔）
+
+對上面那 9 支 commit 的另一份獨立審查（讀 diff **與周圍代碼**，驗證是自己跑的，不是沿用上面那欄數字）。
+`flutter analyze` 0、`flutter test` 235 → **243** 全過。
+
+- **DB 開檔失敗會永久毒化（本輪唯一的真回歸）**：上一輪把 `Future<Database> get _database async =>
+  _db ??= await openPetDatabase()` 改成 `_db ??= openPetDatabase()`。差一個 `await`，語意從「失敗後下次
+  重試」變成「把一顆失敗的 Future 存在欄位裡，之後每次呼叫都拿到同一顆炸彈」，直到程序結束。
+  後果：位置與餓度再也存不進去（只留 log）、`loadPosition()` 回 null → 每次開懸浮寵物都在 (48,96)、
+  下載過的動物永久畫佔位圓（內建八隻有 `resolveResource` 的 fallback 保護，不受影響）。
+  而 overlay isolate 的 DB 路徑正是 TODO 上那條「無書面記錄」的路，最不脆的就是它。
+  修：`pet_database.dart` 新增 `DatabaseHandle`（只快取成功、同時到來的呼叫仍共用一次開檔），
+  兩個 repository 改用它；`test/pet_database_handle_test.dart` 4 題鎖住。
+  保留上一輪的 WAL（是對的決定）；只是現在會有 `-wal`/`-shm`，**手動備份只拷 `.db` 會丟最後幾筆**。
+- **幽靈選單**：`_loadAnimal` 叫 `MenuDirector.abort()` 時若 `open()` 還卡在 `await showWindow()`，回來的
+  選單沒人收 —— 畫面上留一張舊動物的選單六秒，而且 `onCommand` 因為 `_open` 已是 false 會把每一格
+  點擊都丟掉（看起來像壞掉）。修：MenuDirector 加世代計數，`open()` 回來時世代對不上就自己 `close()`
+  並回 false；補 1 題。
+- **商店換版（入口仍是關的，但先把洞補好）**：
+  1. 同一隻動物被同時下載兩次會共用 `<id>.tmp`，第二趟開頭的「先清舊暫存」把第一趟正在寫的整包砍掉
+     → 入口加 `_inFlight` 擋掉第二趟（`finally` 歸還，失敗後仍可直接重試）。
+  2. `promoteDownloaded` 從「先刪 target 再 rename」改成「改名讓位 → 換上 → 才真的刪舊的」，中途失敗
+     把舊的改名回原位；上次死在兩個 rename 之間留下的 `.old` 先歸位，而不是當成垃圾刪掉。
+     `rename` 參數是測試縫隙（真檔案系統沒辦法造出「換到一半失敗」）。已知限制：兩個 rename
+     之間被殺進程仍會失去那個素材目錄（視窗極小）；要真的免疫得用符號連結間接層。
+  補 3 題。
+- **`overlay_main._onData` 的 `_driver?.restart()` 補上語意註解**：它是「收到任何 payload 就喚醒」
+  （含 `_shareStartupData` 那四次延遲重送與每次 `pushSettings`），只在「`stop()` 只有一個原因：視窗
+  不在」時成立。哪天要加另一種停止理由（省電、使用者暫停），得另開開關，不能再拿這條當喚醒入口。
+- **清掉本地 fork 死檔**：`packages/flutter_overlay_window/`（23 支檔，含那兩記 `ACTION_OUTSIDE` 補丁）。
+  它從 2026-11-16 起就不被 `pubspec.yaml` 引用（惰性、不參與編譯），但 AGENTS.md 早就寫成「已經刪掉了」——
+  本輪真的 `git rm` 並更正那句話。`analysis_options.yaml` 的 `packages/**` exclude 留著（再次 fork 時用得到），
+  註解改成條件式。
+
+---
+## 2026-11-17 兩份代碼審查合併修復（isolate 關不掉、選單會凍死寵物、定格卡幀…）
+
+兩份獨立審查合併成一張 18 條的單，逐條查證後修掉 15 條、
+撤銷 2 條（查下去發現是我自己看錯）、掛起來 1 條（商店解凍時再修）。`flutter analyze` 0、
+`flutter test` 205 → **235** 全過。
+
+### 修掉的（按嚴重度）
+
+- **關掉懸浮之後，寵物的 isolate 還在跑（真機已證實）**：插件 1.0.2 的 `closeOverlay` 只有
+  `stopService`，`OverlayService.onDestroy()` 不移除 `FlutterEngineCache` 裡那顆 engine、也不 dispose
+  Dart widget tree —— 於是 16ms 定時器一直跳、寵物在看不見的狀態下繼續散步，`_rememberPosition`
+  每 5 秒把新位置寫進 DB，**下次開懸浮牠就出現在別的地方**（使用者實測：不用等幾分鐘，幾秒就跑到別處）。
+  另一半是代碼自己的問題：`OverlayWindow.moveTo` 宣告 `Future<void>`，把平台回的 `false`
+  （`OverlayService.moveOverlay` 在 service 沒了的時候不擲例外、只回 false）丟掉，所以
+  `OverlayPetDriver` 的失敗計數永遠是 0，logcat 一片乾淨。
+  修：`moveTo`/`resize` 把 bool 傳上來 → driver 連續 3 次拒絕就 `PetController.stop()`（新）；
+  重開懸浮時 `overlay_main._onData` 呼叫新的 `OverlayPetDriver.restart()` 喚醒。
+  **这两邊必須成對**：定時器一停就不會再 notify，driver 等不到「下次位置變動」來重試，
+  忘了 restart 的症狀會比原本的 bug 更難查（關一次之後寵物永遠站著）—— `restart()` 裡直接叫
+  `controller.start()` 就是為了讓人沒機會只接一半。
+  `test/overlay_pet_driver_test.dart` +4 題、`test/pet_controller_test.dart` 新增 `stop()/start()` 一題。
+- **開選單失敗一次，寵物永久不會走路**：`_openMenu` 的 `setPaused(true)` 在 try 之前，
+  `_menuOpen = true` 卻在 `await currentPosition()` 之後，而 `_closeMenu()` 第一行是
+  `if (!_menuOpen) return` —— 那一步丟例外就沒人還原凍結，且 engine 是 cached 的，關掉重開也不救。
+  檔首註解本來就寫「上面任何一步失敗都要把牠解開」，但代碼做不到，也沒有任何測試。
+  修：整組開／關／6 秒逾時／指令派工抽成 `presentation/controllers/menu_director.dart`
+  （不吃 Flutter 與平台，凍結與視窗動作由呼叫端注入回調），`close()` 改成**冪等且永遠還原**，
+  `open()` 失敗時先還原再把例外丟回呼叫端報 log。新增 `test/menu_director_test.dart` 11 題，
+  其中「開到一半失敗也要有 resume」那條就是這次那個 bug 的鎖。
+  順手把 `if (!mounted) return` 改成丟例外 —— 它以前也留著凍住的寵物，而「isolate 馬上就沒了」
+  這個假設在上一條被查出來之後已經不成立了。
+- **定格會卡在動作最後一幀**：`_tickFrozenPet` 只倒數撒嬌，正在吃／跳跳／搖擺／打盹時被定格，
+  `_hold` 永不結束。改用現成的 `_isTimed(_behavior)`（`test/pet_controller_test.dart` 鎖住）。
+- **桌面捷徑關寵物不收選單、不釋放第二顆 FlutterEngine**：捷徑那條路不啟動 MainActivity，
+  因此 Dart 的 `OverlayService.close()`（全案唯一呼叫 `hideMenu`/`disposeMenu` 的地方）不會跑。
+  修：`ToggleShortcutActivity` 在 `stopService` 之前自己叫 `MenuOverlay.hideMenu()` + `disposeMenu()`。
+- **主頁那排動物每選一次就閃一下空白**：`_AnimalPicker` 的 key 裡塞了 `settings.animalId`，
+  點一顆 chip 就重建 State → 重查一次 DB → FutureBuilder 回到 `snap.data == null` 那個
+  `SizedBox(height: 38)`。選中哪隻是 `selected` 參數傳進去就夠了，key 只留 `_pickerRefresh`。
+- **內建 `cat2` 在四種語系都顯示中文本名「阿咪」**：`l10n/animal_names.dart` 的 switch 漏了它、
+  四份 arb 也沒有 `animalCat2`。補名字之外，`test/l10n_arb_test.dart` 多加一條「每一隻內建動物
+  在每個語系都有名字」（用 sentinel 當 fallback 去驗「有沒有掉進 default 那格」）——
+  舊的兩條只查「鍵集合齊不齊」與「素材有沒有註冊進 builtIns」，查不到這種「某一隻漏一格」。
+  變異檢查做過：把 switch 那行拿掉測試就紅。
+- **商店解凍前的三條**（入口仍是關的，先修好才敢開）：
+  ①下載改成「先進 `<id>.tmp/` → 全部驗完 → 才換上」，**不再先刪掉舊資料夾**（舊版網路在第 3 張圖
+  斷線時，舊素材已刪、新的不完整、`upsert` 也不會跑 → 那隻動物從此只能畫佔位圓）；
+  ②`_verifyAssets` 除了「檔名都在」也要「不是 0 bytes」（對端回 200 給空檔也會混過去）；
+  ③正在使用的那隻不准刪（`StoreController` 注入 `currentAnimalId`，刪了 overlay 會永久畫佔位圓）；
+  ④`StoreController.load()` 補 try/finally（DB 一丟例外就永久轉圈）。
+  `AnimalDownloadService` 新增 `dio` 與 `documentsDirectory` 兩個注入點，因此這四條都有真測試
+  （`test/animal_download_service_test.dart` 8 題，用假 HttpClientAdapter + 暫建目錄，不碰網路）。
+- **DB 開 WAL**（`pet_database.dart` 的 `onOpen`）：主 app 與 overlay isolate 各開一條連線寫同一個檔，
+  預設 rollback journal 下會互鎖到 SQLITE_BUSY；overlay 那邊的重試是補救，WAL 才是解。
+- **l10n 產物進版控卻沒人檢查它和 .arb 同不同步** → CI 增加 `flutter gen-l10n` + `git diff --exit-code lib/l10n`。
+  以前改了 arb 忘了 gen：analyze 綠、測試綠（arb 那支只比對 arb 彼此），出貨的還是舊文字。
+- **`_resizePetWindow` 不再無聲**（TODO 2026-11-16 第 2 條結案）：resize 被擋掉只影響視窗尺寸、
+  畫面不會消失，以前連一條 log 都沒有。
+- **`OverlayPetDriver` 的 log 改成可注入**（TODO 2026-11-16 第 1 條結案）：現在有測試斷言
+  「失敗要留一條、而且不能每 16ms 洗一行」—— 那條 log 就是這樣從 `appError` 漂到 `print` 的。
+- 兩個 repository 的 `_database` 從 `async` getter（await 完才賦值 → 兩個同時到來的呼叫各開一次檔）
+  改成快取 Future。
+
+### 順手抓到的舊脆口：`pet_controller_test` 偶爾紅
+
+`通知節流 原地發呆不會每幀都通知` 大約每 6 次全量跑會紅 1 次（本輪實測過）。原因不在通知節流：
+`PetController` 沒注入時用的是 `FlourishScheduler()`（**沒 seed 的 `Random()`**），那些測試一 pump
+就是兩三百幀，就有約 2% 的機率自己跳出一個 hop/wobble/doze —— 位置與「通知次數」的斷言就這樣被
+吹翻，而且只在平行跑、機器吃滿的時候比較常出現。修法是在測試裡注入 `FlourishScheduler(chancePerMinute: 0)`
+（`make()` 的預設，3 條直接建立 idle 控制器的也補上）：要播動作的測試本來就是直接叫 `playFlourish`，
+不靠那個排程器，所以預設關掉不損任何覆蓋。改完連跑 10 次全綠（之前 6 次紅 1）。
+**產碼一行沒動** —— 隨機性是要的，只是不該由被測對象自己擲骰子。
+
+### 本輪的互動變更：定格時那 6 個動作格不再變灰
+
+人類的決定：**按選單是明確的互動，所以照樣按得下去，按了先解除定格再播**（與 `feedAt` 同一套語意）。
+實作上 `playFlourish` 直接清 `_frozen`（不走 `setFrozen`，因為它解凍時會請 brain 重新決定、
+把使用者剛點的動作蓋掉）。順手清掉兩件因此變成死東西的：`MenuPayload.frozen` 與
+`FeedingMenuTile.enabled`（再也沒有人會把格子設成不可按）。
+摸牠**仍然不**解除定格（摸一下不等於「我要開始動了」）—— 這個差別 `test/pet_controller_test.dart`
+兩條測試分開鎖住。
+
+### 查下去之後撤銷的兩條（記下來免得下次再報一次）
+
+- 「兩份像素貓幾乎複製，留一份」：`_FallbackPetPainter`（animal_animator，深色剪影 + 走路彈跳 +
+  睡覺閉眼 + 撒嬌腮紅）與 `_OverlayFallbackPainter`（overlay_main，彩色貓 + 失敗時那條橙色底線）
+  差的是**語意**（一個是「素材壞了」的占位、一個是「這個動作沒有幀」的占位），不是複製。合併會把
+  失敗狀態的顏色與動作差異抹掉 → 不動。
+- 「`PetStats.feed({double? amount})` 的 `amount` 是死參數」：它不是死碼，是測試用來走進
+  「半飽」這種中間態的縫隙（4 條測試靠它驗 `_setHunger` 的 early-return 與跨門檻通知）。
+  刪了它得先想辦法用 1500 次 `tick()` 湊出同樣的狀態，純虧 → 留著。
+
+### 沒動的部分
+
+`OverlayService`（主 app 側）與 `home_page` 的狀態機仍無測試 —— 這輪補的是選單那組與驅動器；
+主頁開／關懸浮那條要抽掉 `MethodChannel` 依賴才好測，留給下一輪。真機驗證項目全部列在
+TODO 2026-11-17 那節（含 isolate 那條的四項驗收與 `adb` 指令）。
+
 ## 2026-11-16 三條 log／載入路徑的補丁（文件校訂時順手查出來的）
 
 - **內建動物不再被 DB 拖下水**：`AnimalRepository.resolveResource()` 之前是

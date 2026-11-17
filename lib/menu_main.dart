@@ -37,13 +37,16 @@ const _channel = MethodChannel('com.dneko/menu');
 
 /// 動作格要用哪個 icon。清單本身在 `kFlourishBehaviors`（兩側共用），這裡只補圖示 ——
 /// 圖示是呈現細節、留在選單這一側，不進 payload。
-IconData _iconFor(PetBehavior behavior) => switch (behavior) {
+/// 動作格圖示（選單視窗與 Windows 版共用同一份，改圖只改一處）
+IconData menuIconFor(PetBehavior behavior) => switch (behavior) {
       PetBehavior.lookAround => Icons.visibility,
       PetBehavior.doze => Icons.bedtime_outlined,
       PetBehavior.wobble => Icons.swap_horiz,
       PetBehavior.hop => Icons.keyboard_double_arrow_up,
       PetBehavior.stretch => Icons.wb_sunny_outlined,
       PetBehavior.circle => Icons.autorenew,
+      PetBehavior.beg => Icons.back_hand, // 舉高手討食
+      PetBehavior.faint => Icons.sick, // 倒地吐舌
       _ => Icons.bolt,
     };
 
@@ -155,11 +158,10 @@ class _MenuAppState extends State<_MenuApp> {
       tiles: [
         for (final behavior in kFlourishBehaviors)
           FeedingMenuTile(
-            icon: _iconFor(behavior),
+            icon: menuIconFor(behavior),
             label: payload.labelFor(behavior.name),
-            // 定格時 `playFlourish` 會靜默丟掉這些動作 —— 變灰比較誠實。（要的是「解凍再播」嗎？
-            // 那是「定格該不該被選單打破」的產品決定，尚未拍板，見 TODO）
-            enabled: !payload.frozen,
+            // 定格時也要按得下去：`PetController.playFlourish` 會自己解除定格再播
+            // （按選單是明確的互動，跟餵食一樣）。以前是變灰＋按不了，等於定格中選單殘废一半。
             onTap: () => _send(behavior.name),
           ),
       ],

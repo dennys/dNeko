@@ -43,6 +43,26 @@ class PetStats extends ChangeNotifier {
   /// 是否餓到想找食物
   bool get isHungry => isHungryAt(_hunger, hungryThreshold);
 
+  /// 「餓昏鬧騰」線 = 餓線到餓透之間再往上 60%（預設門檻 60 → 84 分，也就是不餵 84 分鐘）。
+  ///
+  /// 不另外開一個門檻設定：由 [hungryThreshold] 推導，設定頁那條 slider 拖到哪、這條就跟到哪，
+  /// 而且**一定到得了** —— 直接寫死「門檻 × 1.6」的話，slider 拉到 70 以上就永遠餓昏不了
+  /// （100 分封頂），等於那個設定把餓昏演出關掉。
+  static const double starvingBand = 0.6;
+
+  /// 餓昏門檻（點數）。[hungryThreshold] 本身不合法（超出 0~100）時夾回來，
+  /// 否則會算出「比餓線還低」的餓昏線 → 出現「不餓卻餓昏」。
+  static double starvingThresholdAt(double hungryThreshold) {
+    final t = hungryThreshold.clamp(0.0, maxHunger);
+    return t + (maxHunger - t) * starvingBand;
+  }
+
+  double get starvingThreshold => starvingThresholdAt(hungryThreshold);
+
+  /// 餓到在原地討食/裝死。**沒有死亡機制**（hunger 封頂 100），這純粹是一段演出，
+  /// 餵一口就立刻結束 —— 給小孩玩的東西不該有「養死了」的後果。
+  bool get isStarving => isHungryAt(_hunger, starvingThreshold);
+
   /// 餓的門檻（點數）。改動要走 [setHungryThreshold]（要通知 isHungry 翻轉）
   double hungryThreshold;
 

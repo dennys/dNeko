@@ -110,7 +110,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Future<void> _refreshHunger() async {
     try {
-      final record = await widget.settingsController.loadPersistedHunger();
+      final record = await widget.settingsController
+          .loadPersistedHunger(widget.settingsController.settings.animalId);
       if (!mounted) return;
       setState(() {
         _savedHunger = record?.hunger;
@@ -245,9 +246,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   /// 設定改動：存檔，懸浮在跑就即時推過去
   Future<void> _apply(PetSettings next) async {
+    // 各養各的：換寵物要立刻重讀餓度，否則主頁那行還會顯示**上一隻**的數字（20 秒輪詢才跟上）
+    final switched = next.animalId != widget.settingsController.settings.animalId;
     try {
       await widget.settingsController.update(next);
       await _pushCurrentSettings();
+      if (switched) unawaited(_refreshHunger());
     } catch (e, st) {
       // 設定寫入失敗（DB）不能只進 logcat：UI 已經顯示新值、盤上卻是舊值
       appError('設定存檔失敗', e, st);
@@ -327,7 +331,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               Text(l10n.settingsAnimal),
               const SizedBox(height: 4),
               _AnimalPicker(
-                key: ValueKey('animal-${settings.animalId}-$_pickerRefresh'),
+                // key 只綁「商店回來了要重查」這一件事。以前還塞了 animalId，於是點一顆
+                // chip 就重建 State → 重查一次 DB → 整排動物閃成空白（選中哪隻是 selected
+                // 參數傳進去的，本來就會正常重繪，不需要靠換 key）。
+                key: ValueKey('animal-$_pickerRefresh'),
                 repository: widget.animalRepository,
                 selected: settings.animalId,
                 onSelected: (id) => _apply(settings.copyWith(animalId: id)),
@@ -364,6 +371,20 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 label: '${settings.hungerMinutesUntilHungry} min',
                 onChanged: (v) => controller.preview(settings.copyWith(hungerMinutesUntilHungry: v.round())),
                 onChangeEnd: (v) => _apply(settings.copyWith(hungerMinutesUntilHungry: v.round())),
+              ),
+              const SizedBox(height: 8),
+              // 只有 zone = 僅下方 時才影響行為，但**常駐顯示**：
+              // 藏起來會讓設定頁隨 zone 跳動，而且使用者是先看到範圍不對才想來調它
+              Text(l10n.settingsBottomBand),
+              Slider(
+                value: settings.bottomBandFraction,
+                min: PetSettings.minBottomBandFraction,
+                max: PetSettings.maxBottomBandFraction,
+                divisions: ((PetSettings.maxBottomBandFraction - PetSettings.minBottomBandFraction) / 0.02)
+                    .round(),
+                label: '${(settings.bottomBandFraction * 100).round()} %',
+                onChanged: (v) => controller.preview(settings.copyWith(bottomBandFraction: v)),
+                onChangeEnd: (v) => _apply(settings.copyWith(bottomBandFraction: v)),
               ),
               const SizedBox(height: 8),
               Text(l10n.settingsZone),

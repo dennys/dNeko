@@ -15,6 +15,8 @@ enum AnimationAction {
   sleep, // 睡覺
   eat, // 進食
   affectionate, // 撒嬌
+  beg, // 討食拜拜（餓昏鬧騰；素材還沒畫的動物借 sit，見 _missingFrameAlias）
+  faint, // 餓昏裝死（同上，借 sleep 的幀）
 
   // 以下沒有專用素材：由 AnimationDefinition 的 alias 借用現有幀，見 _missingFrameAlias
   lookAround, // 左右張望（坐著 + 鏡像）

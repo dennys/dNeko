@@ -9,6 +9,8 @@ import 'data/repositories/settings_repository.dart';
 import 'data/services/animal_download_service.dart';
 import 'data/services/static_store_catalog.dart';
 import 'domain/locale_code.dart';
+import 'platform/pet_platform.dart';
+import 'platform/windows/windows_pet_app.dart';
 import 'domain/pet_settings.dart';
 import 'presentation/controllers/settings_controller.dart';
 import 'presentation/controllers/store_controller.dart';
@@ -17,6 +19,14 @@ import 'utils/log.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Windows：整個 app 就是那顆懸浮視窗（沒有主 app 設定頁，也不該去碰 overlay 插件 ——
+  // flutter_overlay_window 是 Android only，它在 Windows 連 plugin 註冊都沒有）。
+  // 分岔只認 PetPlatform 這一處，要再加桌面平台就在.pet_platform.dart 加。
+  if (PetPlatform.current.isWindowsPet) {
+    FlutterError.onError = (details) => appError('framework 例外', details.exception, details.stack);
+    await runWindowsPetApp();
+    return;
+  }
   final repository = AnimalRepository();
   final settingsRepository = SettingsRepository();
 
@@ -31,14 +41,16 @@ Future<void> main() async {
   }
 
   final downloadService = AnimalDownloadService(repository, settingsRepository);
+  final settingsController = SettingsController(
+    repository: settingsRepository,
+    initial: initial,
+  );
   final storeController = StoreController(
     catalog: StaticStoreCatalog(),
     downloadService: downloadService,
     repository: repository,
-  );
-  final settingsController = SettingsController(
-    repository: settingsRepository,
-    initial: initial,
+    // 商店要問得到「現在選的是哪隻」才不會把使用者正在養的那隻刪掉
+    currentAnimalId: () => settingsController.settings.animalId,
   );
   // 本案没有後端、也没有 crash 回報，logcat 是唯一的支持管道：
   // 未捕获的 async 例外在 release 會静悄悄消失，至少要把它们留在 logcat 裡。

@@ -95,7 +95,7 @@ void main() {
 
     test('zoneBounds(topLeft) 在 fallbackRoam 頂端以下', () {
       final roam = metrics.fallbackRoam(petSize);
-      final bounds = zoneBounds(roam, petSize, PetZone.topLeft);
+      final bounds = metrics.zoneBounds(roam, petSize, PetZone.topLeft);
       expect(bounds.top, roam.top, reason: 'topLeft 區頂端要等於 roam 頂端（已含狀態列偏移）');
       expect(bounds.top, greaterThan(0), reason: '不能貼物理螢幕頂（A-4b）');
     });

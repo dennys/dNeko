@@ -7,9 +7,11 @@ import 'pet_database.dart';
 class AnimalRepository implements IAnimalRepository {
   static const _tableName = animalTable;
 
-  Database? _db;
+  /// 開檔只快取成功的那次、同時到來的呼叫共用一條連線（理由見 [DatabaseHandle]：
+  /// 把失敗的 Future 存在欄位裡會讓整個程序再也讀不到 DB）。
+  final DatabaseHandle _handle = DatabaseHandle();
 
-  Future<Database> get _database async => _db ??= await openPetDatabase();
+  Future<Database> get _database => _handle.database;
 
   /// 選單與商店看的的清單 = DB 列 ∪ [builtIns]（同 id 以 DB 為準）。
   ///

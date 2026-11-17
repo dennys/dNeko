@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:path/path.dart';
-import 'package:sqflite/sqflite.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 /// 全域唯一的 DB 開檔點。
 ///
@@ -35,8 +38,23 @@ CREATE TABLE IF NOT EXISTS $settingsTable (
 )
 ''';
 
+/// 放 DB 的目錄（含桌面後端的切換）。
+///
+/// Windows 沒有 sqflite 的原生實作（pubspec 的 platforms 只有 Android/iOS/macOS），
+/// 所以要換成 FFI 後端；順便換掉資料目錄 —— `getDatabasesPath()` 在 ffi 後端下會退回
+/// temp 目錄，重開機資料就沒了（餓度、位置、親密度、下載記錄全丟），這是會咬人的那種錯。
+/// Android 那條路一個字都不動。
+Future<String> databaseDirectory() async {
+  if (Platform.isWindows) {
+    sqfliteFfiInit();
+    databaseFactory = databaseFactoryFfi;
+    return (await getApplicationSupportDirectory()).path;
+  }
+  return getDatabasesPath();
+}
+
 Future<Database> openPetDatabase() async {
-  final dbPath = join(await getDatabasesPath(), petDbName);
+  final dbPath = join(await databaseDirectory(), petDbName);
   return openDatabase(
     dbPath,
     version: petDbVersion,
@@ -47,5 +65,30 @@ Future<Database> openPetDatabase() async {
     onUpgrade: (db, oldVersion, newVersion) async {
       if (oldVersion < 2) await db.execute(_settingsDdl);
     },
+    // 主 app 與 overlay isolate 各開一條連線寫同一個 DB 檔（餓度、位置、親密度都是 overlay
+    // 在寫；主頁每 20 秒讀一次）。預設的 rollback journal 下寫入會互鎖到 SQLITE_BUSY ——
+    // overlay 那邊雖然有重試一次，但那是補救，WAL 才是讓「一條寫、一條讀」不互相擋的設定。
+    onOpen: (db) => db.execute('PRAGMA journal_mode=WAL'),
   );
+}
+
+/// [openPetDatabase] 的快取：**只快取成功的那次**。
+///
+/// 直接寫 `_db ??= openPetDatabase()` 會連「失敗的 Future」一起存進欄位，之後每次呼叫都
+/// 拿到同一顆炸彈直到程序結束 —— 位置與餓度再也存不進去、下載過的動物永久畫佔位圓，
+/// 而開檔失敗多半只是暫時的（兩條連線撞鎖、開機搶檔）。失敗時清掉欄位讓下次重試；
+/// 同時到來的兩個呼叫仍然共用同一個開檔動作（那才是当初要快取 Future 的理由）。
+class DatabaseHandle {
+  DatabaseHandle([Future<Database> Function()? open]) : _open = open ?? openPetDatabase;
+
+  final Future<Database> Function() _open;
+  Future<Database>? _pending;
+
+  Future<Database> get database => _pending ??= _open().then(
+        (db) => db,
+        onError: (Object e, StackTrace st) {
+          _pending = null; // 失敗不留快取（見類別註解）
+          return Future<Database>.error(e, st);
+        },
+      );
 }

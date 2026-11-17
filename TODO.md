@@ -3,18 +3,75 @@
 慣例：一個待辦一段，寫清「檔案＋符號名」（**別寫行號**，改一次檔就全部爛掉）與「為什麼现在是這樣」。
 **做完就搬到 `CHANGELOG.md`**（`git log` 才是權威），別堆在這裡吃 token。
 
-## 2026-11-16 log／載入路徑補丁留下的三條（細節見 CHANGELOG 同一日那條）
+## 2026-11-17 代碼審查修復之後欠的上機驗證（細節見 CHANGELOG 同一日那條）
 
-1. **`OverlayPetDriver` 的 log 沒有測試保護** —— `test/overlay_pet_driver_test.dart` 只鎖「moveTo 失敗後
-   會重試、不永久卡在舊位置」，完全沒斷言「失敗要有 log」。它就是這樣從 `appError`（logcat tag
-   `dneko.error`）漂到 `print`（tag `flutter`）而沒紅的：除錯時用的是 `adb logcat -s dneko.error`，
-   那條等於不存在。要真的鎖住：把 log 做成可注入的 callback（現在是直接呼叫 top-level `appError`），
-   測試塞一個假的收 log。不做也死不了人，但**同樣的漂移還會再来一次**。
-2. **`overlay_main._resizePetWindow` 的 `catch (_)` 仍然無聲**（同類問題，本輪沒動）：resize 被平台擋掉時
-   只是視窗尺寸不對，logcat 一片乾淨。跟 `_loadAnimal` 那兩條一樣補 `appError` 就行，一個 catch 的事。
-3. **這三條真機零次**：都要 DB 或平台真的出錯才走得到，本機造不出條件（只能用變異檢查：把舊代碼塞回去
-   測試會紅）。下次上機順手掃 —— 尤其 A-5 那類「餓度/位置寫不寫得進去」的場景，`resolveResource` 現在
-   多了一條「DB 讀不到 → 退回內建素材」的路徑，真機上驗證它不會誤觸發（正常情況不該看到那條 log）。
+1. **關掉懸浮後 isolate 真的停了** —— 本輪最重要的一條，而且**已經有一條真機佐證**：使用者實測
+   「關掉懸浮幾秒鐘再打開，寵物出現在別的地方」。這正是 `closeOverlay` 之後 isolate 還活著的症狀
+   （插件只 stopService、`onDestroy` 不銷毀 cached engine）：16ms 定時器繼續跳、寵物無形中散步、
+   `_rememberPosition` 每 5 秒把新位置寫進 DB。
+   修法：`OverlayWindow.moveTo` 收平台回的那個 bool，`OverlayPetDriver` 連續拒絕 3 次就
+   `PetController.stop()`；重開懸浮時 `overlay_main._onData` 呼叫 `OverlayPetDriver.restart()` 喚醒。
+   上機請逐項填 ✅／✗＋日期：
+   - [ ] 開懸浮 → 記住位置 → 關掉 → 等 2~3 分鐘 → 再開：要在**關掉時那個位置**（修之前會跑到別處）
+   - [ ] 同一時間 `adb shell top -b -n1 | grep dneko`：關掉之後 %CPU 要趨近 0
+   - [ ] `adb logcat -s dneko.error`：關掉那一刻出現「懸浮視窗已不存在，停止寵物主迴圈」是**預期的**
+   - [ ] 關掉→重開連做三次，每次都醒得回來（`restart()` 沒接上的話會變成「開懸浮後寵物永遠站著」，
+     這是本輪最容易踩的回歸點，`test/overlay_pet_driver_test.dart` 有鎖一條）
+2. **定格時那些動作格按得下去**（`test/pet_controller_test.dart`、`test/feeding_menu_test.dart` 鎖住），
+   但**動作播起來的手機手感沒人評過**（跳跳／搖擺／打盹…的速度與 hold 也沒人評過）。
+2b. **餓昏鬧騰（本輪新增，全部未上機）** —— 調性是給 9 歲玩的「滑稽」，好不好笑只有人眼能判：
+   - [ ] 選單那兩格（討食／裝死）按下去播得完整、不會卡在最後一幀（`_begHold` 1100 / `_faintHold` 1300）
+   - [ ] **還沒補素材的動物是借 `sit`/`sleep` 的幀** → 畫面差別很小，此時**頭頂那顆氣泡是唯一訊號**：
+     缺圖時由 `_BubblePainter` 現畫一顆，請判「陽春但看得出來」夠不夠，不夠就先補氣泡圖
+   - [ ] 餓度條：過餓昏線變橘色 + 火苗圖示、軌道上那道刻痕看得出來嗎（這是「報信」的全部）
+   - [ ] 餓昏時摸牠 → 播討食（不是撒嬌）、也不接跳跳；這下要「好笑」而不是「怪怪的」
+   - [ ] 設定頁把「多久變餓」拉到最慢（100 分）：不該看到餓昏；拉到最快（5 分）：餓昏約 62 分鐘
+   - [ ] 選單多兩格後高了 52px：窄屏／貼邊擺位會不會被裁（`kMenuWindowSize` 由 `contentHeight` 算）
+   - [ ] 開聲音：餓昏時叫聲 0.85 倍速，聽起來要「低沉委屈」而不是「卡帶／壞掉」
+3. **桌面捷徑關懸浮要連選單一起收**：選單開著時按捷徑關掉 → 螢幕上不能留一張關不掉的選單，
+   且 `MenuOverlay` 那顆 engine 要跟著放掉（原生那兩行沒有任何測試，只能上機看）。
+4. 2026-11-16 那組「真機零次」的還在：都要 DB／平台真的出錯才走得到的路徑 —— 包括本輪新加的
+   `_resizePetWindow` 失敗 log、以及 `resolveResource`「DB 讀不到 → 退回內建素材」那條
+   （正常情況不該看到那條 log）。本機造不出條件，下次上機順手掃。
+
+## 2026-11-17 Windows 桌寵版（第一版）**上機零次**
+
+純代碼側全綠（analyze 0、test 292、Android `build apk --debug` 不受影響），但**螢幕上會發生的事
+一項都沒驗過** —— 開發機是 Linux/aarch64，編不了 Windows 目標。完整的 14 層 ladder 在
+**`WINDOWS.md`**，這裡只記「最可能先壞、壞了最難查」的三條：
+
+1. **編譯期就挂**（第 1 層）：`sqlite3` 3.x 走 Dart native assets，build 時下載 SQLite 原始碼自己編。
+   → 編譯機第一次 build 一定要網路。錯誤裡有 `sqlite3`/`hooks`/`native assets` 字樣就整段貼回來；
+   退路是我把 Windows 側換成 JSON 存檔（約一支檔），不用你折騰。
+2. **視窗看不見 / 不透明 / 搶焦點**（第 2~4 層）：`WS_EX_LAYERED|TOOLWINDOW|NOACTIVATE` 是在
+   `windows/runner/win32_window.cpp` **建立時**給的（window_manager 0.5.x 沒有 no-activate 的 API）。
+   layered 視窗沒給層式屬性會整顆不畫 —— 已補 `SetLayeredWindowAttributes(...,255,LWA_ALPHA)`，
+   但這是盲寫，`--debug` 跑起來「完全看不到東西」就是這條。
+3. **開選單貓跳位**（第 9 層）：選單疊在同一顆視窗，視窗每次都要重算成「寵物∪選單」的並集。
+   幾何是純函式且有 6 條測試鎖住（`test/windows_pet_window_geometry_test.dart`），但「測試對、
+   真機跳」在 Android 選單上走過一次回頭路（見 AGENTS.md）—— 上機請特別盯這一項。
+
+**已知沒做（不是 bug，別當缺陷回報）**：Windows 沒有設定頁（能調的在系統匣）、沒扣工作列、
+商店/下載未接、開機自啟沒有、系統匣沿用 PNG（可能要換 `.ico`）。
+
+**下一層**（ladder 全過才動）：Windows 設定視窗 → 換寵物 → 開機自啟 → 多隻同時懸浮。
+另外 `windows/` 是 `flutter create` 生出來的，之後 `flutter migrate` 可能會想改它 ——
+`.metadata` 已記 windows 平台，改動前先看 diff。
+
+## 2026-11-17 各養各的上機驗證（純代碼側全綠，真機零次）
+
+1. [ ] **各歸各的**：貓餵到飽、換狗（狗應該餓昏闹騰，因为牠的計時從上次收起來算）、再換回貓
+   （貓要是飽的）。餓度與位置都要各自回來，不是帶著上一隻的走。
+2. [ ] **收起來不餓**：放養中關掉懸浮 → 過 2 小時再開 → 餓度要還是在關掉那一刻的值
+   （不會偷偷補算）。這條是靠 `OverlayPetDriver.onStopped` 接到的，**最容易斷的一條**。
+3. [ ] **當掉會補算**：`adb shell am kill`（或直接關機）讓牠來不及存盤 → 隔段时间再開要看到
+   餓度有補算。與第 2 條一起構成了 `wasDisplayed` 旗標的兩條路徑。
+4. [ ] **換寵物那一刻的寫盤**：餵幾口 → 立刻換宠物 → 換回來餓度不能跳回舊值（logcat
+   `dneko.error` 不該出現「收起來存盤失敗」）。
+5. [ ] **刪寵物清乾淨**：刪掉一隻下載動物後重新下載同 id，親密度與餓度都要是新的（不能憑空繼承）。
+6. [ ] **遷移只搬一次**：從舊版（`pet_hunger` 全域鍵）升級起來的第一次會搬給當時那隻；
+   之後重開不該再動舊鍵。搬完舊鍵**故意保留**，不是没清乾淨。
+7. [ ] 主頁那行餓度在換寵物後**立刻**變成新那隻的數字（不是等 20 秒輪詢）。
 
 ## 2026-11-13 選單過場：**已定案 own-window**（上機回報可用），剩下的都是次要項
 
@@ -30,8 +87,11 @@ commit，`git gc --prune` 之後就讀不到；要留就現在 `git branch x 1f2
    **欠一次上機重掃外掛本身那組**：開懸浮、拖曳寵物、關懸浮再開、撤權限後的行為
    （換的是插件的原生碼來源，雖然 diff 證明只差兩記死補丁）。
    另：Windows 那台第一次 build 要能從 pub.dev 抓這個套件。
-3. 定格時按選單那 6 個動作格：已改成**變灰＋按不下去**（2026-11-13，`test/feeding_menu_test.dart`
-   鎖住）。仍待決定的是另一回事 —— 「選單裡按動作該不該把定格解凍再播」，那是產品決定。
+3. ✅ **定格時那 6 個動作格：2026-11-17 拍板改成「照樣按得下去，按了先解除定格再播」**
+   （`test/feeding_menu_test.dart` ＋ `test/pet_controller_test.dart` 鎖住）。
+   上面那條「仍待決定：選單裡按動作該不該把定格解凍再播」就是這個 —— 定了：要解凍，
+   與餵食同一套語意（按選單是明確互動）。代價：`MenuPayload` 不再需要 `frozen`、
+   `FeedingMenuTile.enabled` 整個消失（沒有人再會把格子設成不可按）。
 另外：
 - 「動物被夾到某個固定位置」**先查設定頁的「區域」**，多半不是程式 bug（`zoneBounds` 會把可漫遊
    範圍縮成小方框，`endDrag` 的 `_clampToBounds` 就把它夾回去）。判斷依據：診斷面板的
@@ -89,6 +149,9 @@ commit，`git gc --prune` 之後就讀不到；要留就現在 `git branch x 1f2
 所以按了選單「暫停」之後雙擊餵食，會讓定格默默失效、牠自己走起來。（原先與「定格時摸牠無效」是同一個
 問題的兩面；2026-11-12 起定格時摸牠已有效，只剩餵食會解凍這一面。）本輪選擇保留（理由：餵食是明確互動），**要改的兩個方向**：
 (a) ✅ 已做（2026-11-13）：選單網格下方那行小字 `menuFeedUnfreezes`（「餵食會解除定格」）；
+    2026-11-17 起 `playFlourish`（選單那 6 格）也跟餵食一樣會解凍 —— 所以「默默失效」的範圍變大了，
+    但換來的是定格中選單不再殘廢一半。小字仍只寫餵食，因為按動作格時選單當場收掉、
+    寵物立刻開始動，原因一眼就看得出來；
 (b) 餵食不解凍、吃飽後繼續定格（要處理「定格裡走不過去食物」→ 得先解凍吃完再凍回去，複雜）。
 
 ### 7. 單擊 300ms 辨認期、睡覺只有 4~7 秒（人類決定：不動）
@@ -123,6 +186,11 @@ commit，`git gc --prune` 之後就讀不到；要留就現在 `git branch x 1f2
 
 現況 `flutter_overlay_window` 只有**一個** overlay 視窗，所以同時只能有一隻寵物。
 
+> 📌 2026-11-17 更正認知：這是**插件的實作限制，不是 Android 的限制**。插件的 `OverlayService`
+> 是 `static instance`、`onStartCommand` 看到第二張就先關第一張、Dart API 全程沒有 windowId。
+> OS 那邊要幾顆給幾顆 —— 選單那顆視窗就是我們自己用原生 `addView` 開的（`MenuOverlay.kt`），
+> 已經真機跑過 N 顆視窗 + 多顆 engine 這組原語。
+
 ### 參考：ANeko Reborn（github.com/pass-with-high-score/ANeko）的實證
 - 每隻寵物 = 一個**原生小視窗**（ImageView 逐幀），不是 Flutter 視窗。
 - 觸控**不是**動態 touch region —— 是整個視窗在「可觸控 / 穿透」兩個 flag 之間切換。
@@ -134,8 +202,17 @@ commit，`git gc --prune` 之後就讀不到；要留就現在 `git branch x 1f2
   原生只畫圖。`flutter_overlay_window` 退役。
 - 被否決的替代：每寵一個 Flutter overlay（插件不支持、重量也爆）；原生全權 AI（行為邏輯
   要 Kotlin 重寫一份，兩邊腐）。
-- **開工前要先拍板**：寵物窗預設「可觸控」還是「穿透」？ANeko 採預設穿透、點到才開觸控；
-  dNeko 的摸/餵互動比較重，傾向預設可觸控、拖出螢幕才穿透。
+- **觸控模型已拍板（2026-11-17，人類）**：**預設可觸控**，放棄預設穿透。
+  理由：摸／餵／長按開選單三件事全掛在寵物那顆視窗的 `GestureDetector` 上，穿透 = 三件一起失能；
+  而穿透的視窗收不到任何事件 → 沒有輸入可以觸發「切回可觸控」，**整個功能的成本都在造一個喚醒入口**
+  （捷徑／通知 action／全螢幕 watcher 三选一，且只有真機驗得動）。逐像素（只有寵物身體吃滑鼠）
+  OS 不支持，直接放棄。
+  - 使用者抱怨「擋到東西」時的**第一解是 zone**（`PetZone` 已有四角與 bottomBand，主頁有 chips 可選），
+    不是穿透。第二解才是「閒時 `FlutterOverlayWindow.updateFlag(OverlayFlag.clickThrough)` ＋ 捷徑喚醒」。
+    ⚠️ 做那天要記：`OverlayService.updateOverlayFlag` 寫的是插件的**全域單例 `WindowSetup`**，
+    穿透狀態下 close→重開懸浮會**繼承穿透** —— 每次 `showOverlay` 之後要明確把 flag 設回來。
+  - **`touchable` 必須是 per-animal**（跟親密度一樣走 per-animal KV），不能是全域設定：
+    逐窗是唯一粒度，全域 flag 會讓兩隻一起變穿透，湊不出「一隻擋滑鼠、一隻可摸」。
 
 ---
 

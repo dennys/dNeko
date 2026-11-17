@@ -1,7 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' show Locale;
 
 import 'package:flutter_test/flutter_test.dart';
+
+import 'package:dneko/data/repositories/animal_repository.dart';
+import 'package:dneko/l10n/animal_names.dart';
+import 'package:dneko/l10n/app_localizations.dart';
 
 /// 選單的文字是寵物那側翻好後經 `MenuPayload.labels` 送過去的 —— 選單 isolate 自己不讀 arb、
 /// 不做翻譯。所以**少一個鍵不會崩潰**，只會把 `menuFeedUnfreezes` 這種原始鍵名直接畫給
@@ -65,6 +70,28 @@ void main() {
           final text = (v as String).trim();
           expect(text, isNotEmpty, reason: '$n 的 $k 是空字串');
           expect(text, isNot(k), reason: '$n 的 $k 還沒翻（值等於鍵名）');
+        }
+      }
+    });
+
+    test('每一隻內建動物在每個語系都有名字', () async {
+      // 漏了會怎樣：`animalName` 退回 builtIns 的中文本名，於是英文介面中間夾一顆「阿咪」。
+      // 這是最容易漏的一種 —— 素材、builtIns、選單都正常，只有那個語系的名字是中文，
+      // 而上面那幾條查的是「鍵有沒有齊」，查不到「某隻動物有沒有對應的鍵」。
+      for (final (code, locale) in const [
+        ('en', Locale('en')),
+        ('ja', Locale('ja')),
+        ('zh', Locale('zh')),
+        ('zh_TW', Locale('zh', 'TW')),
+      ]) {
+        final l10n = await AppLocalizations.delegate.load(locale);
+        for (final animal in AnimalRepository.builtIns) {
+          final missing = '##${animal.animalId}##';
+          expect(
+            l10n.animalName(animal.animalId, missing),
+            isNot(missing),
+            reason: '$code 語系沒有 ${animal.animalId} 的名字（會露出中文本名「${animal.displayName}」）',
+          );
         }
       }
     });

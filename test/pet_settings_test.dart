@@ -50,6 +50,37 @@ void main() {
       expect(s.zone, PetZone.bottomBand);
     });
 
+    group('下方帶高比例（可見帶高 ÷ 螢幕高）', () {
+      test('預設 0.22，範圍 0.10~1.00', () {
+        expect(const PetSettings().bottomBandFraction, PetSettings.defaultBottomBandFraction);
+        expect(PetSettings.defaultBottomBandFraction, 0.22);
+        expect(PetSettings.minBottomBandFraction, 0.10);
+        expect(PetSettings.maxBottomBandFraction, 1.00);
+      });
+
+      test('JSON 往返保留', () {
+        const s = PetSettings(bottomBandFraction: 0.5);
+        expect(PetSettings.fromJson(s.toJson()).bottomBandFraction, 0.5);
+      });
+
+      test('髒資料回預設、超範圍夾到邊界（舊安裝沒這欄位也要能用）', () {
+        expect(PetSettings.fromJson(const {}).bottomBandFraction, 0.22);
+        expect(PetSettings.fromJson(const {'bottomBandFraction': 'half'}).bottomBandFraction, 0.22);
+        expect(PetSettings.fromJson(const {'bottomBandFraction': 0}).bottomBandFraction,
+            PetSettings.minBottomBandFraction);
+        expect(PetSettings.fromJson(const {'bottomBandFraction': 9}).bottomBandFraction,
+            PetSettings.maxBottomBandFraction);
+      });
+
+      test('copyWith 只改它時其他欄位不動', () {
+        const s = PetSettings(petSize: 160, zone: PetZone.bottomBand);
+        final next = s.copyWith(bottomBandFraction: 0.4);
+        expect(next.bottomBandFraction, 0.4);
+        expect(next.petSize, 160);
+        expect(next.zone, PetZone.bottomBand);
+      });
+    });
+
     test('餓的門檻：預設 60 分鐘，範圍 1~100', () {
       const s = PetSettings();
       expect(s.hungerMinutesUntilHungry, PetSettings.defaultHungerMinutes);

@@ -11,7 +11,6 @@ void main() {
         hunger: 37.5,
         hungryThreshold: 60,
         bondValue: 23,
-        frozen: true,
         labels: {'feed': '餵食', PetBehavior.hop.name: '跳跳'},
       );
 
@@ -24,7 +23,6 @@ void main() {
       expect(back.hunger, 37.5);
       expect(back.hungryThreshold, 60);
       expect(back.bondValue, 23);
-      expect(back.frozen, isTrue);
       expect(back.labelFor('feed'), '餵食');
     });
 
@@ -38,7 +36,6 @@ void main() {
     test('讀不到就用安全預設：門檻跟 PetStats 同一個來源，選單不會自己編一個', () {
       final back = MenuPayload.decode('{}')!;
       expect(back.hunger, 0);
-      expect(back.frozen, isFalse);
       expect(back.hungryThreshold, PetStats.defaultHungryThreshold);
     });
 
@@ -56,8 +53,9 @@ void main() {
 
   group('kFlourishBehaviors', () {
     test('正好六格 —— FeedingMenu 的網格是 3×2，多一格少一格都開不出選單', () {
-      expect(kFlourishBehaviors.length, 6);
-      expect(kFlourishBehaviors.toSet().length, 6, reason: '不能重複');
+      // 8 格 = FeedingMenu._gridRows(4) × 2 欄；加減動作要連 FeedingMenu._gridRows 一起改
+      expect(kFlourishBehaviors.length, 8);
+      expect(kFlourishBehaviors.toSet().length, 8, reason: '不能重複');
     });
 
     test('名稱可直接還原成 PetBehavior（寵物那側靠名字收指令）', () {

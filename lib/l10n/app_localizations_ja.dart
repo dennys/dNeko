@@ -61,6 +61,12 @@ class AppLocalizationsJa extends AppLocalizations {
   String get menuActionCircle => 'しっぽ追い';
 
   @override
+  String get menuActionBeg => 'おねだり';
+
+  @override
+  String get menuActionFaint => 'たおれる';
+
+  @override
   String get overlayRunning => '画面で動かしています';
 
   @override
@@ -112,6 +118,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get settingsZone => '移動エリア';
 
   @override
+  String get settingsBottomBand => '下部エリアの高さ（下部のみ）';
+
+  @override
   String get settingsSound => 'なでたときに鳴き声';
 
   @override
@@ -142,6 +151,18 @@ class AppLocalizationsJa extends AppLocalizations {
   String get overlayStop => 'デスクトップペットを停止';
 
   @override
+  String get overlayShow => 'ペットを表示';
+
+  @override
+  String get overlayHide => 'ペットを隠す';
+
+  @override
+  String get overlayClickThroughOn => 'クリック透過：オン';
+
+  @override
+  String get overlayClickThroughOff => 'クリック透過：オフ';
+
+  @override
   String get overlayStarting => '開始中…';
 
   @override
@@ -157,6 +178,9 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get animalCat => '猫';
+
+  @override
+  String get animalCat2 => 'にゃんこ';
 
   @override
   String get animalDog => '犬';

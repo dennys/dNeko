@@ -12,6 +12,7 @@ import 'data/services/overlay_window.dart';
 import 'data/models/animal_resource.dart';
 import 'data/models/animation_definition.dart';
 import 'domain/drag_watch.dart';
+import 'domain/i_overlay_window.dart';
 import 'domain/pet_bond.dart';
 import 'domain/pet_behavior.dart';
 import 'domain/pet_settings.dart';
@@ -24,6 +25,7 @@ import 'domain/pet_stats.dart';
 import 'domain/screen_metrics.dart';
 import 'presentation/controllers/pet_controller.dart';
 import 'presentation/controllers/pet_controller_factory.dart';
+import 'presentation/controllers/menu_director.dart';
 import 'presentation/controllers/overlay_pet_driver.dart';
 import 'presentation/widgets/animal_animator.dart';
 import 'utils/log.dart';
@@ -34,19 +36,30 @@ void runOverlayApp() {
   // FlutterError.onError 抓 framework/render 例外（它們走 reportError，不會 rethrow 進 zone）。
   FlutterError.onError = (details) => appError('overlay framework 例外', details.exception, details.stack);
   runZonedGuarded(
-    () => runApp(const _OverlayApp()),
+    () => runApp(const _OverlayApp(window: OverlayWindow())),
     (e, st) => appError('overlay 未捕获例外', e, st),
   );
 }
 
 class _OverlayApp extends StatefulWidget {
-  const _OverlayApp();
+  /// 寵物那顆 OS 視窗的操作介面。實作由組合根 [runOverlayApp] 注入（現行是插件版 [OverlayWindow]）。
+  /// 它是參數而不是四處自己 new，只為了讓「換一個視窗實作」有一個地方可換
+  /// （桌面版、或自己開 N 顆原生視窗那條路）。
+  ///
+  /// 訊息通道（overlayListener 與 shareData）目前仍直接打插件：那三處真要換平台時得一起抽，
+  /// 但現在沒有第二個實作者，不先造介面。
+  const _OverlayApp({required this.window});
+
+  final IOverlayWindow window;
 
   @override
   State<_OverlayApp> createState() => _OverlayAppState();
 }
 
 class _OverlayAppState extends State<_OverlayApp> {
+  /// 全檔只透過這裡碰視窗（不要再自己 new，見 [_OverlayApp.window]）
+  IOverlayWindow get _window => widget.window;
+
   static const _controllerFactory = PetControllerFactory();
 
   /// 飢餓值落盤的節流間隔
@@ -84,17 +97,45 @@ class _OverlayAppState extends State<_OverlayApp> {
   );
   double _petSize = PetSettings.defaultPetSize;
 
-  /// 選單開著（它的視窗是另一個視窗，見 [kMenuWindowSize] 與原生 MenuOverlay.kt）。
-  /// 開著時寵物被凍住 —— 解凍只在 [_closeMenu]，所有關閉路徑都走那裡。
-  bool _menuOpen = false;
+  /// 選單的開／關／6 秒逾時／指令派工全部住在 [MenuDirector]（選單是另一個視窗，見
+  /// [kMenuWindowSize] 與原生 MenuOverlay.kt）。之前這些散在本檔的欄位與 try/catch 裡，
+  /// 「開到一半失敗」那條路就漏掉解凍（寵物永久凍住），而且完全沒有測試。
+  late final MenuDirector _menu = MenuDirector(
+    timeout: _menuTimeout,
+    onPause: _pausePetForMenu,
+    onResume: _resumePetAfterMenu,
+    onHideWindow: _hideMenuWindow,
+    onAction: _runMenuAction,
+  );
+  static const _menuTimeout = Duration(seconds: 6);
 
   /// 選單 isolate 不讀 arb：選單要顯示的文字由這邊翻好再打包送過去，所以 build 時存著
   AppLocalizations? _l10n;
 
-  /// 選單開著一段時間沒動就自己關掉（選單那顆視窗收得到它自己外面的點擊，但「使用者
-  /// 根本沒在看了」這種事只有定時器抓得到）
-  Timer? _menuTimer;
-  static const _menuTimeout = Duration(seconds: 6);
+  /// 開選單 = 凍住寵物：停止自主移動，也停止搬視窗（選單是釘在寵物旁邊的）。
+  void _pausePetForMenu() {
+    final controller = _controller;
+    if (controller == null) return;
+    _cancelIdleDragWatch(controller);
+    _driver?.setEnabled(false);
+    controller.setPaused(true);
+  }
+
+  /// 收選單 = 還原。**必須冪等** —— [MenuDirector.close] 不論開到哪一步都會呼叫它，
+  /// 開到一半失敗也要能把寵物解開（這正是以前漏掉的那條路）。
+  void _resumePetAfterMenu() {
+    final controller = _controller;
+    controller?.setPaused(false);
+    final restorePos = controller?.position;
+    if (restorePos != null) unawaited(_rememberPosition(restorePos, force: true));
+    _driver?.setEnabled(true);
+    // 選單開著時 _applySettings 可能把 _roam 設成 fallbackRoam（未校準）：未校準的才清掉
+    // （下次開選單／載入重新量真實範圍，A-4b）；實測值保留 —— 重新量會把視窗搬到兩個角落。
+    if (!_roamCalibrated) {
+      _roam = null;
+      _roamPetSize = null;
+    }
+  }
 
   /// 實測出的視窗頂端座標可達範圍（含狀態列/導航列的安全區；見 [_measureRoam]）
   Rect? _roam;
@@ -132,7 +173,7 @@ class _OverlayAppState extends State<_OverlayApp> {
     if (_polling) return;
     _polling = true;
     try {
-      final p = await const OverlayWindow().currentPosition();
+      final p = await _window.currentPosition();
       // await 期間 controller 可能被換掉或 dispose（換動物 / overlay 關閉）；
       // 碰已 dispose 的 ChangeNotifier 會觸發 debug 斷言
       final watch = _dragWatch;
@@ -187,7 +228,7 @@ class _OverlayAppState extends State<_OverlayApp> {
     // state 與整條控制器鏈。
     _eventSub = FlutterOverlayWindow.overlayListener.listen(_onData);
     _menuChannel.setMethodCallHandler((call) async {
-      if (call.method == 'menuCommand') _onMenuCommand(call.arguments);
+      if (call.method == 'menuCommand') _menu.onCommand(call.arguments);
     });
     unawaited(_loadDefaultAnimal());
   }
@@ -226,6 +267,15 @@ class _OverlayAppState extends State<_OverlayApp> {
     final animalId = map['animalId'] as String?;
     if (animalId == null) return;
     _hasPayload = true;
+
+    // 主 app 又把視窗開出來了（開懸浮會送 payload，同一隻動物時走下面的去重分支）。
+    // 被「視窗已不存在」停下來的主迴圈只能在這裡醒：定時器停了就不會再 notify，
+    // driver 自己等不到重試的時機 —— 忘了這一行，關一次懸浮之後寵物就永遠站在原地。
+    //
+    // 注意這條的語意是「收到任何 payload 就喚醒」（含 _shareStartupData 那四次延遲重送
+    // 與每次 pushSettings）。它成立的因為 stop() 只有一個原因：視窗不在了。哪天要加
+    // 另一種停止理由（省電、使用者暫停），得另開一個開關，不能再用這條當「醒來」的入口。
+    _driver?.restart();
 
     // 同一份 payload 重複送是 `_shareStartupData` 的延遲重送（視窗可能還沒訂閱），
     // 不是設定改了：每收一次就跑一趟 `_applySettings`（含 resize、必要時重校準），
@@ -275,7 +325,7 @@ class _OverlayAppState extends State<_OverlayApp> {
     final controller = _controller;
     final sizeChanged = _petSize != _settings.petSize;
     setState(() => _petSize = _settings.petSize);
-    if (!_menuOpen) {
+    if (!_menu.isOpen) {
       await _resizePetWindow();
       // 校準结果跟視窗邊長綁在一起，尺寸換了要重量
       if (sizeChanged) _roam = null;
@@ -286,10 +336,11 @@ class _OverlayAppState extends State<_OverlayApp> {
       _roamCalibrated = false;
     }
     if (controller == null) return;
-    final bounds = zoneBounds(
+    final bounds = _metrics.zoneBounds(
       await _roamFor(_settings.petSize, anchor: controller.position),
       _settings.petSize,
       _settings.zone,
+      bottomBandFraction: _settings.bottomBandFraction,
     );
     // await 期間 `_loadAnimal` 可能已經把 controller 換掉並 dispose 了（cascade 只在開頭
     // 讀一次欄位，之後都打在那個死掉的物件上）。本檔其他處都用 stale() 防這類競態，
@@ -313,7 +364,7 @@ class _OverlayAppState extends State<_OverlayApp> {
   Future<Rect> _roamFor(double petSize, {Offset? anchor}) async {
     final cached = _roam;
     if (cached != null && _roamPetSize == petSize && _roamCalibrated) return cached;
-    const window = OverlayWindow();
+    final window = _window;
     try {
       await window.moveTo(Offset.zero);
       final min = await window.currentPosition();
@@ -358,7 +409,7 @@ class _OverlayAppState extends State<_OverlayApp> {
       if (stale()) return;
       if (!mounted) return;
 
-      const window = OverlayWindow();
+      final window = _window;
 
       // 先對齊尺寸再 resize/校準，否則視窗尺寸跟 PetController 吃的 petSize 會錯開
       setState(() => _petSize = _settings.petSize);
@@ -371,21 +422,23 @@ class _OverlayAppState extends State<_OverlayApp> {
       // [_roamFor] 之前讀；讀不到就退回原本的中央預設。
       final windowPosition = await _readWindowPosition();
       if (stale()) return;
-      final bounds = zoneBounds(
+      final bounds = _metrics.zoneBounds(
         await _roamFor(_settings.petSize, anchor: windowPosition),
         _settings.petSize,
         _settings.zone,
+        bottomBandFraction: _settings.bottomBandFraction,
       );
       if (stale()) return;
 
-      final saved = await _readOr(() => _settingsRepository.loadHunger(), null);
+      // 各養各的：餓度與位置都是**這隻自己的**（v1 是八隻共用一份）。
+      final saved = await _readOr(() => _settingsRepository.loadHunger(animalId), null);
+      final savedPosition =
+          await _readOr(() => _settingsRepository.loadPosition(animalId), null);
       // 親讀不到就從 0 開始（人類的決定：不管舊安裝）；讀到就用存的那份（含今天的計分額度）
       final bond = await _readOr(() => _settingsRepository.loadBond(animalId), const PetBond());
-      // 懸浮沒開的時候沒有 tick，但時間還在走：依「距上次存盤多久」補算餓度，
-      // 否則關掉 app 三天再打開，寵物還是三天前那個飽飽的樣子。
-      final hunger = saved == null
-          ? 0.0
-          : PetStats.hungerAfterAbsence(saved.hunger, DateTime.now().difference(saved.savedAt));
+      // 缺席補算的規則在 hungerOnWake（正常收起來的不餓；當掉的才補算）——
+      // 那條規則抽成純函式就是為了能被測試鎖住，這裡不要再各寫一份判斷。
+      final hunger = hungerOnWake(saved, DateTime.now());
       // 最後一道閘：過了這行就一定會把新控制器掛上去，不能再被舊請求搶先。
       if (stale() || !mounted) return;
 
@@ -397,8 +450,15 @@ class _OverlayAppState extends State<_OverlayApp> {
       // 啟用、tick 跟手勢打架，寵物抖動）。
       final oldController = _controller;
       if (oldController != null) _stopDragWatch(oldController);
+      // 換寵物 = 舊那隻「收起來」：餓度留檔並標成不在螢幕上，之後的時間不算牠餓著
+      // （人類的決定）。放在新 controller 就緒之後才做，這次載入失敗就不會白寫。
+      final outgoing = _controllerAnimalId;
+      if (oldController != null && outgoing != null && outgoing != animalId) {
+        await _stow(outgoing, oldController);
+      }
       final oldFrozen = oldController?.frozen ?? false;
-      final oldPosition = oldController?.position ?? windowPosition;
+      // 位置優先用「這隻上次留下的」，其次才是視窗现在的位置（首開時由主 app 摆好的）
+      final oldPosition = savedPosition ?? oldController?.position ?? windowPosition;
       _driver?.dispose();
       oldController?.dispose();
       _stats?.dispose(); // 上層自己 new 的 stats，注入給 controller 所以它不會替我們關
@@ -416,7 +476,13 @@ class _OverlayAppState extends State<_OverlayApp> {
         position: oldPosition,
         frozen: oldFrozen,
       )..start();
-      final driver = OverlayPetDriver(controller, window);
+      // 平台連續拒絕搬視窗 = 懸浮被關掉了（插件的 closeOverlay 只 stopService，這個 isolate
+      // 還活著）→ 那一刻就是「收起來」，餓度要連旗標一起留檔，否則下次開回來會被補算成餓昏。
+      final driver = OverlayPetDriver(
+        controller,
+        window,
+        onStopped: () => unawaited(_stow(animalId, controller)),
+      );
       // 吃進去的計分點在 controller 抵達食物那一刻（不是丟食物那一刻），所以掛回調在這裡。
       // 只有懸浮掛 —— 預覽塊不掛，app 裡餵食不該養出親密度。
       controller.onFed = () {
@@ -424,21 +490,19 @@ class _OverlayAppState extends State<_OverlayApp> {
           unawaited(_saveBond(animalId, controller));
         }
       };
-      _watchPet(controller);
+      _watchPet(controller, animalId);
 
-      // 換動物時選單可能還開著：定時器要關（否則 6 秒後對新 controller 跑多餘的收尾），
-      // 選單視窗也要收掉（它顯示的是舊動物的飽食度）。
-      _menuTimer?.cancel();
-      _menuTimer = null;
-      unawaited(_hideMenuWindow());
+      // 換動物時選單可能還開著：定時器與選單視窗都要收（它顯示的是舊動物的飽食度）。
+      // 用 abort() 而不是 close()：新 controller 是全新的（沒被凍過），不需要還原。
+      _menu.abort();
 
       setState(() {
         _loadFailed = false;
-        _menuOpen = false;
         _stats = stats;
         _resource = resource;
         _definition = definition;
         _controller = controller;
+        _controllerAnimalId = animalId;
         _driver = driver;
       });
 
@@ -455,16 +519,23 @@ class _OverlayAppState extends State<_OverlayApp> {
 
   Future<void> _resizePetWindow() async {
     try {
-      await const OverlayWindow().resize(width: _petSize, height: _petSize);
-    } catch (_) {
-      // resize 失敗時仍保留初始視窗，避免畫面完全消失。
+      final resized = await _window.resize(width: _petSize, height: _petSize);
+      // resize 被平台擋掉時只是視窗尺寸不對，畫面不會消失 —— 但也不能無聲：
+      // 「視窗比寵物大/小一圈」這種事在 logcat 查不到就永遠只能靠使用者回報。
+      if (!resized) {
+        appError('resize 懸浮視窗失敗（$_petSize）：視窗尺寸可能與寵物不符',
+            StateError('resizeOverlay 回 false'));
+      }
+    } catch (e, st) {
+      // 失敗時仍保留初始視窗，避免畫面完全消失。
+      appError('resize 懸浮視窗失敗（$_petSize）：視窗尺寸可能與寵物不符', e, st);
     }
   }
 
   /// 讀視窗實際左上角；讀不到回 null，讓呼叫端決定退到哪裡（不能讓寵物因為讀不到座標就消失）
   Future<Offset?> _readWindowPosition() async {
     try {
-      return await const OverlayWindow().currentPosition();
+      return await _window.currentPosition();
     } catch (e, st) {
       appError('讀視窗位置失敗，寵物改用預設的畫面中央', e, st);
       return null;
@@ -473,7 +544,7 @@ class _OverlayAppState extends State<_OverlayApp> {
 
   Future<void> _moveWindowQuietly(Offset p) async {
     try {
-      await const OverlayWindow().moveTo(p);
+      await _window.moveTo(p);
     } catch (_) {
       // 對齊失敗不影響執行期：下一次位置變動 driver 會再搬一次
     }
@@ -483,29 +554,36 @@ class _OverlayAppState extends State<_OverlayApp> {
   ///
   /// 另外即時 push 給主 app（不節流）：stats notify 頻率本就低（1 點粒度＝最多
   /// 1 次/分鐘＋餵食＋跨門檻），主頁那行才能即時跟上，不用等 60s 落盤＋20s 輪詢。
-  void _watchPet(PetController controller) {
+  void _watchPet(PetController controller, String animalId) {
     controller.stats.addListener(() {
       _pushHunger(controller.stats.hunger);
       final now = DateTime.now();
       if (now.difference(_lastHungerSave) < _hungerSaveInterval) return;
-      _flushHunger(controller);
+      _flushHunger(controller, animalId: animalId);
     });
     // 位置由 overlay 存：只有這邊知道寵物在哪，主 app 只看得見視窗左上角（選單開著時那是
     // 選單的位置，比寵物高一大截）。而且不能只在「關閉那一刻」存 —— overlay 被主 app 直接
     // 關掉時這個 isolate 說沒就沒，dispose 裡的存盤未必趕得上，所以走動時就節流留檔。
-    controller.addListener(() => unawaited(_rememberPosition(controller.position)));
+    controller.addListener(
+        () => unawaited(_rememberPosition(controller.position, animalId: animalId)));
   }
 
   /// 存寵物位置（節流）。[force] 給「收選單」與「結束」這種確定要留檔的時刻。
-  Future<void> _rememberPosition(Offset p, {bool force = false}) async {
+  Future<void> _rememberPosition(Offset p, {String? animalId, bool force = false}) async {
+    final id = animalId ?? _controllerAnimalId;
+    if (id == null) return; // 還沒有動物掛上來，沒有「該寫誰」
     final now = DateTime.now();
     if (!force && !_positionThrottle.shouldSave(p, now)) return;
     _positionThrottle.didSave(p, now);
     await _writeWithRetry(
       'overlay 位置存盤失敗（下次開懸浮會回到舊位置）',
-      () => _settingsRepository.savePosition(p),
+      () => _settingsRepository.savePosition(id, p),
     );
   }
+
+  /// 目前這個 controller 屬於哪隻動物。**存盤要用它，不能讀 [_resource]** ——
+  /// 換動物的過程中 `_resource` 會先被換成新那隻，非同步的存盤就會寫到別隻的鍵上。
+  String? _controllerAnimalId;
 
   /// 餓度即時推給主 app（fire-and-forget；主 app 沒活著時沒人收，不影響執行期）
   void _pushHunger(double hunger) {
@@ -515,15 +593,27 @@ class _OverlayAppState extends State<_OverlayApp> {
     );
   }
 
-  void _flushHunger(PetController controller) {
+  void _flushHunger(PetController controller, {String? animalId}) {
+    final id = animalId ?? _controllerAnimalId;
+    if (id == null) return;
     _lastHungerSave = DateTime.now();
-    final hunger = controller.stats.hunger;
-    unawaited(_writeHungerQuietly(hunger));
+    unawaited(_writeHungerQuietly(id, controller.stats.hunger));
   }
 
-  Future<void> _writeHungerQuietly(double hunger) => _writeWithRetry(
+  Future<void> _writeHungerQuietly(String animalId, double hunger) => _writeWithRetry(
         'overlay 餓度存盤失敗（下次重開會回到舊值）',
-        () => _settingsRepository.saveHunger(hunger),
+        () => _settingsRepository.saveHunger(animalId, hunger),
+      );
+
+  /// 「收起來」：餓度留檔 + 標成不在螢幕上（收起來的寵物不餓 —— 人類的決定）。
+  ///
+  /// 三個時機：換寵物（`_loadAnimal`）、選單按結束（[_quitApp]）、以及懸浮被關掉但這個
+  /// isolate 還活著的時候（`OverlayPetDriver.onStopped`）。後兩個都可能在非同步路上發生，
+  /// 所以動物與 controller 由呼叫端**捕獲**傳進來不讀欄位 —— 讀欄位會在換寵物的空檔
+  /// 寫到別隻的鍵上。
+  Future<void> _stow(String animalId, PetController controller) => _writeWithRetry(
+        'overlay 收起來存盤失敗（下次開懸浮會把它當「還在跑」補算餓度）',
+        () => _settingsRepository.stow(animalId, hunger: controller.stats.hunger),
       );
 
   /// DB 寫入的共通防呆：主 app 與 overlay isolate 各開一條連線寫同一個 DB 檔，併發寫可能
@@ -547,68 +637,43 @@ class _OverlayAppState extends State<_OverlayApp> {
   /// 開選單：算好位置，請原生把**選單自己的視窗**開出來 —— 動物那個視窗完全不動，
   /// 所以不會再出現「resize 時 TextureView 把舊幀拉伸」那類閃爍（AGENTS.md 有記為什麼）。
   ///
-  /// 選單開著時把牠凍住（使用者的決定）。解凍只發生在 [_closeMenu]，所以任何按下去的
-  /// 動作都「先收選單、再執行」，否則 circle 這類要移動的會被暫停擋掉。
+  /// 凍住／解冻的配對在 [MenuDirector]：開不起來也一定會把寵物解開（以前這條路會把牠
+  /// 永久凍住，因為解凍被 `if (!_menuOpen) return` 擋掉了）。
   Future<void> _openMenu() async {
-    if (_menuOpen) return;
     final controller = _controller;
     if (controller == null) return; // 佔位畫面（載入失敗）沒有選單可開
-    _cancelIdleDragWatch(controller);
-    _driver?.setEnabled(false);
-    controller.setPaused(true);
-    const window = OverlayWindow();
     try {
-      // 開選單不能校準：[_roamFor] 會把視窗搬到螢幕角落量測再搬回來，那段內容還看得見，
-      // 動物就會瞬移到角落再回位。只用載入時已量好的快取；沒有就先退回 fallback。
-      final pos = await window.currentPosition();
-      final roam = _roam != null && _roamPetSize == _petSize
-          ? _roam!
-          : _metrics.fallbackRoam(_petSize);
-      final placement = placeMenuWindow(
-        petPos: pos,
-        petSize: _petSize,
-        roam: roam,
-        menuSize: kMenuWindowSize,
-      );
-      if (!mounted) return; // isolate 正在消失，凍不凍都沒差了
-      setState(() => _menuOpen = true);
-      await _menuChannel.invokeMethod('showMenu', {
-        'x': placement.topLeft.dx,
-        'y': placement.topLeft.dy,
-        'width': kMenuWindowSize.width,
-        'height': kMenuWindowSize.height,
-        'payload': _menuPayload(controller).encode(),
-      });
+      await _menu.open(() => _showMenuWindow(controller));
     } catch (e, st) {
-      // 上面任何一步失敗（讀不到視窗位置、原生端沒綁上、addView 被拒）
-      // 都要把牠解開 —— 留著「選單沒出來、寵物卻被凍住」是最坑的狀態。
+      // 讀不到視窗位置、原生端沒綁上、addView 被拒…… 都要留痕（logcat 是唯一支持管道）
       appError('選單視窗開不起來', e, st);
-      await _closeMenu();
-      return;
     }
-    _armMenuTimer();
   }
 
-  /// 收選單：關視窗 + 解冻 + 留檔。
-  ///
-  /// **所有**關閉路徑都要走這裡（按選項、點選單外面、6 秒逾時、拖曳、換動物、dispose），
-  /// 繞過它就會留下「選單不見了但寵物還被凍著」這種狀態。
-  Future<void> _closeMenu() async {
-    if (!_menuOpen) return;
-    _menuTimer?.cancel();
-    _menuTimer = null;
-    setState(() => _menuOpen = false);
-    _controller?.setPaused(false);
-    unawaited(_hideMenuWindow());
-    final restorePos = _controller?.position;
-    if (restorePos != null) unawaited(_rememberPosition(restorePos, force: true));
-    _driver?.setEnabled(true);
-    // 選單開著時 _applySettings 可能把 _roam 設成 fallbackRoam（未校準）：未校準的才清掉
-    // （下次開選單／載入重新量真實範圍，A-4b）；實測值保留 —— 重新量會把視窗搬到兩個角落。
-    if (!_roamCalibrated) {
-      _roam = null;
-      _roamPetSize = null;
-    }
+  /// 算好擺位並請原生把選單視窗開出來。任何一步丟例外都代表「沒開成」，
+  /// 由 [MenuDirector.open] 負責把寵物解開。
+  Future<void> _showMenuWindow(PetController controller) async {
+    final window = _window;
+    // 開選單不能校準：[_roamFor] 會把視窗搬到螢幕角落量測再搬回來，那段內容還看得見，
+    // 動物就會瞬移到角落再回位。只用載入時已量好的快取；沒有就先退回 fallback。
+    final pos = await window.currentPosition();
+    final roam = _roam != null && _roamPetSize == _petSize
+        ? _roam!
+        : _metrics.fallbackRoam(_petSize);
+    final placement = placeMenuWindow(
+      petPos: pos,
+      petSize: _petSize,
+      roam: roam,
+      menuSize: kMenuWindowSize,
+    );
+    if (!mounted) throw StateError('overlay 正在消失，不開選單');
+    await _menuChannel.invokeMethod('showMenu', {
+      'x': placement.topLeft.dx,
+      'y': placement.topLeft.dy,
+      'width': kMenuWindowSize.width,
+      'height': kMenuWindowSize.height,
+      'payload': _menuPayload(controller).encode(),
+    });
   }
 
   Future<void> _hideMenuWindow() async {
@@ -619,38 +684,9 @@ class _OverlayAppState extends State<_OverlayApp> {
     }
   }
 
-  void _armMenuTimer() {
-    _menuTimer?.cancel();
-    _menuTimer = Timer(_menuTimeout, () => unawaited(_closeMenu()));
-  }
-
-  /// 選單 isolate 的點擊（經原生轉過來，見 MenuOverlay.kt 的 forwardToPet）。
-  /// 走原生而不繞主 app：使用者劃掉 app 介面後寵物還在跑，那時候主 app isolate 已經沒了。
-  void _onMenuCommand(dynamic arguments) {
-    if (!_menuOpen) return; // 逾時／點外面已經先收掉了，遲到的指令丟掉
-    final action = _actionOf(arguments);
-    if (action == null) return;
-    if (action == 'interact') {
-      _armMenuTimer(); // 有在按就別自己關
-      return;
-    }
-    unawaited(_runMenuAction(action));
-  }
-
-  static String? _actionOf(dynamic arguments) {
-    if (arguments is! String) return null;
-    try {
-      final map = jsonDecode(arguments);
-      if (map is! Map) return null;
-      final action = map['action'];
-      return action is String ? action : null;
-    } catch (_) {
-      return null;
-    }
-  }
-
-  Future<void> _runMenuAction(String action) async {
-    await _closeMenu(); // 順序不能反：先解凍，動作才動得了
+  /// 選單按下去之後要做的事（[MenuDirector] 已經先把選單收掉、寵物解凍了，
+  /// 順序不能反：不解凍，circle 這種要移動的會被暫停擋掉）。
+  void _runMenuAction(String action) {
     switch (action) {
       case 'feed':
         _feedNow();
@@ -668,13 +704,6 @@ class _OverlayAppState extends State<_OverlayApp> {
     }
   }
 
-  void _toggleFreeze() {
-    final controller = _controller;
-    if (controller == null) return;
-    controller.setFrozen(!controller.frozen);
-    _flushHunger(controller);
-  }
-
   /// 動作格的名字就是 [PetBehavior.name]（兩側共用 [kFlourishBehaviors]，不各寫一份清單）
   static PetBehavior? _flourishOf(String name) {
     for (final behavior in kFlourishBehaviors) {
@@ -683,7 +712,14 @@ class _OverlayAppState extends State<_OverlayApp> {
     return null;
   }
 
-  /// 選單那份快照：文字在這裡就翻好（選單 isolate 不讀 arb、不碰 DB、沒有 PetController），
+  void _toggleFreeze() {
+    final controller = _controller;
+    if (controller == null) return;
+    controller.setFrozen(!controller.frozen);
+    _flushHunger(controller);
+  }
+
+  /// 選單那份快照：文字在這裡就翻好（選單 isolate 不讀 DB、沒有 PetController），
   /// icon 則由選單那側自己帶。選單只活 6 秒，所以是快照不是即時同步。
   MenuPayload _menuPayload(PetController controller) {
     final l10n = _l10n;
@@ -693,7 +729,6 @@ class _OverlayAppState extends State<_OverlayApp> {
       hunger: controller.stats.hunger,
       hungryThreshold: controller.stats.hungryThreshold,
       bondValue: controller.stats.bondValue.round(),
-      frozen: controller.frozen,
       labels: {
         if (l10n != null)
           ...{
@@ -709,6 +744,8 @@ class _OverlayAppState extends State<_OverlayApp> {
             PetBehavior.hop.name: l10n.menuActionHop,
             PetBehavior.stretch.name: l10n.menuActionStretch,
             PetBehavior.circle.name: l10n.menuActionCircle,
+            PetBehavior.beg.name: l10n.menuActionBeg,
+            PetBehavior.faint.name: l10n.menuActionFaint,
           },
       },
     );
@@ -748,7 +785,9 @@ class _OverlayAppState extends State<_OverlayApp> {
     final animalId = _resource?.animalId;
     final asset = animalId == null ? null : touchSoundFor(animalId);
     if (asset == null) return;
-    unawaited(_sound.play(asset));
+    // 餓昏時低沉一點（同一聲喵，聽起來在委屈）。倍速失敗不影響寵物本身（play 內部已吞例外）。
+    final starving = _controller?.stats.isStarving ?? false;
+    unawaited(_sound.play(asset, rate: starving ? 0.85 : 1.0));
   }
 
   /// 親密度落盤。一天最多 +16 分（PetBond 的額度），寫盤頻率天生就低，不必節流。
@@ -765,12 +804,17 @@ class _OverlayAppState extends State<_OverlayApp> {
     // 存位置一定要在送 quit 之前：主 app 一收到 quit 就關服務，存盤還在飛會被中斷
     try {
       final p = _controller?.position ??
-          await const OverlayWindow().currentPosition().timeout(const Duration(milliseconds: 500));
+          await _window.currentPosition().timeout(const Duration(milliseconds: 500));
       await _rememberPosition(p, force: true).timeout(const Duration(milliseconds: 500));
+      final stowController = _controller;
+      final stowId = _controllerAnimalId;
+      if (stowController != null && stowId != null) {
+        await _stow(stowId, stowController).timeout(const Duration(milliseconds: 500));
+      }
     } catch (_) {}
     unawaited(FlutterOverlayWindow.shareData(jsonEncode({'cmd': 'quit'})).catchError((_) {}));
     try {
-      await const OverlayWindow().close();
+      await _window.close();
     } catch (_) {}
   }
 
@@ -845,7 +889,7 @@ class _OverlayAppState extends State<_OverlayApp> {
       // 拖完位置還在 PetController 手上，而且會被 zone 夾住，拖不進禁區。
       onPanDown: (_) {
         // 選單是另一個視窗，拖著寵物走它會留在原地跟寵物脫節 → 直接收掉（最簡單的處理）
-        if (_menuOpen) unawaited(_closeMenu());
+        if (_menu.isOpen) unawaited(_menu.close());
         _startDragWatch(controller);
       },
       // 原生拖曳開始時插件會取消 Flutter 的手勢，不能在這裡結束拖曳（由輪詢判定）
@@ -860,6 +904,7 @@ class _OverlayAppState extends State<_OverlayApp> {
             loader: _loader,
             displayWidth: _petSize,
             displayHeight: _petSize,
+            starving: controller.stats.isStarving,
           ),
         ),
       ),
@@ -870,9 +915,8 @@ class _OverlayAppState extends State<_OverlayApp> {
   void dispose() {
     unawaited(_eventSub?.cancel());
     _eventSub = null;
-    _menuTimer?.cancel();
-    // 寵物這側沒了，選單那顆視窗不能留在螢幕上（6 秒後它也會自己關，但別留著讓人按）
-    unawaited(_hideMenuWindow());
+    // 寵物這側沒了，選單那顆視窗與它的定時器都不能留在螢幕上
+    _menu.abort();
     _loadSeq++; // 讓還在飛的載入流程全部作廢（它們回來時只會看到過期的顺序號）
     _dragTimer?.cancel();
     _driver?.dispose();

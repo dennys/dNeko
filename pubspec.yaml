@@ -25,6 +25,16 @@ dependencies:
   flutter_overlay_window: 1.0.2
   package_info_plus: ^10.2.2
   audioplayers: ^6.8.1
+  # ---- Windows 桌寵版（2026-11-17）----
+  # 只在 Windows 那側用到（見 lib/platform/windows/、WINDOWS.md）。選單疊在同一顆視窗裡，
+  # 所以不需要第二個 window 套件；also 不用 flutter_overlay_window（它是 Android only）。
+  # 版本刻意停在「自带 C++、不拖 nativeapi 核心」的那一版：裝的機器只要 VS 2022 C++ 工作負載，
+  # 少一個原生依賴就少一種編譯不了的姿勢。
+  window_manager: 0.5.2
+  tray_manager: 0.5.2
+  # sqflite 沒有 Windows 實作（只有 Android/iOS/macOS）→ 桌面改用 FFI 後端。
+  # 開檔點只有一處（pet_database.openPetDatabase），兩張表的 DDL 不會分岔。
+  sqflite_common_ffi: ^2.4.7
 
 dependency_overrides:
   # Linux/aarch64 主機：Google 不發 linux-arm64 主機的 cmake/NDK（x86-64 版執行會報
@@ -47,6 +57,7 @@ flutter:
   generate: true # 啟用 ARB → AppLocalizations 產生
   uses-material-design: true # 打包 MaterialIcons 字型；缺了 Icons.* 全部變成缺字方框
   assets:
+    - assets/images/
     - assets/animals/cat/
     - assets/animals/cat2/
     - assets/animals/dog/

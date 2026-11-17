@@ -16,6 +16,8 @@
   "menuActionHop": "跳跳",
   "menuActionStretch": "伸懒腰",
   "menuActionCircle": "转圈追尾",
+  "menuActionBeg": "讨食拜拜",
+  "menuActionFaint": "饿昏装死",
   "overlayRunning": "正在屏幕上运行",
   "overlayIdle": "已关闭",
   "settingsLanguage": "语言",
@@ -33,6 +35,7 @@
   "settingsSize": "大小",
   "settingsHunger": "餓的門檻",
   "settingsZone": "活動範圍",
+  "settingsBottomBand": "下方区域高度（仅下方时）",
   "settingsSound": "摸一下会叫",
   "settingsAnimal": "寵物",
   "zoneFullScreen": "全螢幕",
@@ -43,11 +46,28 @@
   "zoneBottomRight": "右下角",
   "overlayStart": "啟動桌寵",
   "overlayStop": "關閉桌寵",
+  "@overlayShow": {
+    "description": "System tray menu: show the floating pet"
+  },
+  "overlayShow": "显示宠物",
+  "@overlayHide": {
+    "description": "System tray menu: hide the floating pet (hunger is frozen)"
+  },
+  "overlayHide": "隐藏宠物",
+  "@overlayClickThroughOn": {
+    "description": "System tray: let mouse clicks pass through the pet"
+  },
+  "overlayClickThroughOn": "鼠标穿透：开",
+  "@overlayClickThroughOff": {
+    "description": "System tray: the pet receives mouse clicks again"
+  },
+  "overlayClickThroughOff": "鼠标穿透：关",
   "overlayStarting": "啟動中…",
   "overlayStopping": "關閉中…",
   "overlayFailed": "改變懸浮視窗失敗：{message}",
   "overlayPermissionDenied": "沒有取得懸浮視窗權限",
   "animalCat": "小花猫",
+  "animalCat2": "阿咪",
   "animalDog": "小狗",
   "animalPenguin": "小企鹅",
   "animalFox": "小狐狸",

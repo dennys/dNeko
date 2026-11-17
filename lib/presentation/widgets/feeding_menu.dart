@@ -6,15 +6,10 @@ class FeedingMenuTile {
   final String label;
   final VoidCallback onTap;
 
-  /// false = 變灰且按了沒反應（定格時 `PetController.playFlourish` 會靜默丟掉小動作；
-  /// 與其讓使用者按了以為壞掉，不如一眼看出現在不能按）
-  final bool enabled;
-
   const FeedingMenuTile({
     required this.icon,
     required this.label,
     required this.onTap,
-    this.enabled = true,
   });
 }
 
@@ -24,13 +19,14 @@ class FeedingMenu extends StatelessWidget {
   static const double contentWidth = 184;
   static const double _tileWidth = contentWidth / 2;
   static const double _tileHeight = 52;
-  static const int _gridRows = 3;
+  static const int _gridRows = 4; // 8 格 = 4 行 × 2 欄（與 kFlourishBehaviors 同長度）
 
   /// 底部那行小字的區塊高度
   static const double _footnoteHeight = 18;
 
-  /// Card 內容高度（5 列 × 44 + 分隔線 + 3 行網格 + 分隔線 + 小字 + 上下 padding）；
-  /// 選單視窗高度由它算出來（`menu_main.kMenuWindowSize`），改這行視窗會跟著變。
+  /// Card 內容高度（5 列 × 44 + 分隔線 + 4 行網格 + 分隔線 + 小字 + 上下 padding）；
+  /// 選單視窗高度由它算出來（`menu_main.kMenuWindowSize`），改這行視窗會跟著變
+  /// （`test/feeding_menu_test.dart` 會驗 overflow）。
   static const double contentHeight =
       5 * 44 + 1 + _gridRows * _tileHeight + 1 + _footnoteHeight + 16;
 
@@ -45,7 +41,7 @@ class FeedingMenu extends StatelessWidget {
   final VoidCallback onClose;
   final VoidCallback onQuit;
 
-  /// 動作網格（必須正好 6 格，對應 contentHeight 的 3 行 × 2 欄）
+  /// 動作網格（必須正好 `_gridRows * 2` 格，對應 contentHeight 算出來的行數）
   final List<FeedingMenuTile> tiles;
 
   /// 任一列被按到时通知外面（用來重置自動關閉計時器）
@@ -105,7 +101,6 @@ class FeedingMenu extends StatelessWidget {
                     _GridTile(
                       icon: tile.icon,
                       label: tile.label,
-                      enabled: tile.enabled,
                       onTap: () => tap(tile.onTap),
                     ),
                 ],
@@ -146,21 +141,18 @@ class _GridTile extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
-  final bool enabled;
 
   const _GridTile({
     required this.icon,
     required this.label,
     required this.onTap,
-    this.enabled = true,
   });
 
   @override
   Widget build(BuildContext context) {
-    final base = Theme.of(context).colorScheme.onSurface;
-    final fg = enabled ? base : base.withValues(alpha: 0.35);
+    final fg = Theme.of(context).colorScheme.onSurface;
     return InkWell(
-      onTap: enabled ? onTap : null,
+      onTap: onTap,
       child: SizedBox(
         width: FeedingMenu._tileWidth,
         height: FeedingMenu._tileHeight,

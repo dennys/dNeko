@@ -3,7 +3,8 @@ analyzer:
     - build/**
     - android/**
     - ios/**
-    - packages/** # 本地 fork 插件原樣複製,不替上游修 lint(見 AGENTS.md)
+    - packages/** # 目前樹裡沒有本地 fork（見 AGENTS.md）；哪天再 fork 進 packages/，不替上游修 lint
+    - windows/**
 include: package:flutter_lints/flutter.yaml
 
 linter:

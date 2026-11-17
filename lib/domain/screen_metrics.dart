@@ -42,6 +42,40 @@ class ScreenMetrics {
     );
   }
 
+  /// 依區域設定算出可漫遊範圍。[roam] 是**實測**出的視窗頂端座標可達範圍
+  /// （已含狀態列/導航列的影響），[petSize] 為寵物視窗邊長。
+  /// 全案只有這一處決定牠能去哪，邊緣行為/隨機目標/clamp 全部吃這個 Rect。
+  ///
+  /// 收進類別是因為「僅下方」那條要拿**螢幕高**換算（見 [bottomBandFraction] 的定義）。
+  /// 帶比寵物還矮時厚度收斂到 0 → 牠就貼在最底下坐著（可預期，不會算出負 Rect）。
+  Rect zoneBounds(
+    Rect roam,
+    double petSize,
+    PetZone zone, {
+    double bottomBandFraction = PetSettings.defaultBottomBandFraction,
+  }) {
+    if (zone == PetZone.fullScreen) return roam;
+
+    if (zone == PetZone.bottomBand) {
+      // 可見帶高 = 厚度 + 視窗邊長（[roam] 給的是左上角可行域），所以減一個 petSize
+      final thickness =
+          (logicalSize.height * bottomBandFraction - petSize).clamp(0.0, roam.height).toDouble();
+      return Rect.fromLTRB(roam.left, roam.bottom - thickness, roam.right, roam.bottom);
+    }
+
+    // 四角維持「寵物大小的一塊」：那幾個的語意就是角落一塊，改成螢幕比例會變成怪長方形
+    final side = petSize * PetSettings.zoneSizeFactor;
+    final w = side.clamp(0.0, roam.width).toDouble();
+    final h = side.clamp(0.0, roam.height).toDouble();
+    return switch (zone) {
+      PetZone.topLeft => Rect.fromLTWH(roam.left, roam.top, w, h),
+      PetZone.topRight => Rect.fromLTWH(roam.right - w, roam.top, w, h),
+      PetZone.bottomLeft => Rect.fromLTWH(roam.left, roam.bottom - h, w, h),
+      PetZone.bottomRight => Rect.fromLTWH(roam.right - w, roam.bottom - h, w, h),
+      _ => roam,
+    };
+  }
+
   Map<String, dynamic> toJson() => {
         'width': logicalSize.width,
         'height': logicalSize.height,
@@ -57,33 +91,7 @@ class ScreenMetrics {
       );
 }
 
-/// 依區域設定算出可漫遊範圍。[roam] 是**實測**出的視窗頂端座標可達範圍
-/// （已含狀態列/導航列的影響），[petSize] 為寵物視窗邊長。
-/// 全案只有這一處決定牠能去哪，邊緣行為/隨機目標/clamp 全部吃這個 Rect。
-Rect zoneBounds(Rect roam, double petSize, PetZone zone) {
-  if (zone == PetZone.fullScreen) return roam;
 
-  final side = petSize * PetSettings.zoneSizeFactor;
-
-  if (zone == PetZone.bottomBand) {
-    return Rect.fromLTRB(
-      roam.left,
-      (roam.bottom - side).clamp(roam.top, roam.bottom).toDouble(),
-      roam.right,
-      roam.bottom,
-    );
-  }
-
-  final w = side.clamp(0.0, roam.width).toDouble();
-  final h = side.clamp(0.0, roam.height).toDouble();
-  return switch (zone) {
-    PetZone.topLeft => Rect.fromLTWH(roam.left, roam.top, w, h),
-    PetZone.topRight => Rect.fromLTWH(roam.right - w, roam.top, w, h),
-    PetZone.bottomLeft => Rect.fromLTWH(roam.left, roam.bottom - h, w, h),
-    PetZone.bottomRight => Rect.fromLTWH(roam.right - w, roam.bottom - h, w, h),
-    _ => roam,
-  };
-}
 
 /// 主頁預覽塊的可漫遊範圍（**精靈左上角**可達的位置，與 `PetController` 的 `bounds` 同義）。
 ///

@@ -61,6 +61,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get menuActionCircle => 'Chase tail';
 
   @override
+  String get menuActionBeg => 'Beg!';
+
+  @override
+  String get menuActionFaint => 'Play dead!';
+
+  @override
   String get overlayRunning => 'Running on your screen';
 
   @override
@@ -113,6 +119,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsZone => 'Roaming area';
 
   @override
+  String get settingsBottomBand => 'Bottom band height (for \'bottom only\')';
+
+  @override
   String get settingsSound => 'Sound when touched';
 
   @override
@@ -143,6 +152,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get overlayStop => 'Stop Overlay';
 
   @override
+  String get overlayShow => 'Show Pet';
+
+  @override
+  String get overlayHide => 'Hide Pet';
+
+  @override
+  String get overlayClickThroughOn => 'Click-through: on';
+
+  @override
+  String get overlayClickThroughOff => 'Click-through: off';
+
+  @override
   String get overlayStarting => 'Starting...';
 
   @override
@@ -158,6 +179,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get animalCat => 'Cat';
+
+  @override
+  String get animalCat2 => 'Kitty';
 
   @override
   String get animalDog => 'Dog';
