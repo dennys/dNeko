@@ -125,3 +125,7 @@ app.*.symbols
 lib/generated/l10n/
 # 本機专用的依賴覆蓋（見檔內說明）
 pubspec_overrides.yaml
+
+# 素材已不在版控（2026-11-18 從 history 移除，瘦身 .git 用）：本機留檔才能 build，
+# 備份靠 pack.sh 另壓的 dNeko-assets-<日期>.zip。真要入版控：git add -f assets/
+assets/
