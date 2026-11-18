@@ -17,6 +17,29 @@
 ---
 ---
 ---
+## 2026-11-18 第八輪：餓昏鬧騰補聲與拉長（beg / faint 第二版）
+
+**做了什麼**：討食／裝死從「無聲的 1.1/1.3 秒借用幀」變成「有叫聲的 5 秒演出」。
+
+| | |
+| ---- | ---- |
+| 叫聲 | `PetController.onHungerCry`（在 `_enter` 發，摸／選單／PetBrain 三條路一次接齊）→ `overlay_main._playHungerCry` 播**同一聲叫聲降倍速**（`hungerCryRate`：討食 0.75、裝死 0.6）。**沒新增任何音效檔**，`assets/` 仍然只有 meow/bark |
+| 時長 | `_begHold` 1100ms、`_faintHold` 1300ms → 都 **5 秒** |
+| 看得見 | 八隻動物都沒畫 `Beg`/`Faint` 的幀 → 借 sit 的兩格原本**與坐著完全一樣**（faint 借 sleep 更像在午睡）。現在由 `AnimalAnimator._motionFor` 疊程式化作動：討食一伏一伏地拜、裝死從站姿倒下後攤著。`faint` 的借幀從 `sleep` 改 `sit`（已經躺平的幀看不出在「倒」） |
+
+**為什麼不做成「持續到餵食為止」**（人類問的點）：餓昏的**持續**訊號已經是頭頂那顆求助氣泡（`HungerBubble` 只要在餓昏區就一直顯示），動作再釘死就會讓牠五秒、三十秒都不動 —— 讀起來像壞掉，而且可憐。AGENTS.md 把調性釘在「滑稽優先、不可憐、沒有死亡機制」，所以改成**短循環 + brain 高頻重抽**（餓昏時 beg 35%／faint 25%）。真要更誇張：把 `_begHold`/`_faintHold` 調大就好，一行的事。
+
+**為什麼不另做音效檔**：只有 cat2 有 beg/faint 的圖（還是 512×512、與其餘素材不同尺寸，見下），八隻裡有七隻連動畫都是借的 —— 為借來的演出配專屬叫聲是投資錯地方。降倍速是既有 `ISoundPlayer.play(rate:)` 就能做的事，零新資產、零 pubspec 改動。
+
+**素材那邊（未解，本次沒動）**：`assets/animals/cat2/` 的 `beg1-3.png`／`faint1-3.png` 是**孤兒圖** —— 512×512（其餘 256×256）、~310KB/張、`animation.json` 从沒宣告 `Beg`/`Faint`。所以 `test/asset_frames_test.dart` 有**兩條從這輪之前就紅**的：孤兒圖、各幀畫布尺寸不一致。要接就得重出 256 的圖（含腳底基線對齊 sit 的 y=223；beg 的內容高 205 vs sit 163、faint 三幀底部差 16px），**這是眼睛該判的事，不是盲改的**，所以留著。
+
+**驗收（本機 Linux/aarch64）**：`flutter analyze` 無警告；`flutter test` 297 條，除上面那兩條既有素材紅燈外全綠。
+新增/改寫測試：`onHungerCry` 三條路都響、不餓昏的動作不響；討食/裝死 3 秒還在演、5.2 秒收；借幀的討食會一直伏身、借幀的裝死倒下後姿勢不變、有專屬素材時不疊加；音效檔存在性改為**逐個內建動物掃**（以前寫死 `['cat','dog']`，新增一行音效卻忘放 mp3 不會紅）。
+**上機零次**：叫聲聽感（0.75/0.6 倍速要「低沉委屈」不是「卡帶」）、倒下的角度與落點（`_faintAngle`/`_faintDropFraction` 是盲調的）、以及 5 秒會不會太長 —— 這三件只有真機看得出來。
+
+**刻意沒做**：Windows 那側 `onTap` 寫死 `assets/sounds/touch.mp3`（檔案不存在、目錄沒進 pubspec、沒查 `soundEnabled`、沒查表 → 每次點擊靜默失敗）是**另一件事**，人類指示先放著；`WINDOWS.md` 第 68 行仍宣稱「單擊=摸（有音效）」，那行是錯的。
+
+---
 ## 2026-11-17 第七輪：Windows 桌寵版（第一版，**盲寫**）
 
 `flutter create --platforms=windows` 生出 runner，加 `lib/platform/`（平台開關 + Windows shell），

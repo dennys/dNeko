@@ -149,7 +149,10 @@ handler 收 `onOutsideTap` —— 沒有這一步，補丁只是把事件丟進�
 | 要知道的 | 在哪 |
 | ---- | ---- |
 | 餓昏線由餓線推導（`PetStats.starvingThresholdAt`：餓線→餓透之間的 60%，預設 84 分＝不餵 84 分鐘）。**別另設第二個門檻，也別寫死「門檻 × 1.6」** —— slider 拉到 70 以上就永遠餓昏不了 | `lib/domain/pet_stats.dart` |
-| 素材可以缺：`animation.json` 沒宣告 `Beg`/`Faint` 就自動借幀（`beg`→`sit`、`faint`→`sleep`）。**宣告了卻少圖**會被 `test/asset_frames_test.dart` 擋 | `AnimationDefinition._missingFrameAlias` |
+| 素材可以缺：`animation.json` 沒宣告 `Beg`/`Faint` 就自動借幀（**兩格都借 `sit`**；`faint` 刻意不借 `sleep` —— 已經躺平的幀看不出在裝死，而且餓昏時 brain 本來就不准睡）。**宣告了卻少圖**會被 `test/asset_frames_test.dart` 擋 | `AnimationDefinition._missingFrameAlias` |
+| 兩格各 **5 秒**（`_begHold`/`_faintHold`）。**不做成「持續到餵食為止」**：餓昏的持續訊號已經是頭頂那顆氣泡，動作再釘死就讓牠整個不動，讀起來像壞掉也可憐（調性是滑稽）。要更誇張就調這兩個數字，鬧的頻率由 `PetBrain` 的餓昏機率決定 | `PetController` |
+| **借幀時的「拜」與「倒」是 `AnimalAnimator` 疊的程式化作動**（`_motionFor`）：討食一伏一伏地拜（借的 sit 是 `loop: true`，會一直循環）、裝死前 55% 倒下去之後攤著（借幀的 faint 強制 `forward()`，否則會看到牠每秒重新站起來再倒）。**animation.json 一宣告 `Beg`/`Faint` 就自動停用這些疊加** —— 別把兩層同時開著（真素材在倒 + 又被轉 80 度）。守這三條的是 `test/animal_animator_test.dart` | `presentation/widgets/animal_animator.dart` |
+| 叫聲：**不另外做音效檔**。`PetController.onHungerCry` 在 `_enter` 進 beg/faint 時發（摸、選單、PetBrain 自己鬧三條路都過得來 → 只掛一個地方就不會漏），overlay 那側播**同一聲叫聲降倍速**（`hungerCryRate`：討食 0.75／裝死 0.6）。餓昏時摸牠不疊聲（叫聲已由回調播過）。沒音效的動物（下載的 + penguin/racoon/sloth/monkey）照樣無聲 —— 與摸牠一致 | `overlay_main._playHungerCry`、`animal_sound.dart` |
 | 選單 8 格 = `kFlourishBehaviors` ∪ `FeedingMenu._gridRows`，**兩處要一起改**（assert 會擋）。這兩格不分狀態永遠可按 —— 小孩不會等 84 分鐘才看到裝死 | `menu_payload.dart`、`feeding_menu.dart` |
 | 求助氣泡畫在**寵物框內**右上角：懸浮視窗只有寵物大小，畫到框外會被視窗裁掉。缺圖時 `_BubblePainter` 現畫一顆（同配色） | `presentation/widgets/hunger_bubble.dart` |
 | 出圖 prompt（含「允許道具」那段要接在主模板後面） | `ASSET_PROMPT.md` 第 9 節 |

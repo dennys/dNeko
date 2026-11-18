@@ -122,14 +122,25 @@ class PetController extends ChangeNotifier {
   static const Duration _affectionateHold = Duration(milliseconds: 1200);
   static const Duration _eatingHold = Duration(milliseconds: 900);
 
-  /// 餓昏那兩格：貼著素材長度 + 一幀緩衝（多出來的時間停在最後一幀會像壞掉）。
-  /// 素材是 beg 3 幀 × 260ms、faint 3 幀 × 300ms；借 sit／sleep 幀的動物也夠播。
-  static const Duration _begHold = Duration(milliseconds: 1100);
-  static const Duration _faintHold = Duration(milliseconds: 1300);
+  /// 餓昏那兩格：**不是**「播完就停」的一次性動作，是鬧給主人看的，所以給到 5 秒。
+  /// 不會乾等 5 秒：討食靠 [AnimalAnimator] 的程式化作動一直一伏一伏地拜（借來的 sit 幀是
+  /// loop:true），裝死則是倒下後就攤著不動 —— 靜止在那一格正是笑點，不是壞掉。
+  /// 素材齊了（animation.json 直接宣告 Beg／Faint）就由素材的 loop 決定循環與否。
+  ///
+  /// 不做成「持續到餵食為止」：餓昏的持續訊號已經是頭頂那顆求助氣泡（[HungerBubble] 只要在
+  /// 餓昏區就一直顯示），動作再釘死就會讓牠整個不動，讀起來像壞掉也可憐 —— 這玩意兒的調性
+  /// 是滑稽不是可憐（AGENTS.md）。要更誇張就把這兩個數字調大，鬧的頻率由 PetBrain 的餓昏機率決定。
+  static const Duration _begHold = Duration(seconds: 5);
+  static const Duration _faintHold = Duration(seconds: 5);
 
   /// 真的吃下一口時的回調。**只有懸浮會掛**：計分與存盤是 overlay 那側的事，
   /// 預覽塊是沙箱（不該因為在 app 裡餵兩口就悄悄養高某隻動物的親密度）。
   void Function()? onFed;
+
+  /// 開始討食／裝死時的回調（叫聲要不要播、用哪隻動物的聲音，是呼叫端的事）。
+  /// 與 [onFed] 同一套：**只有懸浮會掛**，預覽塊不掛。
+  /// 從 `_enter` 發，所以摸牠（[pet] 餓昏時進 beg）、選單那兩格、PetBrain 自己鬧全部都會響。
+  void Function(PetBehavior behavior)? onHungerCry;
 
   /// 撫摸：播撒嬌、站住 [_affectionateHold]。
   /// 定格時也能摸：撒嬌播完回到摸之前的姿勢，**不解除定格**，也不接跳跳。
@@ -493,6 +504,7 @@ class PetController extends ChangeNotifier {
     _target = target;
     _hold = hold;
     if (action != null) _action = action;
+    if (behavior == PetBehavior.beg || behavior == PetBehavior.faint) onHungerCry?.call(behavior);
     // 狀態換了就在這裡通知：`pet()` 這種「只換動作、位置不動」的入口如果交給呼叫端
     // 通知，按「撫摸」後會被 hold 擋住（2 秒內沒有任何 notify），撒嬌動畫根本不會出現。
     _notifyIfChanged();

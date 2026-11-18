@@ -489,8 +489,60 @@ void main() {
         final c = starving();
         c.pet();
         expect(c.action, AnimationAction.beg);
-        await tester.pump(const Duration(milliseconds: 1300)); // 超過 _begHold(1100)
+        await tester.pump(const Duration(milliseconds: 5200)); // 超過 _begHold(5s)
         expect(c.action, isNot(AnimationAction.hop));
+        c.dispose();
+      });
+
+      testWidgets('討食／裝死一鬧就是 5 秒（一秒就收會被讀成抽动，不像在討食）', (tester) async {
+        for (final behavior in [PetBehavior.beg, PetBehavior.faint]) {
+          final c = starving();
+          c.playFlourish(behavior);
+          final expected =
+              behavior == PetBehavior.beg ? AnimationAction.beg : AnimationAction.faint;
+          await tester.pump(const Duration(seconds: 3)); // 還在鬧
+          expect(c.action, expected, reason: '$behavior 3 秒就結束了');
+          await tester.pump(const Duration(milliseconds: 2200)); // 超過 5s
+          expect(c.action, isNot(expected), reason: '$behavior 超過 hold 還停在同一格');
+          c.dispose();
+        }
+      });
+
+      testWidgets('摸、選單、brain 三條路都會觸發 onHungerCry（叫聲只掛一個地方）', (tester) async {
+        final cried = <PetBehavior>[];
+
+        final touched = starving()..onHungerCry = cried.add;
+        touched.pet(); // 餓昏時摸牠 → 進 beg
+        expect(cried, [PetBehavior.beg]);
+        touched.dispose();
+
+        final fromMenu = starving()..onHungerCry = cried.add;
+        fromMenu.playFlourish(PetBehavior.faint);
+        expect(cried, [PetBehavior.beg, PetBehavior.faint]);
+        fromMenu.dispose();
+
+        final fromBrain = starving(brain: _RecordingBrain(PetBehavior.beg))
+          ..onHungerCry = cried.add;
+        fromBrain.beginDrag();
+        fromBrain.endDrag(); // brain 自己鬧的這條最容易漏
+        expect(cried.last, PetBehavior.beg);
+        fromBrain.dispose();
+      });
+
+      testWidgets('不餓昏的動作不會觸發 onHungerCry（撒嬌/跳跳不該聽起來在討食）', (tester) async {
+        final cried = <PetBehavior>[];
+        final c = PetController(
+          bounds: const Rect.fromLTWH(0, 0, 1000, 1000),
+          brain: _AlwaysIdleBrain(),
+          stats: PetStats(initialHunger: 5),
+          flourish: quietFlourish(),
+        )
+          ..start()
+          ..onHungerCry = cried.add;
+        c.pet();
+        c.playFlourish(PetBehavior.hop);
+        c.playFlourish(PetBehavior.doze);
+        expect(cried, isEmpty);
         c.dispose();
       });
 
@@ -514,7 +566,7 @@ void main() {
         c.playFlourish(PetBehavior.faint);
         expect(c.action, AnimationAction.faint);
         expect(c.frozen, isFalse, reason: '按選單是明確互動，跟餵食一樣先解定格');
-        await tester.pump(const Duration(milliseconds: 1500)); // 超過 _faintHold(1300)
+        await tester.pump(const Duration(milliseconds: 5200)); // 超過 _faintHold(5s)
         expect(c.action, isNot(AnimationAction.faint));
         c.dispose();
       });

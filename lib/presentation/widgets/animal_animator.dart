@@ -7,27 +7,54 @@ import '../../data/models/animal_resource.dart';
 import '../../data/services/animation_loader.dart';
 import 'hunger_bubble.dart';
 
-/// 沒有專用素材的小動作：在坐著的幀上加程式化動作。t 為控制器進度（0..1，一輪循環）。
-typedef _Motion = Widget Function(double t, Widget child);
+/// 沒有專用素材的小動作：在坐著的幀上加程式化動作。t 為控制器進度（0..1，一輪循環），
+/// height 是寵物顯示高度（logical px，需要按比例移動的動作用它，免得上調寵物尺寸就縮成一團）。
+typedef _Motion = Widget Function(double t, double height, Widget child);
 
 const double _hopHeight = 8;
 const double _wobbleAmplitude = 4;
 const double _nodAngle = 0.08;
 
-_Motion? _motionFor(AnimationAction action) => switch (action) {
-      AnimationAction.hop => (t, child) => Transform.translate(
+// 餓昏那兩格（借幀時的備援演出，素材到位就不會走到這裡）
+const double _begDip = 6; // 作揖的伏身量（重心向下，比 hop 的向上跳矮才像在拜）
+const double _begTilt = 0.07;
+const double _faintAngle = 1.4; // ≈80°，倒平但不要完全翻成一條線
+const double _faintDropFraction = 0.26; // 翻同時往下坐，才不會整個飄在半空
+const double _fallFraction = 0.55; // 一輪的前 55% 用來倒，之後就攤著不動
+
+_Motion? _motionFor(AnimationAction action, {required bool hasOwnFrames}) => switch (action) {
+      AnimationAction.hop => (t, _, child) => Transform.translate(
             offset: Offset(0, -_hopHeight * math.sin(t * 2 * math.pi).abs()),
             child: child,
           ),
-      AnimationAction.wobble => (t, child) => Transform.translate(
+      AnimationAction.wobble => (t, _, child) => Transform.translate(
             offset: Offset(_wobbleAmplitude * math.sin(t * 4 * math.pi), 0),
             child: child,
           ),
-      AnimationAction.doze => (t, child) => Transform.rotate(
+      AnimationAction.doze => (t, _, child) => Transform.rotate(
             angle: _nodAngle * math.sin(t * 2 * math.pi),
             child: child,
           ),
-      AnimationAction.lookAround => (t, child) => Transform.flip(flipX: t >= 0.5, child: child),
+      AnimationAction.lookAround => (t, _, child) => Transform.flip(flipX: t >= 0.5, child: child),
+      // 討食：一伏一伏地作揖，5 秒下來看起來就一直在拜（借的是 sit 那兩幀，loop:true）。
+      AnimationAction.beg when !hasOwnFrames => (t, _, child) => Transform.translate(
+            offset: Offset(0, _begDip * math.sin(t * 4 * math.pi).abs()),
+            child: Transform.rotate(
+              angle: _begTilt * math.sin(t * 2 * math.pi),
+              child: child,
+            ),
+          ),
+      // 裝死：前 55% 倒下去（越掉越快），之後就攤著 —— hold 剩下的時間停在「躺平」那一格，
+      // 那正是笑點。繞中心翻而不是繞腳翻：繞腳會把頭甩出寵物框，而懸浮視窗只有寵物大小
+      // （同一件事讓求助氣泡也必須畫在框內，見 hunger_bubble.dart）。
+      AnimationAction.faint when !hasOwnFrames => (t, height, child) {
+          final p = (t / _fallFraction).clamp(0.0, 1.0);
+          final fall = p * p;
+          return Transform.translate(
+            offset: Offset(0, _faintDropFraction * height * fall),
+            child: Transform.rotate(angle: _faintAngle * fall, child: child),
+          );
+        },
       _ => null,
     };
 
@@ -99,12 +126,20 @@ class _AnimalAnimatorState extends State<AnimalAnimator> with TickerProviderStat
 
     _controller.addListener(_onTick);
 
-    if (_frameAnim.loop) {
+    // 借幀裝死不能循環：借來的是 loop:true 的 sit 幀，一路 repeat 會變成「每秒重新倒一次」。
+    // 素材自己宣告了 Faint 就照素材的 loop（作者說循環就循環）。
+    final repeats = _frameAnim.loop && !(_borrowsFrames && widget.action == AnimationAction.faint);
+    if (repeats) {
       _controller.repeat();
     } else {
       _controller.forward();
     }
   }
+
+  /// 這個動作有沒有專屬素材（還是走 `_missingFrameAlias` 借來的幀）。
+  /// 借來的才需要程式化作動與上面的「裝死只播一次」；素材到位就由素材自己演，
+  /// 不能再疊一層（會變成「真素材在倒 + 又被轉 80 度」）。
+  bool get _borrowsFrames => !widget.definition.actions.containsKey(widget.action);
 
   void _onTick() {
     final totalFrames = _frameAnim.frames.length;
@@ -150,13 +185,13 @@ class _AnimalAnimatorState extends State<AnimalAnimator> with TickerProviderStat
 
     final child = mirrored ? Transform.flip(flipX: true, child: image) : image;
 
-    final motion = _motionFor(widget.action);
+    final motion = _motionFor(widget.action, hasOwnFrames: !_borrowsFrames);
     final pet = motion == null
         ? child
         : AnimatedBuilder(
             animation: _controller,
             child: child,
-            builder: (context, c) => motion(_controller.value, c!),
+            builder: (context, c) => motion(_controller.value, height, c!),
           );
     if (!widget.starving) return pet;
 

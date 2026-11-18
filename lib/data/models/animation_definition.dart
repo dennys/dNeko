@@ -89,10 +89,13 @@ class AnimalAnimationDefinition {
     AnimationAction.wobble: AnimationAction.sit,
     AnimationAction.hop: AnimationAction.sit,
     AnimationAction.stretch: AnimationAction.affectionate,
-    // 餓昏鬧騰那兩格：素材是「有就好」——沒畫的動物照樣演得出来（借坐著/睡覺的幀），
+    // 餓昏鬧騰那兩格：素材是「有就好」——沒畫的動物照樣演得出來（都借坐著的幀，由 AnimalAnimator
+    // 疊程式化作動：討食一伏一伏地拜、裝死從站姿倒下後攤著）。
+    // faint 刻意不借 sleep：那是「已經躺平、可能在打呼」，看不出在裝死，而且餓昏時 PetBrain
+    // 本來就不准睡（餓到這樣還睡不像話）；從站姿倒下才看得到「倒」這個動作。
     // 所以补新素材不用改代碼，也不會因為缺 action 而畫面空白。
     AnimationAction.beg: AnimationAction.sit,
-    AnimationAction.faint: AnimationAction.sleep,
+    AnimationAction.faint: AnimationAction.sit,
   };
 
   /// 解析 animation.json。任何一個欄位不對就丟 [FormatException]，

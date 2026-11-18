@@ -30,13 +30,14 @@ void main() {
       expect(def.getAction(AnimationAction.walkDownLeft)!.frames, ['walkdown1']);
     });
 
-    test('餓昏那兩格沒素材時借現成幀（beg→sit、faint→sleep），不會空白', () {
+    test('餓昏那兩格沒素材時都借坐著的幀（beg→sit、faint→sit），不會空白', () {
+      // faint 借 sleep 會被讀成在睡覺（不是裝死），所以兩格都從站姿起：討食是拜、裝死是倒下去。
       final def = AnimalAnimationDefinition.fromJson(
         jsonDecode(jsonEncode(_json(['Sit', 'Sleep']))) as Map<String, dynamic>,
       );
 
       expect(def.getAction(AnimationAction.beg)!.frames, ['sit1']);
-      expect(def.getAction(AnimationAction.faint)!.frames, ['sleep1']);
+      expect(def.getAction(AnimationAction.faint)!.frames, ['sit1']);
     });
 
     test('素材有 Beg 時用自己的，不被借幀蓋掉', () {

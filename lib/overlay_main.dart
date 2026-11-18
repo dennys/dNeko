@@ -490,6 +490,9 @@ class _OverlayAppState extends State<_OverlayApp> {
           unawaited(_saveBond(animalId, controller));
         }
       };
+      // 討食／裝死的叫聲：從 controller 發（摸、選單、PetBrain 自己鬧三條路都過得來），
+      // 掛在這裡而不是各處自己播，否則一定漏一條。
+      controller.onHungerCry = _playHungerCry;
       _watchPet(controller, animalId);
 
       // 換動物時選單可能還開著：定時器與選單視窗都要收（它顯示的是舊動物的飽食度）。
@@ -769,7 +772,8 @@ class _OverlayAppState extends State<_OverlayApp> {
     _cancelIdleDragWatch(controller);
     // 定格時 pet() 回 false（那一下根本沒反應）→ 不該計分，否則又是「做了沒反應卻偷偷漲」
     if (!controller.pet()) return;
-    _playTouchSound();
+    // 餓昏時 pet() 進去的是 beg → 叫聲已由 [onHungerCry] 播過，這裡再播一次會疊聲
+    if (!controller.stats.isStarving) _playTouchSound();
     if (controller.stats.awardPet(DateTime.now())) {
       // _controller 與 _resource 在同一個 setState 裡一起換（見 _loadAnimal 尾端），
       // 所以這裡的 id 必然就是這個 controller 所屬那隻動物的 id。
@@ -781,13 +785,20 @@ class _OverlayAppState extends State<_OverlayApp> {
 
   /// 撫摸叫聲：設定開著且這隻動物有音效才播
   void _playTouchSound() {
+    final animalId = _resource?.animalId;
+    final asset = animalId == null ? null : touchSoundFor(animalId);
+    if (asset == null || !_settings.soundEnabled) return;
+    unawaited(_sound.play(asset));
+  }
+
+  /// 討食／裝死的叫聲：同一聲叫聲壓低（不另外做音效檔）。沒音效的動物（下載的、以及
+  /// penguin/racoon/sloth/monkey）照樣無聲 —— 與摸牠一致，不會只有餓昏時才出聲。
+  void _playHungerCry(PetBehavior behavior) {
     if (!_settings.soundEnabled) return;
     final animalId = _resource?.animalId;
     final asset = animalId == null ? null : touchSoundFor(animalId);
     if (asset == null) return;
-    // 餓昏時低沉一點（同一聲喵，聽起來在委屈）。倍速失敗不影響寵物本身（play 內部已吞例外）。
-    final starving = _controller?.stats.isStarving ?? false;
-    unawaited(_sound.play(asset, rate: starving ? 0.85 : 1.0));
+    unawaited(_sound.play(asset, rate: hungerCryRate(behavior)));
   }
 
   /// 親密度落盤。一天最多 +16 分（PetBond 的額度），寫盤頻率天生就低，不必節流。
