@@ -60,8 +60,9 @@ dNeko 是 ANeko 風格的桌面寵物 App（Flutter / Android）。動物可在 
   overlay 的 Flutter view 是 `FlutterTextureView`，視窗一 resize 它就把舊尺寸的最後一幀拉伸到
   新邊框（錄影逐格有證據），開／關選單就會看到動物消失或跳位。2026-11-13 走過一次回頭路：
   resize 前先把那幀反縮（預先補償），純函式與往復測試都對，**真機體感沒改善** → 落選，
-  分支已砍。要撿回來：`git branch x 1f26574` —— 它未 merge、是**悬空 commit**，`git gc --prune`
-  之後就讀不到，要留就現在開 branch。驗收與教訓：`CHANGELOG.md` 2026-11-13 那幾條（原真機驗收單
+  分支已砍，而且那個 commit 現在**真的讀不到了**（2026-11-18 查：`git log 1f26574` 報 unknown
+  revision、`git fsck` 也無 unreachable 可救 —— 它不在任何 ref 上，history 重寫後徹底沖掉，
+  別再照以前的写法 `git branch x 1f26574`）。驗收與教訓：`CHANGELOG.md` 2026-11-13 那幾條（原真機驗收單
   `../DEVICE_TEST.md` 已於 2026-11-16 刪除 —— 它從頭到尾一項都沒打勾）。
 
 - 選單的開／關／6 秒逾時／指令派工住在 `presentation/controllers/menu_director.dart`（純狀態機，
@@ -186,6 +187,19 @@ handler 收 `onOutsideTap` —— 沒有這一步，補丁只是把事件丟進�
 - 這台 Linux/aarch64 開發機**編不了** Windows 目標，也看不到畫面：改 Windows 代碼後，能宣稱的只有
   「analyze/test 綠」＋（若動到共用檔）Android `build apk --debug` 過。**別把 Windows 寫成「已驗證」**。
 - 既有鐵律繼續成立：domain 層不得 import `flutter/material.dart`；字串進 arb；新逻辑留小測試。
+
+## 素材（assets）—— 不在版控裡
+
+2026-11-18 起 `assets/` 被 `.gitignore` 排除（瘦身 `.git`：11 MB → 1 MB；PNG 壓不起來，
+留在版控就永遠 8 MB）。對日常工作的意義：
+
+- 本機那 137 個檔案就是**唯一的一份**，只靠備份（`dNeko-assets-<日期>.zip`／`.tar.gz`，
+  由上層的 `pack.sh` 自動另壓）。誤刪了 `git checkout` **救不回來**；搬家要帶
+  「程式碼 zip ＋ 素材 zip」兩份。
+- 因此**新 clone 的 repo（沒素材）會直接 build 失敗**：
+  `Error: unable to find directory entry in pubspec.yaml: …/assets/animals/<name>/`（實測）。
+  先把素材解回 `assets/` 再編，不是 build 壞掉。
+- 單檔真的要入版控：`git add -f assets/<檔>`，別把整條 ignore 規則拿掉。
 
 ## 多國語言
 
